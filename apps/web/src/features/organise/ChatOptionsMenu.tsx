@@ -2,7 +2,7 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MoreVertical, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
-import { Modal, cn, useFocusTrap } from '@/components/ui';
+import { Modal, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
 import { useChatStore } from '../chat/useChatStore';
 import { LockModal } from './ChatLock';
 import { useLockStore } from './lock';
@@ -120,12 +120,21 @@ const WallpaperModal = ({
 
 type Dialog = 'mute' | 'wallpaper' | 'lock-set' | 'lock-remove';
 
-const Item = ({ onClick, children }: { onClick: () => void; children: ReactNode }) => (
+const Item = ({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean | undefined;
+  children: ReactNode;
+}) => (
   <button
     type="button"
     role="menuitem"
     onClick={onClick}
-    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none"
+    disabled={disabled}
+    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none disabled:opacity-40 max-sm:min-h-11"
   >
     {children}
   </button>
@@ -134,9 +143,12 @@ const Item = ({ onClick, children }: { onClick: () => void; children: ReactNode 
 export const ChatOptionsMenu = ({
   conversation,
   onSearch,
+  phoneItems = [],
 }: {
   conversation: ConversationSummary;
   onSearch: () => void;
+  /** Header actions that sit inline on desktop but fold into this menu on phones (`sm:hidden`). */
+  phoneItems?: readonly PopoverMenuItem[];
 }) => {
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -174,7 +186,7 @@ export const ChatOptionsMenu = ({
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary"
+        className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary max-sm:min-h-11 max-sm:min-w-11"
         aria-label="Chat options"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -193,6 +205,23 @@ export const ChatOptionsMenu = ({
             onKeyDown={onMenuKeyDown}
             className="glass-card absolute right-0 top-full z-40 mt-1 w-56 rounded-xl border border-base-content/10 p-1 shadow-xl"
           >
+            {phoneItems.length > 0 && (
+              <div className="sm:hidden">
+                {phoneItems.map((item) => (
+                  <Item
+                    key={item.label}
+                    disabled={item.disabled}
+                    onClick={act(() => item.onClick?.())}
+                  >
+                    <span className="flex items-center gap-3">
+                      {item.icon}
+                      {item.label}
+                    </span>
+                  </Item>
+                ))}
+                <hr className="my-1 border-base-content/10" />
+              </div>
+            )}
             <Item onClick={act(() => void updatePrefs(id, { pinned: !prefs.pinned }))}>
               {prefs.pinned ? 'Unpin chat' : 'Pin chat'}
             </Item>

@@ -5,10 +5,24 @@ import {
   type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react';
-import { Check, Eye, ImagePlus, Paperclip, Pencil, Reply, Send, Smile, X } from 'lucide-react';
+import {
+  BarChart3,
+  Check,
+  Eye,
+  ImagePlus,
+  Paperclip,
+  Pencil,
+  Plus,
+  Reply,
+  Send,
+  Smile,
+  Sticker,
+  X,
+} from 'lucide-react';
 import type { ConversationSummary, MessageContent, MessageRecord } from '@chat/contracts';
-import { cn, useFocusTrap } from '@/components/ui';
+import { PopoverMenu, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
 import { prepareImage } from '@/lib/imageCompress';
 import { SuggestReplies } from '@/features/ai/SuggestReplies';
@@ -143,6 +157,8 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [viewOnce, setViewOnce] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
+  const [showGifs, setShowGifs] = useState(false);
+  const [showPoll, setShowPoll] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -369,6 +385,48 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     }
   };
 
+  // Phones: the secondary composer actions fold into one "+" menu (the inline buttons are
+  // `max-sm:hidden`, the menu is `sm:hidden`); every handler is the same as the inline one.
+  const icon = (Icon: typeof Smile): ReactNode => <Icon className="size-5" aria-hidden="true" />;
+  const locked = Boolean(editing);
+  const plusItems: PopoverMenuItem[] = [
+    {
+      label: 'Emoji',
+      icon: icon(Smile),
+      onClick: () => {
+        setShowEmojis(true);
+      },
+    },
+    {
+      label: 'Photo or video',
+      icon: icon(ImagePlus),
+      disabled: locked,
+      onClick: () => imageInputRef.current?.click(),
+    },
+    {
+      label: 'File',
+      icon: icon(Paperclip),
+      disabled: locked,
+      onClick: () => fileInputRef.current?.click(),
+    },
+    {
+      label: 'GIFs and stickers',
+      icon: icon(Sticker),
+      disabled: locked || uploading,
+      onClick: () => {
+        setShowGifs(true);
+      },
+    },
+    {
+      label: 'Poll',
+      icon: icon(BarChart3),
+      disabled: locked || uploading,
+      onClick: () => {
+        setShowPoll(true);
+      },
+    },
+  ];
+
   const sendDisabled = uploading || (!text.trim() && (!attachment || Boolean(editing)));
   const title = conversationTitle(conversation);
   const replyAuthor =
@@ -514,13 +572,21 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         className="flex items-center gap-2"
         aria-label="Send a message"
       >
+        <PopoverMenu
+          label="More actions"
+          icon={<Plus className="size-6" aria-hidden="true" />}
+          items={plusItems}
+          up
+          alignLeft
+          className="sm:hidden"
+        />
         <button
           type="button"
           onClick={() => {
             setShowEmojis((v) => !v);
           }}
           className={cn(
-            'btn btn-circle btn-ghost btn-sm',
+            'btn btn-circle btn-ghost btn-sm max-sm:hidden',
             showEmojis ? 'text-primary' : 'text-base-content/60',
           )}
           aria-label="Insert emoji"
@@ -534,7 +600,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           type="button"
           onClick={() => imageInputRef.current?.click()}
           disabled={Boolean(editing)}
-          className="btn btn-circle btn-ghost btn-sm text-base-content/60"
+          className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
           aria-label="Attach photo or video"
         >
           <ImagePlus className="size-5" aria-hidden="true" />
@@ -543,7 +609,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={Boolean(editing)}
-          className="btn btn-circle btn-ghost btn-sm text-base-content/60"
+          className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
           aria-label="Attach file"
         >
           <Paperclip className="size-5" aria-hidden="true" />
@@ -557,7 +623,14 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           tabIndex={-1}
           aria-hidden="true"
         />
-        <ComposerExtras disabled={Boolean(editing) || uploading} onSend={sendContent} />
+        <ComposerExtras
+          disabled={Boolean(editing) || uploading}
+          onSend={sendContent}
+          gifs={showGifs}
+          onGifsChange={setShowGifs}
+          poll={showPoll}
+          onPollChange={setShowPoll}
+        />
         <input
           type="file"
           className="hidden"
@@ -585,13 +658,14 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           aria-controls={mention.open ? MENTION_LIST_ID : undefined}
           aria-activedescendant={mention.open ? mentionOptionId(mention.active) : undefined}
           aria-autocomplete="list"
-          className="input-soft flex-1"
+          // 16px on phones: iOS Safari zooms the page when a smaller field gets focus.
+          className="input-soft min-w-0 flex-1 max-sm:min-h-11 max-sm:text-base"
         />
 
         <button
           type="submit"
           disabled={sendDisabled}
-          className="btn-grad grid size-11 place-items-center rounded-full transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-grad grid size-11 place-items-center rounded-full max-sm:order-2 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={editing ? 'Save edit' : 'Send message'}
         >
           {editing ? (

@@ -8,7 +8,7 @@ export const HomePage = () => {
   const selected = useChatStore((s) => (s.selectedId ? s.conversations[s.selectedId] : undefined));
 
   return (
-    <main className="app-bg relative h-dvh-screen overflow-hidden pt-16">
+    <main className="app-bg relative h-dvh-screen overflow-hidden pt-[calc(4rem+env(safe-area-inset-top))]">
       <div className="blobs" aria-hidden="true" />
 
       <div className="relative mx-auto flex h-full max-w-7xl px-0 sm:px-4 sm:pb-4">
