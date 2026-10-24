@@ -8,6 +8,8 @@ import { CallLinkSection } from '@/features/groupcall/components/CallLinkSection
 import { uploadAttachment } from '../upload';
 import { useChatStore, type Member } from '../useChatStore';
 import { InviteLinkSection } from './InviteLinkSection';
+import { JoinRequestsSection } from './JoinRequestsSection';
+import { useContactInfo } from './useContactInfo';
 import { SharedTab } from './SharedTab';
 import { UserSearch } from './UserSearch';
 
@@ -43,6 +45,7 @@ export const GroupInfoModal = ({
   const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState<'info' | 'shared'>('info');
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const contact = useContactInfo();
   const [uploading, setUploading] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const isAdmin = conversation.my_role !== 'member';
@@ -215,11 +218,20 @@ export const GroupInfoModal = ({
                   const name = m.user.display_name;
                   return (
                     <li key={m.user.id} className="flex items-center gap-2 rounded-xl p-2">
-                      <Avatar src={m.user.avatar_url} name="" size="xs" />
-                      <span className="min-w-0 flex-1 truncate font-semibold">
-                        {name}
-                        {isMe ? ' (you)' : ''}
-                      </span>
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        aria-label={`View ${name}'s profile`}
+                        onClick={() => {
+                          contact.open(m.user);
+                        }}
+                      >
+                        <Avatar src={m.user.avatar_url} name="" size="xs" />
+                        <span className="min-w-0 flex-1 truncate font-semibold">
+                          {name}
+                          {isMe ? ' (you)' : ''}
+                        </span>
+                      </button>
                       {m.role !== 'member' && (
                         <span className="chip text-xs" data-role={m.role}>
                           {ROLE_LABEL[m.role]}
@@ -308,6 +320,7 @@ export const GroupInfoModal = ({
             </section>
           )}
 
+          {isAdmin && <JoinRequestsSection conversationId={id} />}
           {isAdmin && <InviteLinkSection conversationId={id} />}
           {isAdmin && <CallLinkSection conversationId={id} />}
 
@@ -349,6 +362,7 @@ export const GroupInfoModal = ({
           )}
         </>
       )}
+      {contact.dialog}
     </Modal>
   );
 };

@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ArrowLeft, Bookmark, Info, Phone, Sparkles, Timer, Users, Video, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, type PopoverMenuItem } from '@/components/ui';
@@ -11,7 +11,7 @@ import { conversationAvatar, conversationTitle, presenceLabel } from '../convers
 import { useChatStore } from '../useChatStore';
 import { DisappearingDialog, DisappearingMenu } from '@/features/content/DisappearingMenu';
 import { timerLabel } from '@/features/content/disappearing';
-import { ProfilePopup } from '@/features/profile/ProfilePopup';
+import { useContactInfo } from './useContactInfo';
 import { GroupInfoModal } from './GroupInfoModal';
 
 export const ChatHeader = ({ conversation }: { conversation: ConversationSummary }) => {
@@ -26,7 +26,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
   const [searchOpen, setSearchOpen] = useState(false);
   const [flickOpen, setFlickOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const contact = useContactInfo();
 
   const title = conversationTitle(conversation);
   const isGroup = conversation.type === 'group';
@@ -107,47 +107,51 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           <ArrowLeft className="size-5" aria-hidden="true" />
         </button>
 
-        {conversation.is_saved ? (
-          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
-            <Bookmark className="size-5" aria-hidden="true" />
-          </span>
-        ) : (
-          <Avatar
-            src={conversationAvatar(conversation)}
-            name=""
-            size="sm"
-            online={Boolean(presence?.online)}
-            imgClassName="ring-2 ring-primary/20 shadow-sm"
-          />
-        )}
+        {/* In a direct chat, the avatar and name open the person's profile. */}
+        {(() => {
+          const identity = (
+            <>
+              {conversation.is_saved ? (
+                <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+                  <Bookmark className="size-5" aria-hidden="true" />
+                </span>
+              ) : (
+                <Avatar
+                  src={conversationAvatar(conversation)}
+                  name=""
+                  size="sm"
+                  online={Boolean(presence?.online)}
+                  imgClassName="ring-2 ring-primary/20 shadow-sm"
+                />
+              )}
 
-        {/* A direct chat's name opens that person's profile (about, last seen). */}
-        <div
-          className={`min-w-0 ${peer ? 'cursor-pointer' : ''}`}
-          {...(peer
-            ? {
-                role: 'button',
-                tabIndex: 0,
-                'aria-label': `View ${title}'s profile`,
-                onClick: () => {
-                  setProfileOpen(true);
-                },
-                onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setProfileOpen(true);
-                  }
-                },
-              }
-            : {})}
-        >
-          <h2 className="truncate font-display text-base font-bold tracking-tight">{title}</h2>
-          <p
-            className={`truncate text-sm ${busy ? 'font-medium text-primary' : 'text-base-content/60'}`}
-          >
-            {subtitle}
-          </p>
-        </div>
+              <div className="min-w-0">
+                <h2 className="truncate font-display text-base font-bold tracking-tight">
+                  {title}
+                </h2>
+                <p
+                  className={`truncate text-sm ${busy ? 'font-medium text-primary' : 'text-base-content/60'}`}
+                >
+                  {subtitle}
+                </p>
+              </div>
+            </>
+          );
+          return peer ? (
+            <button
+              type="button"
+              onClick={() => {
+                contact.open(peer);
+              }}
+              className="flex min-w-0 items-center gap-3 text-left"
+              aria-label={`View ${title}'s profile`}
+            >
+              {identity}
+            </button>
+          ) : (
+            identity
+          );
+        })()}
       </div>
 
       <div className="flex items-center gap-1">
@@ -231,16 +235,6 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
         </button>
       </div>
 
-      {peer && (
-        <ProfilePopup
-          user={peer}
-          open={profileOpen}
-          onClose={() => {
-            setProfileOpen(false);
-          }}
-        />
-      )}
-
       <DisappearingDialog
         conversation={conversation}
         open={timerOpen}
@@ -264,6 +258,8 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           setFlickOpen(false);
         }}
       />
+
+      {contact.dialog}
 
       {isGroup && (
         <GroupInfoModal
