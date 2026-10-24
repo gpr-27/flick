@@ -66,7 +66,8 @@ export const VoicePlayer = ({
   if (failed) return <p className="text-sm italic opacity-70">Voice message unavailable</p>;
 
   return (
-    <div className="flex w-60 items-center gap-2">
+    // min-w-0 lets the waveform shrink, so the time and speed always keep their room on the right.
+    <div className="flex w-full min-w-0 max-w-64 items-center gap-2">
       {url ? (
         <button
           type="button"
@@ -83,8 +84,10 @@ export const VoicePlayer = ({
       ) : (
         <Spinner size="sm" label="Loading voice message" />
       )}
-      <Waveform samples={waveform} progress={progress} />
-      <span className="text-xs tabular-nums">{formatClock(durationMs)}</span>
+      <div className="flex min-w-0 flex-1">
+        <Waveform samples={waveform} progress={progress} />
+      </div>
+      <span className="shrink-0 text-xs tabular-nums">{formatClock(durationMs)}</span>
       <button
         type="button"
         onClick={cycleSpeed}

@@ -179,6 +179,43 @@ describe('users', () => {
     expect(res.body.items.map((u: { username: string }) => u.username)).toEqual(['victor']);
   });
 
+  it('lists everyone A to Z by name, in pages, and hides blocked people from the list', async () => {
+    // Fresh names so this does not depend on the other tests (they share one database).
+    for (const name of ['dir_bea', 'dir_ada', 'dir_cy']) await call(name, 'GET', '/users/me');
+    const ada = (await call('dir_ada', 'GET', '/users/me')).body as {
+      id: string;
+      display_name: string;
+    };
+    const cy = (await call('dir_cy', 'GET', '/users/me')).body as {
+      id: string;
+      display_name: string;
+    };
+    await call('dir_bea', 'POST', '/blocks', { body: { user_id: cy.id } });
+
+    // One page of 2, then the rest: together they are the whole list in name order.
+    type Page = { items: { display_name: string }[]; next_cursor: string | null };
+    const first = await call('dir_bea', 'GET', '/users/directory?limit=2');
+    const page1 = first.body as Page;
+    expect(first.status).toBe(200);
+    expect(page1.next_cursor).not.toBeNull();
+    const second = await call(
+      'dir_bea',
+      'GET',
+      `/users/directory?limit=2&cursor=${encodeURIComponent(page1.next_cursor ?? '')}`,
+    );
+    const page2 = second.body as Page;
+    const people = [...page1.items, ...page2.items];
+    const names = people.map((u) => u.display_name);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    // Ada is listed; cy is hidden because bea blocked him; bea never sees herself.
+    expect(names).toContain(ada.display_name);
+    expect(names).not.toContain(cy.display_name);
+    expect(names.length).toBe(new Set(names).size);
+
+    const bad = await call('dir_bea', 'GET', '/users/directory?cursor=%%%');
+    expect(bad.status).toBe(400);
+  });
+
   it('blocks, lists and unblocks; blocking is idempotent and hides you from search', async () => {
     const wes = (await call('wes', 'GET', '/users/me')).body;
     const walt = (await call('walt', 'GET', '/users/me')).body;

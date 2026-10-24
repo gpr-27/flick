@@ -12,9 +12,13 @@ export interface Recording {
   waveform: number[];
 }
 
-/** Chrome and Firefox record webm/opus, Safari only mp4. */
+/**
+ * MP4 first. Every phone plays MP4 audio, but a phone cannot reliably play WebM/Opus recorded on
+ * a laptop, so a voice note sent from a laptop was silent on the phone. Browsers that cannot
+ * record MP4 (Chrome and Firefox on desktop) still record WebM/Opus, which laptops play fine.
+ */
 export const pickMimeType = (): string | undefined =>
-  ['audio/webm;codecs=opus', 'audio/mp4'].find((m) => MediaRecorder.isTypeSupported(m));
+  ['audio/mp4', 'audio/webm;codecs=opus'].find((m) => MediaRecorder.isTypeSupported(m));
 
 export const useVoiceRecorder = () => {
   const [state, setState] = useState<RecorderState>('idle');

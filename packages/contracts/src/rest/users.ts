@@ -35,6 +35,15 @@ export const UserSearchQuery = z.object({
 });
 export const UserSearchResponse = Paginated(UserSummary);
 
+/**
+ * Everyone on Flick, A to Z by display name. The cursor is the last name of the previous page,
+ * so pages stay correct while people sign up in between.
+ */
+export const DirectoryQuery = z.object({
+  cursor: z.string().max(400).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
 export const UserParams = z.object({ user_id: Id });
 
 /** A profile as the caller may see it; fields hidden by privacy settings are null. */

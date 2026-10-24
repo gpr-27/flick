@@ -61,10 +61,11 @@ const setup = () => {
 };
 
 describe('pickMimeType', () => {
-  it('prefers webm/opus and falls back to mp4 on Safari', () => {
-    expect(pickMimeType()).toBe('audio/webm;codecs=opus');
-    FakeMediaRecorder.supported = ['audio/mp4'];
+  it('records mp4 when the browser can, so every phone plays it; webm/opus otherwise', () => {
+    // Both supported: mp4 wins, because a phone cannot reliably play a laptop's webm/opus voice note.
     expect(pickMimeType()).toBe('audio/mp4');
+    FakeMediaRecorder.supported = ['audio/webm;codecs=opus'];
+    expect(pickMimeType()).toBe('audio/webm;codecs=opus');
   });
 });
 
@@ -96,7 +97,7 @@ describe('VoiceComposer (recorder state machine)', () => {
     });
     expect(uploadAttachment).toHaveBeenCalledWith(
       expect.any(Blob),
-      expect.objectContaining({ purpose: 'message', mime: 'audio/webm' }),
+      expect.objectContaining({ purpose: 'message', mime: 'audio/mp4' }),
     );
     const sent = onSend.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(sent).toMatchObject({
