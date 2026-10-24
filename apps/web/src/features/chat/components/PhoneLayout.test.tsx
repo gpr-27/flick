@@ -36,10 +36,12 @@ describe('composer "+" menu', () => {
     expect(names).toEqual([
       'Emoji',
       'Photo or video',
+      'Camera',
       'File',
       'GIFs and stickers',
       'Poll',
       'Schedule send',
+      'Formatting',
     ]);
   });
 

@@ -65,7 +65,7 @@ export interface MentionAutocomplete {
   update: (text: string, caret: number) => void;
   /** Handles arrows, Enter, Tab and Escape while the list is open; true if the key was used. */
   onKeyDown: (
-    e: KeyboardEvent<HTMLInputElement>,
+    e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
     text: string,
   ) => { text: string; caret: number } | boolean;
   choose: (user: UserSummary, text: string) => { text: string; caret: number } | null;

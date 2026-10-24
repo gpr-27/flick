@@ -1,8 +1,11 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -10,6 +13,7 @@ import {
 import {
   BarChart3,
   CalendarClock,
+  Camera,
   Check,
   Eye,
   ImagePlus,
@@ -20,6 +24,7 @@ import {
   Send,
   Smile,
   Sticker,
+  Type,
   X,
 } from 'lucide-react';
 import type { ConversationSummary, MessageContent, MessageRecord } from '@chat/contracts';
@@ -28,7 +33,26 @@ import { getErrorMessage } from '@/lib/api';
 import { prepareImage } from '@/lib/imageCompress';
 import { SuggestReplies } from '@/features/ai/SuggestReplies';
 import { useSessionStore } from '@/features/auth/useSessionStore';
+import { CameraCapture } from '@/features/content/camera/CameraCapture';
 import { ComposerExtras } from '@/features/content/ComposerExtras';
+import {
+  cleanOutgoing,
+  counterState,
+  dragHasFiles,
+  expandSlashCommand,
+  imageFromClipboard,
+} from '@/features/content/composerTools';
+import { FormatToolbar } from '@/features/content/FormatToolbar';
+import { applyFormat, shortcutKind, type FormatKind } from '@/features/content/markdownFormat';
+import { MessagePreview } from '@/features/content/MessagePreview';
+import { tableFromClipboard } from '@/features/content/pasteTable';
+import { ShortcodeList } from '@/features/content/ShortcodeList';
+import {
+  SHORTCODE_LIST_ID,
+  completeShortcode,
+  shortcodeOptionId,
+  useShortcodeAutocomplete,
+} from '@/features/content/shortcodes';
 import { readVideoMeta } from '@/features/content/videoMeta';
 import { ScheduleDialog } from '@/features/scheduled/ScheduleDialog';
 import { MentionList } from '../../organise/MentionViews';
@@ -144,6 +168,13 @@ interface Attachment {
   previewUrl: string | null;
 }
 
+/** A table that was pasted as markdown: where it went, so "Undo" can put the plain text back. */
+interface PastedTable {
+  start: number;
+  markdown: string;
+  plain: string;
+}
+
 const editableText = (message: MessageRecord): string => {
   const c = message.content;
   if (!c) return '';
@@ -164,11 +195,16 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const [showGifs, setShowGifs] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [showFormat, setShowFormat] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [pastedTable, setPastedTable] = useState<PastedTable | null>(null);
 
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const myId = useSessionStore((s) => s.user?.id);
@@ -182,7 +218,10 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const users = useChatStore((s) => s.users);
   const setDraft = useDraftStore((s) => s.setDraft);
   const mention = useMentionAutocomplete(id);
+  const shortcodes = useShortcodeAutocomplete();
   const caretRef = useRef<number | null>(null);
+  // Selection to restore after the toolbar changed the text.
+  const selectionRef = useRef<[number, number] | null>(null);
 
   // Keep the draft up to date (not while editing: that text belongs to a sent message).
   useEffect(() => {
@@ -195,6 +234,21 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       textInputRef.current?.setSelectionRange(caretRef.current, caretRef.current);
       caretRef.current = null;
     }
+  }, [text]);
+
+  useEffect(() => {
+    if (selectionRef.current) {
+      textInputRef.current?.setSelectionRange(...selectionRef.current);
+      selectionRef.current = null;
+    }
+  }, [text]);
+
+  // The field grows with its text; past about 8 lines (max-h in the class) it scrolls instead.
+  useLayoutEffect(() => {
+    const field = textInputRef.current;
+    if (!field) return;
+    field.style.height = 'auto';
+    field.style.height = `${String(field.scrollHeight)}px`;
   }, [text]);
 
   // Entering edit mode loads the message text; entering reply/edit focuses the field.
@@ -222,26 +276,98 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     setReplyingTo(null);
   };
 
-  const handleTextChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    setText(e.target.value);
-    mention.update(e.target.value, e.target.selectionStart ?? e.target.value.length);
-    if (e.target.value) notifyTyping(id);
+  const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    let value = e.target.value;
+    let caret = e.target.selectionStart;
+    // "/flick" becomes "@flick "; a typed ":smile:" becomes the emoji.
+    const edit = expandSlashCommand(value) ?? completeShortcode(value, caret);
+    if (edit) {
+      value = edit.text;
+      caret = edit.caret;
+      caretRef.current = caret;
+    }
+    setText(value);
+    setPastedTable(null);
+    mention.update(value, caret);
+    shortcodes.update(value, caret);
+    if (value) notifyTyping(id);
     clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => {
       notifyStopTyping(id);
     }, TYPING_TIMEOUT_MS);
   };
 
-  const pickFile = (e: ChangeEvent<HTMLInputElement>): void => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
+  /** Every way of getting a file in (picker, camera, paste, drop) ends up here. */
+  const attachFile = (file: File): void => {
+    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
     setUploadError(null);
     setViewOnce(false);
     setAttachment({
       file,
       previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
     });
+  };
+
+  const pickFile = (e: ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) attachFile(file);
+  };
+
+  const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>): void => {
+    const image = imageFromClipboard(e.clipboardData);
+    if (image && !editing) {
+      e.preventDefault();
+      attachFile(image);
+      return;
+    }
+    const table = tableFromClipboard(e.clipboardData);
+    if (!table) return;
+    // A spreadsheet table becomes a markdown table, on lines of its own.
+    e.preventDefault();
+    const { selectionStart: start, selectionEnd: end } = e.currentTarget;
+    const lead = start > 0 && text[start - 1] !== '\n' ? '\n' : '';
+    const markdown = `${lead}${table}\n`;
+    setText(text.slice(0, start) + markdown + text.slice(end));
+    selectionRef.current = [start + markdown.length, start + markdown.length];
+    setPastedTable({ start, markdown, plain: e.clipboardData.getData('text/plain') });
+  };
+
+  const undoPastedTable = (): void => {
+    if (pastedTable) {
+      const { start, markdown, plain } = pastedTable;
+      if (text.slice(start, start + markdown.length) === markdown) {
+        setText(text.slice(0, start) + plain + text.slice(start + markdown.length));
+        selectionRef.current = [start + plain.length, start + plain.length];
+      }
+    }
+    setPastedTable(null);
+    textInputRef.current?.focus();
+  };
+
+  /** Put markdown around the selected text (toolbar buttons and Ctrl/Cmd+B, I, E). */
+  const format = (kind: FormatKind): void => {
+    const field = textInputRef.current;
+    if (!field) return;
+    const result = applyFormat(kind, text, field.selectionStart, field.selectionEnd);
+    setText(result.text);
+    selectionRef.current = [result.start, result.end];
+    setPastedTable(null);
+    field.focus();
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>): void => {
+    if (editing || !dragHasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>): void => {
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (editing || !file) return;
+    e.preventDefault();
+    attachFile(file);
   };
 
   const removeAttachment = (): void => {
@@ -321,7 +447,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
-    const trimmed = text.trim();
+    const trimmed = cleanOutgoing(text);
     if (editing) {
       if (!trimmed) return;
       void editMessage(editing, trimmed);
@@ -364,13 +490,25 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     setShowEmojis(false);
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
-    const picked = mention.onKeyDown(e, text);
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
+    const picked = mention.onKeyDown(e, text) || shortcodes.onKeyDown(e, text);
     if (picked) {
       if (typeof picked === 'object') {
         setText(picked.text);
         caretRef.current = picked.caret;
       }
+      return;
+    }
+    const shortcut = shortcutKind(e);
+    if (shortcut) {
+      e.preventDefault();
+      format(shortcut);
+      return;
+    }
+    // Enter sends, Shift+Enter makes a new line (not while an IME is still composing a word).
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      formRef.current?.requestSubmit();
       return;
     }
     if (e.key === 'Escape' && (editing || replyingTo)) {
@@ -420,6 +558,14 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       onClick: () => imageInputRef.current?.click(),
     },
     {
+      label: 'Camera',
+      icon: icon(Camera),
+      disabled: locked,
+      onClick: () => {
+        setShowCamera(true);
+      },
+    },
+    {
       label: 'File',
       icon: icon(Paperclip),
       disabled: locked,
@@ -447,9 +593,18 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       disabled: locked || uploading,
       onClick: openSchedule,
     },
+    {
+      label: 'Formatting',
+      icon: icon(Type),
+      onClick: () => {
+        setShowFormat((v) => !v);
+      },
+    },
   ];
 
-  const sendDisabled = uploading || (!text.trim() && (!attachment || Boolean(editing)));
+  const counter = counterState(text.length);
+  const sendDisabled =
+    uploading || Boolean(counter?.over) || (!text.trim() && (!attachment || Boolean(editing)));
   const title = conversationTitle(conversation);
   const replyAuthor =
     replyingTo?.sender_user_id === myId
@@ -463,7 +618,22 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       : null;
 
   return (
-    <div className="glass relative border-t border-base-content/10 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={handleDrop}
+      className={cn(
+        'glass relative border-t border-base-content/10 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]',
+        dragging && 'ring-2 ring-inset ring-primary',
+      )}
+    >
+      {dragging && (
+        <p className="pointer-events-none absolute inset-x-0 top-1 text-center text-xs font-semibold text-primary">
+          Drop a file to attach it
+        </p>
+      )}
       {composeLabel && (
         <div className="mb-2 flex items-center gap-2 rounded-xl border-l-4 border-primary bg-base-content/5 px-3 py-2">
           {editing ? (
@@ -567,6 +737,47 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         />
       )}
 
+      {shortcodes.open && !mention.open && (
+        <ShortcodeList
+          items={shortcodes.items}
+          active={shortcodes.active}
+          onPick={(item) => {
+            const picked = shortcodes.choose(item, text);
+            if (picked) {
+              setText(picked.text);
+              caretRef.current = picked.caret;
+              textInputRef.current?.focus();
+            }
+          }}
+        />
+      )}
+
+      {showFormat && (
+        <div className="flex items-start justify-between gap-2">
+          <FormatToolbar onFormat={format} />
+          <button
+            type="button"
+            aria-pressed={showPreview}
+            onClick={() => {
+              setShowPreview((v) => !v);
+            }}
+            className={cn('btn btn-sm', showPreview ? 'btn-primary' : 'btn-ghost')}
+          >
+            Preview
+          </button>
+        </div>
+      )}
+      {showFormat && showPreview && <MessagePreview text={cleanOutgoing(text)} />}
+
+      {pastedTable && (
+        <p className="mb-2 flex items-center gap-2 text-sm text-base-content/70">
+          Pasted as table
+          <button type="button" className="font-semibold underline" onClick={undoPastedTable}>
+            Undo
+          </button>
+        </p>
+      )}
+
       {mention.open && (
         <MentionList
           items={mention.items}
@@ -595,7 +806,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className="flex items-center gap-2"
+        className="flex items-end gap-2"
         aria-label="Send a message"
       >
         <PopoverMenu
@@ -630,6 +841,17 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           aria-label="Attach photo or video"
         >
           <ImagePlus className="size-5" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setShowCamera(true);
+          }}
+          disabled={Boolean(editing)}
+          className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
+          aria-label="Open camera"
+        >
+          <Camera className="size-5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -669,24 +891,50 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         <label htmlFor="composer-input" className="sr-only">
           {editing ? 'Edit your message' : `Message ${title}`}
         </label>
-        <input
+        <textarea
           id="composer-input"
-          type="text"
+          rows={1}
+          enterKeyHint="send"
           ref={textInputRef}
           value={text}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={editing ? 'Edit your message…' : 'Type a message…'}
           aria-describedby={composeLabel ? 'compose-context' : undefined}
           autoComplete="off"
           role="combobox"
-          aria-expanded={mention.open}
-          aria-controls={mention.open ? MENTION_LIST_ID : undefined}
-          aria-activedescendant={mention.open ? mentionOptionId(mention.active) : undefined}
+          aria-multiline="true"
+          aria-expanded={mention.open || shortcodes.open}
+          aria-controls={
+            mention.open ? MENTION_LIST_ID : shortcodes.open ? SHORTCODE_LIST_ID : undefined
+          }
+          aria-activedescendant={
+            mention.open
+              ? mentionOptionId(mention.active)
+              : shortcodes.open
+                ? shortcodeOptionId(shortcodes.active)
+                : undefined
+          }
           aria-autocomplete="list"
           // 16px on phones: iOS Safari zooms the page when a smaller field gets focus.
-          className="input-soft min-w-0 flex-1 max-sm:min-h-11 max-sm:text-base"
+          // About 8 lines tall at most, then it scrolls. Spaces and line breaks are kept as typed.
+          className="input-soft max-h-48 min-w-0 flex-1 resize-none overflow-y-auto whitespace-pre-wrap leading-6 max-sm:min-h-11 max-sm:text-base"
         />
+        <button
+          type="button"
+          onClick={() => {
+            setShowFormat((v) => !v);
+          }}
+          className={cn(
+            'btn btn-circle btn-ghost btn-sm max-sm:hidden',
+            showFormat ? 'text-primary' : 'text-base-content/60',
+          )}
+          aria-label="Formatting"
+          aria-pressed={showFormat}
+        >
+          <Type className="size-5" aria-hidden="true" />
+        </button>
 
         <button
           type="button"
@@ -730,6 +978,28 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
             setText('');
             setReplyingTo(null);
           }}
+        />
+      )}
+      {counter && (
+        <p
+          role="status"
+          className={cn(
+            'mt-1 text-right text-xs',
+            counter.over ? 'font-semibold text-error' : 'text-base-content/60',
+          )}
+        >
+          {counter.over
+            ? `${String(-counter.left)} characters too many`
+            : `${String(counter.left)} characters left`}
+        </p>
+      )}
+      {showCamera && (
+        <CameraCapture
+          open
+          onClose={() => {
+            setShowCamera(false);
+          }}
+          onCapture={attachFile}
         />
       )}
     </div>
