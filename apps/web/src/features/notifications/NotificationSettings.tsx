@@ -111,7 +111,8 @@ export const NotificationSettings = () => {
         <span>
           <span className="block font-semibold">Message sound</span>
           <span className="block text-sm text-base-content/60">
-            A short sound when a message arrives while this tab is in the background.
+            A soft sound when a message arrives in a chat you are not looking at. Muted chats stay
+            silent.
           </span>
         </span>
         <input

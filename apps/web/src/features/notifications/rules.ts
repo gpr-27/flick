@@ -40,6 +40,13 @@ export const shouldNotify = ({
   return mentionsUser(message.content, myId);
 };
 
+/**
+ * Show an in-app banner (and sound) for a live message while the tab is visible, unless that
+ * chat is the one on screen. Same rules as a system notification otherwise.
+ */
+export const shouldBanner = (input: NotifyInput & { inView: boolean }): boolean =>
+  !input.tabHidden && !input.inView && shouldNotify({ ...input, tabHidden: true });
+
 /** True if enough time has passed since the last sound (lastPlayedAt is null if never). */
 export const canPlaySound = (
   lastPlayedAt: number | null,

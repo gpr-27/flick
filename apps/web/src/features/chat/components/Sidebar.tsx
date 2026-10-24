@@ -26,6 +26,9 @@ import { conversationAvatar, conversationTitle } from '../conversationView';
 import { useChatStore } from '../useChatStore';
 import { InviteButton } from '@/features/directory/InviteButton';
 import { NewChatModal, NewGroupModal } from './NewChatModals';
+import { ChatListMenu } from '../../notifications/ChatListMenu';
+import { useMentions } from '../../notifications/mentions';
+import { PushPrompt } from '../../notifications/PushPrompt';
 import { SidebarSkeleton } from './SidebarSkeleton';
 
 interface ConversationRowProps {
@@ -54,6 +57,7 @@ const ConversationRow = ({
   // A locked chat shows no message text until its passcode is entered in this tab.
   const hidden = useIsHidden(c.id, c.prefs.locked);
   const muted = isMuted(c.prefs);
+  const mentioned = useMentions((s) => c.id in s.chats);
   return (
     <li
       role="option"
@@ -114,6 +118,11 @@ const ConversationRow = ({
             {muted && <BellOff className="size-3.5" aria-label="Muted" role="img" />}
             {c.prefs.pinned && <Pin className="size-3.5" aria-label="Pinned" role="img" />}
             {c.prefs.favorite && <Star className="size-3.5" aria-label="Favourite" role="img" />}
+            {mentioned && unread > 0 && (
+              <Badge variant="count" label="You were mentioned">
+                @
+              </Badge>
+            )}
             {unread > 0 && (
               <Badge variant="count" label={`${unread} unread`}>
                 {formatCount(unread)}
@@ -254,6 +263,7 @@ export const Sidebar = () => {
             >
               <UsersRound className="size-5" aria-hidden="true" />
             </button>
+            <ChatListMenu />
           </div>
         </div>
 
@@ -274,6 +284,8 @@ export const Sidebar = () => {
           }}
         />
       </div>
+
+      {all.length > 0 && <PushPrompt />}
 
       {view === 'chats' ? (
         <div role="tablist" aria-label="Filter chats" className="flex gap-1 px-3 pt-2">
