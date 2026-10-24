@@ -17,7 +17,7 @@ describe('provider request shapes', () => {
       ],
     });
     const p = script.calls[0]!.params;
-    expect(p['model']).toBe('claude-haiku-5-5');
+    expect(p['model']).toBe('claude-sonnet-5-5');
     expect(p['max_tokens']).toBe(321);
     expect(p['system']).toBe('be brief');
     expect(p['messages']).toEqual([{ role: 'user', content: 'q' }]);

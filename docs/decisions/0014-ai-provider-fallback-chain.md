@@ -11,7 +11,7 @@ limits and occasional outages.
 
 ## Decision
 
-Requests go through an ordered chain: Anthropic Haiku first, then Groq (two accounts, several models), then Gemini
+Requests go through an ordered chain: Anthropic Sonnet first, then Groq (two accounts, several models), then Gemini
 (two accounts, several models).
 
 - A provider that fails with a rate-limit, quota or 5xx error goes on a **Redis cooldown**, and the next one is tried.

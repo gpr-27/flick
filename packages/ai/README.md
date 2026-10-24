@@ -10,7 +10,7 @@ no keys at all the routes answer `503 ai_unavailable`.
 
 | Name | Purpose |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | Entry 1: Anthropic (`claude-haiku-5-5`) |
+| `ANTHROPIC_API_KEY` | Entry 1: Anthropic (`claude-sonnet-5-5`) |
 | `GROQ_API_KEY_1` | Entry 2: Groq account 1 |
 | `GROQ_API_KEY_2` | Entry 3: Groq account 2 |
 | `GEMINI_API_KEY_1` | Entry 4: Gemini account 1 |
@@ -23,10 +23,10 @@ no keys at all the routes answer `503 ai_unavailable`.
 
 Entries are tried strictly in this order, and each entry's models in order:
 
-1. Anthropic `claude-haiku-5-5` (`@anthropic-ai/sdk`). No `temperature`/`top_p`, no assistant prefill, `effort: low`.
+1. Anthropic `claude-sonnet-5-5` (`@anthropic-ai/sdk`). No `temperature`/`top_p`, no assistant prefill, `effort: low`.
 2. Groq #1, `https://api.groq.com/openai/v1`: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`.
 3. Groq #2, with the same models.
-4. Gemini #1, `https://generativelanguage.googleapis.com/v1beta/openai/`: `gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`.
+4. Gemini #1, `https://generativelanguage.googleapis.com/v1beta/openai/`: `gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.1-flash-lite`.
 5. Gemini #2, with the same models.
 
 Groq and Gemini go through the `openai` SDK. Every SDK runs with `maxRetries: 0`, because the chain owns the retry policy.

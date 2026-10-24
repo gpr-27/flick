@@ -195,7 +195,7 @@ describe('MessageBubble', () => {
             type: 'text',
             text: 'Dinner is at 8.',
             ai_provider: 'anthropic',
-            ai_model: 'claude-haiku-5-5',
+            ai_model: 'claude-sonnet-5-5',
           },
         }),
       ],
@@ -203,7 +203,7 @@ describe('MessageBubble', () => {
       CONV,
     )[0]!;
     const { unmount } = render(<MessageBubble {...props({ row: botRow })} />);
-    expect(screen.getByText('Answered by Anthropic · claude-haiku-5-5')).toBeInTheDocument();
+    expect(screen.getByText('Answered by Anthropic · claude-sonnet-5-5')).toBeInTheDocument();
     unmount();
 
     // A person cannot pass themselves off as the AI: the label only shows for the bot.
@@ -216,7 +216,7 @@ describe('MessageBubble', () => {
             type: 'text',
             text: 'hi',
             ai_provider: 'anthropic',
-            ai_model: 'claude-haiku-5-5',
+            ai_model: 'claude-sonnet-5-5',
           },
         }),
       ],

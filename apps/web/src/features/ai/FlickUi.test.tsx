@@ -36,7 +36,7 @@ describe('FlickPanel', () => {
 
   it('streams a summary into the panel', async () => {
     api.summarizeUnread.mockImplementation((_id, options) => {
-      options?.onModel?.('Anthropic · claude-haiku-5-5');
+      options?.onModel?.('Anthropic · claude-sonnet-5-5');
       options?.onText?.('- Dinner at 8');
       return Promise.resolve('- Dinner at 8');
     });
@@ -44,7 +44,7 @@ describe('FlickPanel', () => {
     render(<FlickPanel conversation={makeConversation()} open onClose={vi.fn()} />);
     await user.click(await screen.findByRole('button', { name: 'Summarize unread' }));
     expect(await screen.findByText('- Dinner at 8')).toBeInTheDocument();
-    expect(screen.getByText('Answered by Anthropic · claude-haiku-5-5')).toBeInTheDocument();
+    expect(screen.getByText('Answered by Anthropic · claude-sonnet-5-5')).toBeInTheDocument();
     expect(api.summarizeUnread).toHaveBeenCalledWith(CONV, expect.anything());
   });
 

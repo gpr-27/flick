@@ -13,7 +13,7 @@ import type {
 } from './types.js';
 
 /** Model IDs, all from free-llm-api-guide.md. Order matters: first is tried first. */
-export const ANTHROPIC_MODELS = ['claude-haiku-5-5'] as const;
+export const ANTHROPIC_MODELS = ['claude-sonnet-5-5'] as const;
 export const GROQ_MODELS = [
   'openai/gpt-oss-120b',
   'openai/gpt-oss-20b',
@@ -22,7 +22,7 @@ export const GROQ_MODELS = [
 export const GEMINI_MODELS = [
   'gemini-3.8-flash',
   'gemini-3.6-flash',
-  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
 ] as const;
 
 export const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';

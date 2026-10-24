@@ -6,7 +6,7 @@ import { AiTasks } from '../src/tasks.js';
 import type { AiConfig } from '../src/config.js';
 import { buildChain, chunks, KEYS, Script } from './helpers.js';
 
-const HAIKU = 'claude-haiku-5-5';
+const SONNET = 'claude-sonnet-5-5';
 let app: FastifyInstance | undefined;
 
 afterEach(async () => {
@@ -52,7 +52,7 @@ describe('aiRoutes', () => {
   });
 
   it('streams SSE with provider and model', async () => {
-    const script = new Script().on(KEYS.anthropic, HAIKU, chunks(['Hel', 'lo']));
+    const script = new Script().on(KEYS.anthropic, SONNET, chunks(['Hel', 'lo']));
     const a = await makeApp(script);
     const res = await a.inject({
       method: 'POST',
@@ -63,10 +63,10 @@ describe('aiRoutes', () => {
     expect(res.headers['content-type']).toContain('text/event-stream');
     expect(res.headers['x-ratelimit-limit']).toBe('20');
     expect(parseSse(res.body)).toEqual([
-      { event: 'meta', data: { provider: 'anthropic', model: HAIKU } },
+      { event: 'meta', data: { provider: 'anthropic', model: SONNET } },
       { event: 'delta', data: { text: 'Hel' } },
       { event: 'delta', data: { text: 'lo' } },
-      { event: 'done', data: { provider: 'anthropic', model: HAIKU } },
+      { event: 'done', data: { provider: 'anthropic', model: SONNET } },
     ]);
   });
 

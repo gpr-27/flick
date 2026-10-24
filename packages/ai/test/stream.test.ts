@@ -5,7 +5,7 @@ import type { AiRequest } from '../src/types.js';
 import { buildChain, chunks, err, fail, KEYS, recordingMetrics, Script } from './helpers.js';
 
 const REQ: AiRequest = { messages: [{ role: 'user', content: 'hello' }] };
-const HAIKU = 'claude-haiku-5-5';
+const SONNET = 'claude-sonnet-5-5';
 const G1 = GROQ_MODELS[0];
 
 async function collect(it: AsyncIterable<string>): Promise<string[]> {
@@ -16,7 +16,7 @@ async function collect(it: AsyncIterable<string>): Promise<string[]> {
 
 describe('stream()', () => {
   it('yields text deltas and reports provider/model', async () => {
-    const script = new Script().on(KEYS.anthropic, HAIKU, chunks(['Hel', 'lo', ' world']));
+    const script = new Script().on(KEYS.anthropic, SONNET, chunks(['Hel', 'lo', ' world']));
     const { chain } = buildChain(script);
     const s = chain.stream(REQ);
     expect(s.answer).toBeUndefined();
@@ -24,9 +24,9 @@ describe('stream()', () => {
     await expect(s.info).resolves.toEqual({
       provider: 'anthropic',
       account: 'default',
-      model: HAIKU,
+      model: SONNET,
     });
-    expect(s.answer?.model).toBe(HAIKU);
+    expect(s.answer?.model).toBe(SONNET);
     expect(script.calls[0]?.stream).toBe(true);
   });
 
@@ -34,7 +34,7 @@ describe('stream()', () => {
     const script = new Script()
       .on(
         KEYS.anthropic,
-        HAIKU,
+        SONNET,
         fail(() => err.anthropic(529, 'Overloaded', {}, 'overloaded_error')),
       )
       .on(KEYS.groq1, G1, chunks(['a', 'b']));
@@ -45,7 +45,7 @@ describe('stream()', () => {
   });
 
   it('falls through when the stream errors before any delta', async () => {
-    const script = new Script().on(KEYS.anthropic, HAIKU, chunks(['x'], { failAfter: 0 }));
+    const script = new Script().on(KEYS.anthropic, SONNET, chunks(['x'], { failAfter: 0 }));
     const { chain } = buildChain(script);
     const out = await collect(chain.stream(REQ));
     expect(out).toEqual([`ok:${KEYS.groq1}:${G1}`]);
@@ -54,7 +54,7 @@ describe('stream()', () => {
   it('a failure after deltas were delivered is surfaced, not retried elsewhere', async () => {
     const script = new Script().on(
       KEYS.anthropic,
-      HAIKU,
+      SONNET,
       chunks(['one', 'two', 'three'], { failAfter: 2 }),
     );
     const metrics = recordingMetrics();

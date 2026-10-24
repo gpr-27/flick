@@ -12,11 +12,11 @@ import type { AiRequest } from '../src/types.js';
 import { buildChain, err, fail, hang, KEYS, recordingMetrics, Script, text } from './helpers.js';
 
 const REQ: AiRequest = { messages: [{ role: 'user', content: 'SECRET-PROMPT-CONTENT hello' }] };
-const HAIKU = 'claude-haiku-5-5';
+const SONNET = 'claude-sonnet-5-5';
 const G1 = GROQ_MODELS[0];
 
 const FULL_ORDER = [
-  `${KEYS.anthropic}|${HAIKU}`,
+  `${KEYS.anthropic}|${SONNET}`,
   ...GROQ_MODELS.map((m) => `${KEYS.groq1}|${m}`),
   ...GROQ_MODELS.map((m) => `${KEYS.groq2}|${m}`),
   ...GEMINI_MODELS.map((m) => `${KEYS.gemini1}|${m}`),
@@ -24,7 +24,7 @@ const FULL_ORDER = [
 ];
 
 function allFail(script: Script, make: () => unknown): Script {
-  script.on(KEYS.anthropic, HAIKU, fail(make));
+  script.on(KEYS.anthropic, SONNET, fail(make));
   script.onKey(KEYS.groq1, GROQ_MODELS, fail(make));
   script.onKey(KEYS.groq2, GROQ_MODELS, fail(make));
   script.onKey(KEYS.gemini1, GEMINI_MODELS, fail(make));
@@ -76,11 +76,14 @@ describe('fall-through conditions', () => {
   ];
 
   it.each(cases)('%s falls through to the next entry', async (_name, make) => {
-    const script = new Script().on(KEYS.anthropic, HAIKU, fail(make));
+    const script = new Script().on(KEYS.anthropic, SONNET, fail(make));
     const { chain } = buildChain(script);
     const r = await chain.complete(REQ);
     expect(r).toMatchObject({ provider: 'groq', account: '1', model: G1 });
-    expect(script.order.slice(0, 2)).toEqual([`${KEYS.anthropic}|${HAIKU}`, `${KEYS.groq1}|${G1}`]);
+    expect(script.order.slice(0, 2)).toEqual([
+      `${KEYS.anthropic}|${SONNET}`,
+      `${KEYS.groq1}|${G1}`,
+    ]);
   });
 });
 
@@ -88,7 +91,7 @@ describe('400 caused by our own request', () => {
   it('surfaces the error and does not try other entries', async () => {
     const script = new Script().on(
       KEYS.anthropic,
-      HAIKU,
+      SONNET,
       fail(() =>
         err.anthropic(
           400,
@@ -101,7 +104,7 @@ describe('400 caused by our own request', () => {
     const { chain } = buildChain(script);
     const e = await chain.complete(REQ).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(AiRequestError);
-    expect(e).toMatchObject({ status: 400, provider: 'anthropic', model: HAIKU });
+    expect(e).toMatchObject({ status: 400, provider: 'anthropic', model: SONNET });
     expect(script.calls).toHaveLength(1);
   });
 });
@@ -110,7 +113,7 @@ describe('429 handling', () => {
   it('retries the same entry once when retry-after <= 2s', async () => {
     const script = new Script().on(
       KEYS.anthropic,
-      HAIKU,
+      SONNET,
       fail(() => err.anthropic(429, 'slow down', { 'retry-after': '0' }, 'rate_limit_error')),
       text('second try worked'),
     );
@@ -146,7 +149,7 @@ describe('cooldowns', () => {
     const cooldowns = new MemoryCooldownStore(() => now);
     const script = new Script().on(
       KEYS.anthropic,
-      HAIKU,
+      SONNET,
       fail(() => err.anthropic(429, 'busy')),
       text('claude back'),
     );
@@ -162,7 +165,7 @@ describe('cooldowns', () => {
     expect(metrics.attempts).toContainEqual({
       provider: 'anthropic',
       account: 'default',
-      model: HAIKU,
+      model: SONNET,
       result: 'skipped_cooldown',
     });
 
@@ -203,7 +206,7 @@ describe('cooldowns', () => {
 describe('timeouts and abort', () => {
   it('total timeout ends the walk with AiTimeoutError', async () => {
     const script = new Script()
-      .on(KEYS.anthropic, HAIKU, hang())
+      .on(KEYS.anthropic, SONNET, hang())
       .onKey(KEYS.groq1, GROQ_MODELS, hang())
       .onKey(KEYS.groq2, GROQ_MODELS, hang());
     const { chain } = buildChain(script, { attemptTimeoutMs: 1_000, totalTimeoutMs: 80 });

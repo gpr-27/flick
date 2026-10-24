@@ -13,7 +13,7 @@ Code: `packages/ai` (provider chain), `apps/api/src/modules/ai/` (routes and bot
 
 ## Providers and fallback
 
-The chain is fixed: Anthropic (Haiku), Groq account 1, Groq account 2, Gemini account 1, Gemini account 2.
+The chain is fixed: Anthropic (Sonnet), Groq account 1, Groq account 2, Gemini account 1, Gemini account 2.
 Each Groq/Gemini account tries its models in order. An entry without a key is skipped.
 
 | Failure                         | What happens                                                                                |
