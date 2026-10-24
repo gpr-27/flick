@@ -114,7 +114,7 @@ export async function flickBotOnMessage(
       );
       const reply = result.text.trim().slice(0, MAX_REPLY_CHARS);
       if (!reply) return 'failed';
-      await postAsBot(db, message, reply);
+      await postAsBot(db, message, reply, { provider: result.provider, model: result.model });
       return 'replied';
     } catch (err) {
       if (!(err instanceof AiUnavailableError)) throw err;
@@ -128,7 +128,12 @@ export async function flickBotOnMessage(
   }
 }
 
-async function postAsBot(db: Db, trigger: FlickTrigger, text: string): Promise<void> {
+async function postAsBot(
+  db: Db,
+  trigger: FlickTrigger,
+  text: string,
+  answeredBy?: { provider: string; model: string },
+): Promise<void> {
   await allocateSeqAndInsertMessage(db, {
     conversationId: trigger.conversation_id,
     senderId: FLICK_BOT_USER_ID,
@@ -136,6 +141,7 @@ async function postAsBot(db: Db, trigger: FlickTrigger, text: string): Promise<v
     clientMessageId: null,
     type: 'text',
     bodyText: text,
+    content: answeredBy ? { ai_provider: answeredBy.provider, ai_model: answeredBy.model } : null,
     replyToId: trigger.id,
     authorize: false, // the bot is not a member of the chats it answers in
   });

@@ -1,0 +1,212 @@
+import { useEffect, useState, type ReactNode } from 'react';
+import {
+  Copy,
+  Flag,
+  Forward,
+  Languages,
+  Pencil,
+  Pin,
+  PinOff,
+  Reply,
+  Star,
+  Trash2,
+} from 'lucide-react';
+import { Modal, cn } from '@/components/ui';
+import { REACTIONS } from '../reactions';
+
+export interface MessageMenuProps {
+  onClose: () => void;
+  isMine: boolean;
+  pinned: boolean;
+  starred: boolean;
+  canEdit: boolean;
+  /** The text to copy, or null when the message has none (a photo, a poll). */
+  copyText: string | null;
+  canTranslate: boolean;
+  onReact: (emoji: string) => void;
+  onReply: () => void;
+  onCopy: (text: string) => void;
+  onForward?: () => void;
+  onPin?: () => void;
+  onStar?: () => void;
+  onEdit: () => void;
+  onTranslate: () => void;
+  onReport: () => void;
+  onDelete: (scope: 'me' | 'everyone') => void;
+}
+
+const row =
+  'flex min-h-12 w-full items-center gap-4 rounded-xl px-4 text-left text-base active:bg-base-200 hover:bg-base-200';
+
+const Item = ({
+  icon,
+  children,
+  onClick,
+  danger = false,
+}: {
+  icon?: ReactNode;
+  children: ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+}) => (
+  <button
+    type="button"
+    role="menuitem"
+    onClick={onClick}
+    className={cn(row, danger && 'text-error')}
+  >
+    {icon && <span aria-hidden="true">{icon}</span>}
+    {children}
+  </button>
+);
+
+/**
+ * The actions for one message, opened by holding it (or right-click / the small arrow on
+ * desktop). A bottom sheet on phones so every button is thumb-sized; a small card on wide screens.
+ * Mount it only while open: closing unmounts it, which also resets the delete step.
+ */
+export const MessageMenu = (props: MessageMenuProps) => {
+  const { onClose } = props;
+  const [step, setStep] = useState<'actions' | 'delete'>('actions');
+  // The menu appears right under the finger that is still holding the message. Ignoring touches
+  // for a moment keeps the lift of that finger from tapping an emoji or an action by accident.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setReady(true);
+    }, 350);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  // Every action closes the menu first, so a slow action never leaves it hanging open.
+  const run = (action: () => void) => () => {
+    onClose();
+    action();
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      label="Message actions"
+      overlayClassName={cn('items-end p-0 sm:items-center sm:p-4', !ready && 'pointer-events-none')}
+      className="w-full sm:w-80"
+    >
+      <div className="glass-card flex flex-col gap-1 rounded-t-3xl border border-base-content/10 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl">
+        <div
+          className="mx-auto mb-1 h-1 w-10 rounded-full bg-base-content/20 sm:hidden"
+          aria-hidden="true"
+        />
+
+        {step === 'actions' ? (
+          <>
+            <div
+              role="toolbar"
+              aria-label="React to message"
+              className="grid grid-cols-8 gap-0.5 px-1 pb-1"
+            >
+              {REACTIONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={run(() => {
+                    props.onReact(emoji);
+                  })}
+                  className="grid aspect-square min-h-10 place-items-center rounded-full text-2xl active:scale-110 active:bg-base-200"
+                  aria-label={`React ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+
+            <div role="menu" aria-label="Message actions" className="flex flex-col">
+              <Item icon={<Reply className="size-5" />} onClick={run(props.onReply)}>
+                Reply
+              </Item>
+              {props.copyText !== null && (
+                <Item
+                  icon={<Copy className="size-5" />}
+                  onClick={run(() => {
+                    props.onCopy(props.copyText ?? '');
+                  })}
+                >
+                  Copy
+                </Item>
+              )}
+              {props.onForward && (
+                <Item icon={<Forward className="size-5" />} onClick={run(props.onForward)}>
+                  Forward
+                </Item>
+              )}
+              {props.onPin && (
+                <Item
+                  icon={props.pinned ? <PinOff className="size-5" /> : <Pin className="size-5" />}
+                  onClick={run(props.onPin)}
+                >
+                  {props.pinned ? 'Unpin' : 'Pin'}
+                </Item>
+              )}
+              {props.onStar && (
+                <Item
+                  icon={<Star className={cn('size-5', props.starred && 'fill-current')} />}
+                  onClick={run(props.onStar)}
+                >
+                  {props.starred ? 'Unstar' : 'Star'}
+                </Item>
+              )}
+              {props.canTranslate && (
+                <Item icon={<Languages className="size-5" />} onClick={run(props.onTranslate)}>
+                  Translate
+                </Item>
+              )}
+              {props.canEdit && (
+                <Item icon={<Pencil className="size-5" />} onClick={run(props.onEdit)}>
+                  Edit
+                </Item>
+              )}
+              {!props.isMine && (
+                <Item icon={<Flag className="size-5" />} onClick={run(props.onReport)}>
+                  Report
+                </Item>
+              )}
+              <Item
+                icon={<Trash2 className="size-5" />}
+                danger
+                onClick={() => {
+                  setStep('delete');
+                }}
+              >
+                Delete
+              </Item>
+            </div>
+          </>
+        ) : (
+          <div role="menu" aria-label="Delete options" className="flex flex-col">
+            <p className="px-4 py-2 text-sm font-semibold">Delete message?</p>
+            <Item
+              onClick={run(() => {
+                props.onDelete('me');
+              })}
+            >
+              Delete for me
+            </Item>
+            {props.isMine && (
+              <Item
+                danger
+                onClick={run(() => {
+                  props.onDelete('everyone');
+                })}
+              >
+                Delete for everyone
+              </Item>
+            )}
+            <Item onClick={onClose}>Cancel</Item>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};

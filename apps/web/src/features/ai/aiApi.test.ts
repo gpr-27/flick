@@ -39,13 +39,16 @@ describe('aiApi', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
     const seen: string[] = [];
+    const models: string[] = [];
 
     const text = await askFlick([{ role: 'user', content: 'hi' }], 'conv-1', {
       onText: (t) => seen.push(t),
+      onModel: (label) => models.push(label),
     });
 
     expect(text).toBe('Hello');
     expect(seen).toEqual(['Hel', 'Hello']);
+    expect(models).toEqual(['Groq · m']); // told once, before the first words
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('http://api.test/api/ai/chat');
     expect(JSON.parse(init.body as string)).toMatchObject({
@@ -111,6 +114,9 @@ describe('aiApi', () => {
       .mockResolvedValueOnce(json({ replies: ['a', 'b', 'c'], provider: 'groq', model: 'm' }));
     vi.stubGlobal('fetch', fetchMock);
     expect(await getAiEnabled()).toBe(true);
-    expect(await suggestReplies('c')).toEqual(['a', 'b', 'c']);
+    expect(await suggestReplies('c')).toEqual({
+      replies: ['a', 'b', 'c'],
+      model: 'Groq · m',
+    });
   });
 });

@@ -3,12 +3,13 @@ import { Sparkles } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
 import { suggestReplies } from './aiApi';
+import { ModelTag } from './ModelTag';
 import { useAiEnabled } from './useAiEnabled';
 
 type State =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'ready'; replies: string[] }
+  | { status: 'ready'; replies: string[]; model: string }
   | { status: 'error'; message: string };
 
 /** A "Suggest replies" button; the three suggestions appear as chips that fill the composer. */
@@ -25,8 +26,8 @@ export const SuggestReplies = ({
   const load = (): void => {
     setState({ status: 'loading' });
     suggestReplies(conversationId)
-      .then((replies) => {
-        setState({ status: 'ready', replies });
+      .then(({ replies, model }) => {
+        setState({ status: 'ready', replies, model });
       })
       .catch((error: unknown) => {
         setState({
@@ -72,6 +73,7 @@ export const SuggestReplies = ({
             {reply}
           </button>
         ))}
+      {state.status === 'ready' && <ModelTag label={state.model} className="w-full" />}
     </div>
   );
 };

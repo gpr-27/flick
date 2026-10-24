@@ -3,27 +3,26 @@ import {
   AlertCircle,
   Check,
   CheckCheck,
+  ChevronDown,
   Clock,
-  Flag,
   Forward,
-  Pencil,
   Pin,
-  Reply,
-  SmilePlus,
   Timer,
   Star,
-  Trash2,
 } from 'lucide-react';
 import type { MessageRecord, UserSummary } from '@chat/contracts';
-import { Avatar, cn } from '@/components/ui';
+import { Avatar, cn, notify } from '@/components/ui';
 import { FlickBadge } from '@/features/ai/FlickBadge';
 import { isFlickBot } from '@/features/ai/isFlickBot';
-import { TranslateButton } from '@/features/ai/TranslateButton';
+import { ModelTag } from '@/features/ai/ModelTag';
+import { modelLabel } from '@/features/ai/modelLabel';
+import { TranslateDialog } from '@/features/ai/TranslateDialog';
 import { ReportDialog } from '@/features/settings/components/ReportDialog';
 import { formatDateSeparator, formatMessageTime } from '@/lib/time';
 import { renderContent, previewContent, type ContentContext } from '../content/registry';
 import type { RowStatus, ThreadRow } from '../threadRows';
-import { ReactionPicker } from './ReactionPicker';
+import { useLongPress } from '../useLongPress';
+import { MessageMenu } from './MessageMenu';
 
 export interface MessageBubbleProps {
   row: ThreadRow;
@@ -36,8 +35,6 @@ export interface MessageBubbleProps {
   quoted: MessageRecord | null;
   quotedName: string;
   showDate: boolean;
-  pickerOpen: boolean;
-  onTogglePicker: (messageId: string | null) => void;
   onReact: (message: MessageRecord, emoji: string) => void;
   onReply: (message: MessageRecord) => void;
   onEdit: (message: MessageRecord) => void;
@@ -70,7 +67,14 @@ const StatusMark = ({ status }: { status: RowStatus }) => {
   }
 };
 
-const iconButton = 'hover:text-primary focus-visible:text-primary';
+const copyToClipboard = async (text: string): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    notify.success('Copied');
+  } catch {
+    notify.error("Couldn't copy");
+  }
+};
 
 const MessageBubbleImpl = ({
   row,
@@ -81,8 +85,6 @@ const MessageBubbleImpl = ({
   quoted,
   quotedName,
   showDate,
-  pickerOpen,
-  onTogglePicker,
   onReact,
   onReply,
   onEdit,
@@ -98,7 +100,7 @@ const MessageBubbleImpl = ({
   highlighted = false,
 }: MessageBubbleProps) => {
   const { message, local } = row;
-  const [deleteMenu, setDeleteMenu] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [translateOpen, setTranslateOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const isMine = message.sender_user_id === myId;
@@ -114,6 +116,12 @@ const MessageBubbleImpl = ({
     message.content &&
     ['text', 'image', 'file'].includes(message.content.type);
   const replyTo = message.content?.reply_to;
+  // A message that is still sending, or was deleted, has no actions.
+  const hasActions = settled && !deleted && message.content !== null;
+  const openMenu = (): void => {
+    if (hasActions) setMenuOpen(true);
+  };
+  const press = useLongPress(openMenu);
 
   const dateSeparator = showDate && (
     <div
@@ -156,7 +164,7 @@ const MessageBubbleImpl = ({
 
         <div
           className={cn(
-            'flex max-w-[75%] flex-col sm:max-w-[65%]',
+            'flex max-w-[85%] flex-col sm:max-w-[65%]',
             isMine ? 'items-end' : 'items-start',
           )}
         >
@@ -167,10 +175,16 @@ const MessageBubbleImpl = ({
             </span>
           )}
           <div
+            {...press}
+            onContextMenu={(e) => {
+              if (!hasActions) return;
+              e.preventDefault();
+              setMenuOpen(true);
+            }}
             className={cn(
-              'animate-bubble-in overflow-hidden px-3.5 py-2.5 shadow-sm transition-opacity',
+              'animate-bubble-in touch-manipulation overflow-hidden px-3.5 py-2.5 shadow-sm transition-opacity [-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none',
               local?.status === 'pending' && 'opacity-70',
-              highlighted && 'ring-2 ring-primary',
+              (highlighted || menuOpen) && 'ring-2 ring-primary',
               isMine
                 ? 'bubble-sent rounded-2xl rounded-br-md'
                 : 'bubble-recv rounded-2xl rounded-bl-md',
@@ -213,6 +227,12 @@ const MessageBubbleImpl = ({
               })
             )}
             {message.viewed && <p className="mt-1 text-xs italic opacity-70">Opened</p>}
+            {isBot && message.content?.type === 'text' && message.content.ai_model && (
+              <ModelTag
+                label={modelLabel(message.content.ai_provider ?? '', message.content.ai_model)}
+                className="mt-1.5 !text-current opacity-60"
+              />
+            )}
           </div>
 
           {message.reactions.length > 0 && (
@@ -288,117 +308,16 @@ const MessageBubbleImpl = ({
               </span>
             )}
 
-            {settled && !deleted && (
-              <div
-                className={cn(
-                  'flex items-center gap-1.5 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-70',
-                  pickerOpen || deleteMenu || translateOpen ? 'opacity-100' : 'opacity-0',
-                  isMine && 'flex-row-reverse',
-                )}
+            {hasActions && (
+              <button
+                type="button"
+                onClick={openMenu}
+                className="grid size-6 place-items-center rounded-full opacity-0 transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:hidden"
+                aria-label="Actions for this message"
+                aria-haspopup="menu"
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    onTogglePicker(pickerOpen ? null : message.message_id);
-                  }}
-                  className={iconButton}
-                  aria-label="React to message"
-                  aria-expanded={pickerOpen}
-                >
-                  <SmilePlus className="size-3.5" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onReply(message);
-                  }}
-                  className={iconButton}
-                  aria-label="Reply to message"
-                >
-                  <Reply className="size-3.5" aria-hidden="true" />
-                </button>
-                {onStar && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onStar(message);
-                    }}
-                    className={iconButton}
-                    aria-label={message.starred ? 'Unstar message' : 'Star message'}
-                    aria-pressed={message.starred}
-                  >
-                    <Star className="size-3.5" aria-hidden="true" />
-                  </button>
-                )}
-                {onPin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPin(message);
-                    }}
-                    className={iconButton}
-                    aria-label={pinned ? 'Unpin message' : 'Pin message'}
-                    aria-pressed={pinned}
-                  >
-                    <Pin className="size-3.5" aria-hidden="true" />
-                  </button>
-                )}
-                {onForward && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onForward(message);
-                    }}
-                    className={iconButton}
-                    aria-label="Forward message"
-                  >
-                    <Forward className="size-3.5" aria-hidden="true" />
-                  </button>
-                )}
-                {message.content?.type === 'text' && (
-                  <TranslateButton
-                    text={message.content.text}
-                    open={translateOpen}
-                    onOpenChange={setTranslateOpen}
-                    align={isMine ? 'right' : 'left'}
-                  />
-                )}
-                {!isMine && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReportOpen(true);
-                    }}
-                    className={iconButton}
-                    aria-label="Report message"
-                  >
-                    <Flag className="size-3.5" aria-hidden="true" />
-                  </button>
-                )}
-                {editable && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onEdit(message);
-                    }}
-                    className={iconButton}
-                    aria-label="Edit message"
-                  >
-                    <Pencil className="size-3.5" aria-hidden="true" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeleteMenu((open) => !open);
-                  }}
-                  className="hover:text-error focus-visible:text-error"
-                  aria-label="Delete message"
-                  aria-expanded={deleteMenu}
-                >
-                  <Trash2 className="size-3.5" aria-hidden="true" />
-                </button>
-              </div>
+                <ChevronDown className="size-4" aria-hidden="true" />
+              </button>
             )}
 
             {!isMine && (
@@ -413,67 +332,70 @@ const MessageBubbleImpl = ({
                 }}
               />
             )}
-
-            {deleteMenu && (
-              <div
-                role="menu"
-                aria-label="Delete options"
-                className={cn(
-                  'glass-card absolute bottom-full z-20 mb-1 flex w-max flex-col rounded-xl border border-base-content/10 p-1 text-sm shadow-xl',
-                  isMine ? 'right-0' : 'left-0',
-                )}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="rounded-lg px-3 py-1.5 text-left hover:bg-base-200"
-                  onClick={() => {
-                    setDeleteMenu(false);
-                    onDelete(message, 'me');
-                  }}
-                >
-                  Delete for me
-                </button>
-                {isMine && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="rounded-lg px-3 py-1.5 text-left text-error hover:bg-base-200"
-                    onClick={() => {
-                      setDeleteMenu(false);
-                      onDelete(message, 'everyone');
-                    }}
-                  >
-                    Delete for everyone
-                  </button>
-                )}
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="rounded-lg px-3 py-1.5 text-left hover:bg-base-200"
-                  onClick={() => {
-                    setDeleteMenu(false);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-
-            {pickerOpen && (
-              <ReactionPicker
-                align={isMine ? 'right' : 'left'}
-                onPick={(emoji) => {
-                  onReact(message, emoji);
-                }}
-                onClose={() => {
-                  onTogglePicker(null);
-                }}
-              />
-            )}
           </div>
         </div>
       </div>
+
+      {menuOpen && message.content && (
+        <MessageMenu
+          onClose={() => {
+            setMenuOpen(false);
+          }}
+          isMine={isMine}
+          pinned={pinned}
+          starred={message.starred}
+          canEdit={Boolean(editable)}
+          copyText={message.content.type === 'text' ? message.content.text : null}
+          canTranslate={message.content.type === 'text'}
+          onReact={(emoji) => {
+            onReact(message, emoji);
+          }}
+          onReply={() => {
+            onReply(message);
+          }}
+          onCopy={(text) => void copyToClipboard(text)}
+          onForward={
+            onForward &&
+            (() => {
+              onForward(message);
+            })
+          }
+          onPin={
+            onPin &&
+            (() => {
+              onPin(message);
+            })
+          }
+          onStar={
+            onStar &&
+            (() => {
+              onStar(message);
+            })
+          }
+          onEdit={() => {
+            onEdit(message);
+          }}
+          onTranslate={() => {
+            setTranslateOpen(true);
+          }}
+          onReport={() => {
+            setReportOpen(true);
+          }}
+          onDelete={(scope) => {
+            onDelete(message, scope);
+          }}
+        />
+      )}
+
+      {message.content?.type === 'text' && (
+        <TranslateDialog
+          text={message.content.text}
+          open={translateOpen}
+          onClose={() => {
+            setTranslateOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 };

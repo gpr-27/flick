@@ -4,6 +4,7 @@ import type { ConversationSummary } from '@chat/contracts';
 import { Modal, Spinner, cn } from '@/components/ui';
 import { askFlick, summarizeUnread, type AiChatTurn } from './aiApi';
 import { useAiEnabled } from './useAiEnabled';
+import { ModelTag } from './ModelTag';
 import { useAiTask, type AiTaskState } from './useAiTask';
 
 /** Only the latest turns are sent: the server caps the history and its total size. */
@@ -35,6 +36,7 @@ const TaskResult = ({ state, label }: { state: AiTaskState; label: string }) => 
         </span>
       )}
       <p className="whitespace-pre-wrap break-words">{state.text}</p>
+      <ModelTag label={state.model} className="mt-1" />
     </div>
   );
 };
@@ -55,7 +57,8 @@ export const FlickPanel = ({
   const enabled = useAiEnabled();
   const summary = useAiTask();
   const answer = useAiTask();
-  const [turns, setTurns] = useState<AiChatTurn[]>([]);
+  // `model` is set on the assistant's turns, to show who answered; it is not sent back to the API.
+  const [turns, setTurns] = useState<(AiChatTurn & { model?: string })[]>([]);
   const [draft, setDraft] = useState('');
   const [useChat, setUseChat] = useState(true);
 
@@ -73,9 +76,18 @@ export const FlickPanel = ({
     setTurns(history);
     setDraft('');
     void answer
-      .run((o) => askFlick(history.slice(-MAX_TURNS), useChat ? conversation.id : undefined, o))
+      .run((o) =>
+        askFlick(
+          history.slice(-MAX_TURNS).map(({ role, content }) => ({ role, content })),
+          useChat ? conversation.id : undefined,
+          o,
+        ),
+      )
       .then((text) => {
-        if (text) setTurns([...history, { role: 'assistant', content: text }]);
+        if (text) {
+          const model = answer.lastModel.current ?? undefined;
+          setTurns([...history, { role: 'assistant', content: text, model }]);
+        }
       });
   };
 
@@ -122,15 +134,18 @@ export const FlickPanel = ({
 
           <section className="space-y-2" aria-label="Ask">
             {turns.map((turn, i) => (
-              <p
+              <div
                 key={i}
                 className={cn(
-                  'whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm',
+                  'rounded-2xl px-3 py-2 text-sm',
                   turn.role === 'user' ? 'ml-8 bg-primary/10' : 'mr-8 bg-base-content/5',
                 )}
               >
-                {turn.content}
-              </p>
+                <p className="whitespace-pre-wrap break-words">{turn.content}</p>
+                {turn.role === 'assistant' && (
+                  <ModelTag label={turn.model ?? null} className="mt-1" />
+                )}
+              </div>
             ))}
             {/* The answer being written; once done it is part of `turns`. */}
             {answer.state.status !== 'done' && <TaskResult state={answer.state} label="Answer" />}

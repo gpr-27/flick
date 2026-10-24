@@ -20,6 +20,9 @@ const caption = z.string().max(LIMITS.MAX_CAPTION_LENGTH).optional();
 export const TextContent = z.object({
   type: z.literal('text'),
   text: z.string().trim().min(1).max(LIMITS.MAX_TEXT_LENGTH),
+  // Only the @flick bot sets these: which provider and model wrote the reply (shown under it).
+  ai_provider: z.string().max(40).optional(),
+  ai_model: z.string().max(100).optional(),
   ...base,
 });
 

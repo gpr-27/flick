@@ -84,9 +84,24 @@ export const bubble = (page: Page, text: string): Locator =>
 export const tick = (page: Page, text: string): Locator =>
   bubble(page, text).getByRole('img', { name: /^(Sending|Sent|Delivered|Read)$/ });
 
-/** Hover a bubble so its action buttons (react, edit, delete...) are showing, then return it. */
-export async function hoverBubble(page: Page, text: string): Promise<Locator> {
-  const target = bubble(page, text);
-  await target.hover();
-  return target;
+/** Open the actions menu of a message with a right-click (the mouse way to do what a hold does on a phone). */
+export async function openMessageMenu(page: Page, text: string): Promise<Locator> {
+  await bubble(page, text).getByText(text).click({ button: 'right' });
+  const menu = page.getByRole('menu', { name: 'Message actions' });
+  await menu.waitFor();
+  return menu;
+}
+
+/** Hold a message with a finger for a moment (Chromium touch events), like on a phone. */
+export async function holdMessage(page: Page, text: string): Promise<Locator> {
+  const box = await bubble(page, text).getByText(text).boundingBox();
+  if (!box) throw new Error(`Message "${text}" is not on screen`);
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+  await page.waitForTimeout(700);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const menu = page.getByRole('menu', { name: 'Message actions' });
+  await menu.waitFor();
+  return menu;
 }

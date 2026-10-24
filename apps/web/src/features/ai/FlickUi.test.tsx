@@ -8,7 +8,7 @@ import { buildRows } from '../chat/threadRows';
 import * as aiApi from './aiApi';
 import { FlickPanel } from './FlickPanel';
 import { SuggestReplies } from './SuggestReplies';
-import { TranslateButton } from './TranslateButton';
+import { TranslateDialog } from './TranslateDialog';
 import { resetAiEnabledCache } from './useAiEnabled';
 
 vi.mock('./aiApi', async (importOriginal) => ({
@@ -36,6 +36,7 @@ describe('FlickPanel', () => {
 
   it('streams a summary into the panel', async () => {
     api.summarizeUnread.mockImplementation((_id, options) => {
+      options?.onModel?.('Anthropic · claude-haiku-5-5');
       options?.onText?.('- Dinner at 8');
       return Promise.resolve('- Dinner at 8');
     });
@@ -43,6 +44,7 @@ describe('FlickPanel', () => {
     render(<FlickPanel conversation={makeConversation()} open onClose={vi.fn()} />);
     await user.click(await screen.findByRole('button', { name: 'Summarize unread' }));
     expect(await screen.findByText('- Dinner at 8')).toBeInTheDocument();
+    expect(screen.getByText('Answered by Anthropic · claude-haiku-5-5')).toBeInTheDocument();
     expect(api.summarizeUnread).toHaveBeenCalledWith(CONV, expect.anything());
   });
 
@@ -68,7 +70,10 @@ describe('FlickPanel', () => {
 
 describe('SuggestReplies', () => {
   it('shows three chips and fills the composer when one is clicked', async () => {
-    api.suggestReplies.mockResolvedValue(['Sounds good', 'Not today', 'Maybe later?']);
+    api.suggestReplies.mockResolvedValue({
+      replies: ['Sounds good', 'Not today', 'Maybe later?'],
+      model: 'Groq · gpt-oss-20b',
+    });
     const onPick = vi.fn();
     const user = userEvent.setup();
     render(<SuggestReplies conversationId={CONV} onPick={onPick} />);
@@ -78,6 +83,7 @@ describe('SuggestReplies', () => {
       expect(button).toBeEnabled();
     });
     await user.click(button);
+    expect(await screen.findByText('Answered by Groq · gpt-oss-20b')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: 'Not today' }));
     expect(onPick).toHaveBeenCalledWith('Not today');
   });
@@ -90,13 +96,14 @@ describe('SuggestReplies', () => {
   });
 });
 
-describe('TranslateButton', () => {
+describe('TranslateDialog', () => {
   it('translates into the chosen language', async () => {
-    api.translateText.mockResolvedValue('Hello');
+    api.translateText.mockResolvedValue({ text: 'Hello', model: 'Gemini · gemini-3.8-flash' });
     const user = userEvent.setup();
-    render(<TranslateButton text="Hola" open onOpenChange={vi.fn()} align="left" />);
+    render(<TranslateDialog text="Hola" open onClose={vi.fn()} />);
     await user.selectOptions(await screen.findByLabelText('Translate to'), 'English');
     expect(await screen.findByText('Hello')).toBeInTheDocument();
+    expect(screen.getByText('Answered by Gemini · gemini-3.8-flash')).toBeInTheDocument();
     expect(api.translateText).toHaveBeenCalledWith('Hola', 'English');
   });
 });
@@ -115,8 +122,6 @@ describe('bot messages', () => {
         quoted={null}
         quotedName=""
         showDate={false}
-        pickerOpen={false}
-        onTogglePicker={vi.fn()}
         onReact={vi.fn()}
         onReply={vi.fn()}
         onEdit={vi.fn()}

@@ -8,6 +8,8 @@ import { getDeviceId, getSessionToken } from '@/features/auth/authBridge';
 
 const E = ENDPOINTS.ai;
 
+import { modelLabel } from './modelLabel';
+
 export interface AiChatTurn {
   role: 'user' | 'assistant';
   content: string;
@@ -17,6 +19,8 @@ export interface StreamOptions {
   signal?: AbortSignal;
   /** Called with the full text so far each time more arrives. */
   onText?: (text: string) => void;
+  /** Called once, before the first words, with which model is answering. */
+  onModel?: (label: string) => void;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
@@ -104,7 +108,9 @@ async function streamText(path: string, body: unknown, options: StreamOptions): 
   const res = await send(path, { method: 'POST', body, stream: true, signal: options.signal });
   let text = '';
   await readEvents(res, (event, data) => {
-    if (event === 'delta' && typeof data.text === 'string') {
+    if (event === 'meta' && typeof data.provider === 'string' && typeof data.model === 'string') {
+      options.onModel?.(modelLabel(data.provider, data.model));
+    } else if (event === 'delta' && typeof data.text === 'string') {
       text += data.text;
       options.onText?.(text);
     } else if (event === 'error') {
@@ -145,12 +151,12 @@ export async function suggestReplies(conversationId: string, signal?: AbortSigna
   const data = E.suggestReplies.response.parse(
     await jsonOf(E.suggestReplies.path, { conversation_id: conversationId }, signal),
   );
-  return data.replies;
+  return { replies: data.replies, model: modelLabel(data.provider, data.model) };
 }
 
 export async function translateText(text: string, targetLang: string, signal?: AbortSignal) {
   const data = E.translate.response.parse(
     await jsonOf(E.translate.path, { text, targetLang }, signal),
   );
-  return data.text;
+  return { text: data.text, model: modelLabel(data.provider, data.model) };
 }

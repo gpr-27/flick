@@ -156,7 +156,6 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   );
 
   const listRef = useRef<VirtualMessageListHandle>(null);
-  const [pickerFor, setPickerFor] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
 
@@ -291,8 +290,6 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
                   : userName(users, quoted?.sender_user_id ?? null)
               }
               showDate={isNewDay(rows[index - 1]?.message.created_at, message.created_at)}
-              pickerOpen={pickerFor === message.message_id}
-              onTogglePicker={setPickerFor}
               onReact={(m, emoji) => void reactTo(m, emoji)}
               onReply={setReplyingTo}
               onEdit={setEditing}
