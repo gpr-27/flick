@@ -201,3 +201,25 @@ describe('VirtualMessageList scroll behaviour', () => {
     expect(onLoadOlder).not.toHaveBeenCalled();
   });
 });
+
+describe('VirtualMessageList extras', () => {
+  it('counts new messages on the jump button while the reader is scrolled up', async () => {
+    const { rerender } = render(<List data={items(0, 100)} />);
+    await flush();
+    scrollTo(1200);
+    await flush();
+    rerender(<List data={items(0, 103)} />);
+    await flush();
+    expect(screen.getByTestId('new-count')).toHaveTextContent('3');
+  });
+
+  it('does not count prepended older pages', async () => {
+    const { rerender } = render(<List data={items(100, 200)} />);
+    await flush();
+    scrollTo(1000);
+    await flush();
+    rerender(<List data={items(50, 200)} />);
+    await flush();
+    expect(screen.queryByTestId('new-count')).not.toBeInTheDocument();
+  });
+});

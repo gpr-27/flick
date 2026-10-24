@@ -3,7 +3,7 @@ import type { MessageRecord } from '@chat/contracts';
 import { X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { ErrorState, Modal } from '@/components/ui';
-import { isNewDay } from '@/lib/time';
+import { formatDateSeparator, isNewDay } from '@/lib/time';
 import { useConnectionState } from '@/lib/realtime';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { GroupCallBanner } from '@/features/groupcall/components/GroupCallBanner';
@@ -19,7 +19,7 @@ import { useIsHidden } from '../../organise/lock';
 import { toggleStar, usePinsStore } from '../../organise/messageActions';
 import { PinnedBar } from '../../organise/PinnedBar';
 import { wallpaperStyle } from '../../organise/wallpapers';
-import { buildRows, rowStatus, type ThreadRow } from '../threadRows';
+import { buildRows, firstUnreadKey, groupPosition, rowStatus, type ThreadRow } from '../threadRows';
 import { useChatStore, userName, type Activity } from '../useChatStore';
 import { ChatHeader } from './ChatHeader';
 import { ActivityBubble, MessageBubble } from './MessageBubble';
@@ -155,6 +155,18 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
     [members],
   );
 
+  // How many messages were unread when this chat was opened; the divider stays put after they
+  // are marked read, and goes away when the chat is closed.
+  const [opened, setOpened] = useState<{ id: string; unread: number } | null>(null);
+  if (opened?.id !== id && thread?.status === 'ready') {
+    setOpened({ id, unread: conversation.unread_count });
+  }
+  const openedUnread = opened?.id === id ? opened.unread : 0;
+  const unreadKey = useMemo(
+    () => firstUnreadKey(rows, myId, openedUnread),
+    [rows, myId, openedUnread],
+  );
+
   const listRef = useRef<VirtualMessageListHandle>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
@@ -206,7 +218,9 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   const jumpTo = useCallback(
     (messageId: string) => {
       const target = bySeqId.get(messageId);
-      if (target) listRef.current?.scrollToKey(target.client_message_id ?? target.message_id);
+      if (!target) return;
+      listRef.current?.scrollToKey(target.client_message_id ?? target.message_id);
+      useJumpStore.getState().flash(target.message_id);
     },
     [bySeqId],
   );
@@ -269,10 +283,12 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
         isLoadingOlder={thread.loadingOlder}
         onLoadOlder={loadOlder}
         footer={activityRow}
+        dateLabel={(row) => formatDateSeparator(row.message.created_at)}
         renderItem={(row, index) => {
           const { message } = row;
           const senderId = message.sender_user_id;
           const sender = senderId ? (users[senderId] ?? memberById.get(senderId) ?? null) : null;
+          const { startsGroup, endsGroup } = groupPosition(rows, index);
           const quoted = message.content?.reply_to
             ? (bySeqId.get(message.content.reply_to) ?? null)
             : null;
@@ -290,6 +306,9 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
                   : userName(users, quoted?.sender_user_id ?? null)
               }
               showDate={isNewDay(rows[index - 1]?.message.created_at, message.created_at)}
+              startsGroup={startsGroup}
+              endsGroup={endsGroup}
+              unreadCount={row.key === unreadKey ? openedUnread : 0}
               onReact={(m, emoji) => void reactTo(m, emoji)}
               onReply={setReplyingTo}
               onEdit={setEditing}

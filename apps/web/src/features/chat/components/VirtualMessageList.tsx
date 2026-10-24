@@ -43,6 +43,8 @@ export interface VirtualMessageListProps<T> {
   isLoadingOlder: boolean;
   onLoadOlder: () => void;
   label: string;
+  /** Day label for an item; the current one floats at the top while scrolling. */
+  dateLabel?: (item: T) => string;
   className?: string;
   /** Test hook: initial viewport size before ResizeObserver reports one. */
   initialRect?: Rect;
@@ -61,6 +63,7 @@ function VirtualMessageListInner<T>(
     isLoadingOlder,
     onLoadOlder,
     label,
+    dateLabel,
     className,
     initialRect,
   }: VirtualMessageListProps<T>,
@@ -70,6 +73,11 @@ function VirtualMessageListInner<T>(
   const hasFooter = footer !== undefined && footer !== null && footer !== false;
   const count = items.length + (hasFooter ? 1 : 0);
   const [atBottom, setAtBottom] = useState(true);
+  // Messages that arrived while the reader was scrolled up (shown on the jump button).
+  const [newCount, setNewCount] = useState(0);
+  const [floatingDate, setFloatingDate] = useState<string | null>(null);
+  const hideDate = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const lastKey = useRef<string | undefined>(undefined);
 
   const keyAt = useCallback(
     (index: number): string => {
@@ -118,9 +126,41 @@ function VirtualMessageListInner<T>(
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD_PX);
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD_PX;
+    setAtBottom(bottom);
+    if (bottom) setNewCount(0);
     loadOlderIfNeeded();
-  }, [loadOlderIfNeeded]);
+    if (dateLabel) {
+      const first = virtualizer.getVirtualItems().find((v) => v.end > el.scrollTop);
+      const item = first ? items[first.index] : undefined;
+      setFloatingDate(item === undefined ? null : dateLabel(item));
+      clearTimeout(hideDate.current);
+      hideDate.current = setTimeout(() => {
+        setFloatingDate(null);
+      }, 1500);
+    }
+  }, [loadOlderIfNeeded, dateLabel, virtualizer, items]);
+
+  useEffect(
+    () => () => {
+      clearTimeout(hideDate.current);
+    },
+    [],
+  );
+
+  // Count rows that were appended while the reader is away from the bottom.
+  useEffect(() => {
+    const newest = items[items.length - 1];
+    const key = newest === undefined ? undefined : getKey(newest);
+    const previous = lastKey.current;
+    lastKey.current = key;
+    if (previous === undefined || key === previous || atBottom) return;
+    // Appended (the old newest is still in the list), not a prepended page.
+    if (items.some((item) => getKey(item) === previous)) {
+      const from = items.findIndex((item) => getKey(item) === previous);
+      setNewCount((n) => n + (items.length - 1 - from));
+    }
+  }, [items, getKey, atBottom]);
 
   // A short first page may not fill the viewport: keep loading until it does.
   useEffect(() => {
@@ -189,6 +229,14 @@ function VirtualMessageListInner<T>(
         </div>
       )}
 
+      {floatingDate && !isLoadingOlder && (
+        <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
+          <span className="chip text-[11px] font-semibold" data-testid="floating-date">
+            {floatingDate}
+          </span>
+        </div>
+      )}
+
       {!atBottom && (
         <button
           type="button"
@@ -200,6 +248,14 @@ function VirtualMessageListInner<T>(
           title="Jump to latest"
         >
           <ArrowDown className="size-5" aria-hidden="true" />
+          {newCount > 0 && (
+            <span
+              className="absolute -right-1 -top-2 grid min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-content"
+              data-testid="new-count"
+            >
+              {newCount > 99 ? '99+' : newCount}
+            </span>
+          )}
         </button>
       )}
     </div>

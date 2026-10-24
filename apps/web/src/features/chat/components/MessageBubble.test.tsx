@@ -238,3 +238,33 @@ describe('MessageBubble', () => {
     expect(screen.getByText(/not supported/)).toBeInTheDocument();
   });
 });
+
+describe('grouping, unread divider and long text', () => {
+  it('shows the unread divider', () => {
+    render(<MessageBubble {...props({ unreadCount: 2, endsGroup: false, startsGroup: false })} />);
+    expect(screen.getByTestId('unread-divider')).toHaveTextContent('2 unread messages');
+  });
+
+  it('draws links as safe anchors', () => {
+    const [row] = buildRows(
+      [makeMessage({ content: { type: 'text', text: 'go https://example.com now' } })],
+      [],
+      CONV,
+    );
+    render(<MessageBubble {...props({ row: row! })} />);
+    const link = screen.getByRole('link', { name: 'https://example.com' });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('collapses a long message behind Read more', async () => {
+    const [row] = buildRows(
+      [makeMessage({ content: { type: 'text', text: 'word '.repeat(200) } })],
+      [],
+      CONV,
+    );
+    render(<MessageBubble {...props({ row: row! })} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Read more' }));
+    expect(screen.getByRole('button', { name: 'Show less' })).toBeInTheDocument();
+  });
+});

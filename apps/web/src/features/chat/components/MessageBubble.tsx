@@ -35,6 +35,11 @@ export interface MessageBubbleProps {
   quoted: MessageRecord | null;
   quotedName: string;
   showDate: boolean;
+  /** First / last message of a run from one sender; a run shares one name and one avatar. */
+  startsGroup?: boolean;
+  endsGroup?: boolean;
+  /** Draw an "N unread messages" divider above this message. */
+  unreadCount?: number;
   onReact: (message: MessageRecord, emoji: string) => void;
   onReply: (message: MessageRecord) => void;
   onEdit: (message: MessageRecord) => void;
@@ -85,6 +90,9 @@ const MessageBubbleImpl = ({
   quoted,
   quotedName,
   showDate,
+  startsGroup = true,
+  endsGroup = true,
+  unreadCount = 0,
   onReact,
   onReply,
   onEdit,
@@ -135,32 +143,49 @@ const MessageBubbleImpl = ({
     </div>
   );
 
+  const unreadDivider = unreadCount > 0 && (
+    <div
+      className="my-3 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider text-primary"
+      role="separator"
+      data-testid="unread-divider"
+    >
+      <span className="h-px flex-1 bg-primary/30" aria-hidden="true" />
+      {unreadCount} unread {unreadCount === 1 ? 'message' : 'messages'}
+      <span className="h-px flex-1 bg-primary/30" aria-hidden="true" />
+    </div>
+  );
+
   if (isSystem && message.content) {
     return (
       <div className="pb-1">
         {dateSeparator}
+        {unreadDivider}
         <div className="my-2">{renderContent(message.content, contentContext)}</div>
       </div>
     );
   }
 
   return (
-    <div className="pb-1">
+    <div className={cn(endsGroup ? 'pb-1' : 'pb-0.5', startsGroup && 'pt-1')}>
       {dateSeparator}
+      {unreadDivider}
 
       <div
         className={cn('group flex items-end gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}
         aria-label={`${author} at ${time}`}
         role="article"
       >
-        {!isMine && (
-          <Avatar
-            src={sender?.avatar_url}
-            name=""
-            size="xs"
-            imgClassName="ring-2 ring-primary/15 shadow-sm"
-          />
-        )}
+        {!isMine &&
+          (endsGroup ? (
+            <Avatar
+              src={sender?.avatar_url}
+              name=""
+              size="xs"
+              imgClassName="ring-2 ring-primary/15 shadow-sm"
+            />
+          ) : (
+            <span className="size-8 shrink-0" aria-hidden="true" data-testid="avatar-spacer" />
+          ))}
 
         <div
           className={cn(
@@ -168,7 +193,7 @@ const MessageBubbleImpl = ({
             isMine ? 'items-end' : 'items-start',
           )}
         >
-          {!isMine && (isGroup || isBot) && (
+          {!isMine && startsGroup && (isGroup || isBot) && (
             <span className="mb-0.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-primary">
               {author}
               {isBot && <FlickBadge />}
