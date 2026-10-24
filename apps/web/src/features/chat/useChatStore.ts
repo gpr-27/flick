@@ -21,7 +21,9 @@ import { getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { getApi, getTransport } from '@/lib/services';
 import { useSessionStore } from '@/features/auth/useSessionStore';
+import { useMentions } from '@/features/notifications/mentions';
 import { notifyIncoming } from '@/features/notifications/notifyIncoming';
+import { mentionsUser } from '@/features/notifications/rules';
 import type { OutboxItem } from './outbox/outboxMachine';
 import { createSyncEngine, type SyncEngine } from './sync/syncEngine';
 import {
@@ -360,10 +362,16 @@ export const useChatStore = create<ChatState>()((set, get) => {
         // Someone who just sent a message is no longer typing.
         const sender = event.payload.message.sender_user_id;
         if (sender) get().setActivity(conversationId, sender, null);
+        const message = event.payload.message;
+        const inView = s.inView && s.selectedId === conversationId;
+        if (me && sender !== me && !inView && mentionsUser(message.content, me)) {
+          useMentions.getState().mark(conversationId);
+        }
         if (summary && me) {
-          notifyIncoming(event.payload.message, {
+          notifyIncoming(message, {
             summary,
             myId: me,
+            inView,
             senderName:
               (sender && s.users[sender]?.display_name) || summary.peer?.display_name || 'Someone',
             open: () => {
@@ -504,6 +512,7 @@ export const useChatStore = create<ChatState>()((set, get) => {
       // when the connection is back.
       if (getTransport().state !== 'connected') return;
       void getTransport().request('read_ack', { conversation_id: conversationId, seq });
+      useMentions.getState().clear(conversationId);
       patchConversation(conversationId, (x) => ({
         ...x,
         read_seq: Math.max(x.read_seq, seq),

@@ -17,6 +17,8 @@ import { CallLinkPage } from '@/features/groupcall/CallLinkPage';
 import { GroupCallOverlay } from '@/features/groupcall/components/GroupCallOverlay';
 import { startChatSession } from '@/features/chat/chatSession';
 import { HomePage } from '@/features/chat/HomePage';
+import { IncomingBanner } from '@/features/notifications/IncomingBanner';
+import { useUnreadIndicators } from '@/features/notifications/useUnreadIndicators';
 import { useOpenPendingConversation } from '@/features/notifications/useOpenPendingConversation';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
@@ -68,6 +70,7 @@ const SignedInApp = () => {
 
   useRealtimeBindings(userId);
   useOpenPendingConversation();
+  useUnreadIndicators();
 
   if (status !== 'authenticated') {
     return error ? (
@@ -101,6 +104,7 @@ const SignedInApp = () => {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
+      <IncomingBanner />
       <IncomingCallModal />
       <CallOverlay />
       <GroupCallOverlay />
