@@ -74,6 +74,7 @@ export const SUMMARY = {
   type: 'group' as const,
   title: 'Team',
   avatar_url: null,
+  description: null,
   peer: null,
   member_count: 3,
   my_role: 'member' as const,

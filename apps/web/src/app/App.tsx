@@ -15,6 +15,7 @@ import { IncomingCallModal } from '@/features/calls/components/IncomingCallModal
 import { useAnswerFromNotification } from '@/features/calls/useAnswerFromNotification';
 import { bindCallRealtime } from '@/features/calls/useCallStore';
 import { CallLogPage } from '@/features/calllog/CallLogPage';
+import { InvitePage } from '@/features/chat/InvitePage';
 import { CallLinkPage } from '@/features/groupcall/CallLinkPage';
 import { GroupCallOverlay } from '@/features/groupcall/components/GroupCallOverlay';
 import { startChatSession } from '@/features/chat/chatSession';
@@ -105,6 +106,7 @@ const SignedInApp = () => {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/people" element={<PeoplePage />} />
           <Route path="/calls" element={<CallLogPage />} />
+          <Route path="/join/:code" element={<InvitePage />} />
           <Route path="/call/:token" element={<CallLinkPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" />} />

@@ -93,6 +93,7 @@ describe('GroupCallOverlay', () => {
       ],
     });
     render(<GroupCallOverlay />);
+    expect(screen.getByText('2 people in the call')).toBeInTheDocument();
     expect(screen.getByLabelText('Bo, speaking')).toHaveAttribute('data-speaking', 'true');
     expect(screen.getByLabelText('Ann (you)')).toHaveAttribute('data-speaking', 'false');
     await userEvent.click(screen.getByRole('button', { name: 'Leave call' }));

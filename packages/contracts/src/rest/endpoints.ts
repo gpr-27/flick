@@ -162,6 +162,14 @@ export const ENDPOINTS = {
       query: Conv.MentionQuery,
       response: Conv.MentionCandidates,
     },
+    shared: {
+      method: 'GET',
+      path: '/conversations/:conversation_id/shared',
+      auth: true,
+      params: Conv.ConversationParams,
+      query: Conv.SharedQuery,
+      response: Conv.SharedPage,
+    },
     createInvite: {
       method: 'POST',
       path: '/conversations/:conversation_id/invites',

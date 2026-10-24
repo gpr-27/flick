@@ -14,6 +14,8 @@ import { MessageRecord } from '../message.js';
 import { DISAPPEARING_TIMERS, LIMITS } from '../limits.js';
 
 const Title = z.string().trim().min(1).max(100);
+/** Empty text clears the description. */
+const Description = z.string().trim().max(500);
 const DisappearingTimer = z
   .number()
   .int()
@@ -54,6 +56,8 @@ export const ConversationSummary = z.object({
   /** null for direct chats; show the other user's name. */
   title: z.string().max(100).nullable(),
   avatar_url: HttpUrl.nullable(),
+  /** The group's description; null when none is set (and always for direct chats). */
+  description: Description.nullable(),
   /** The other user, for direct chats. */
   peer: UserSummary.nullable(),
   member_count: z.number().int().min(0),
@@ -92,8 +96,24 @@ export const CreateGroupRequest = z.object({
 });
 
 export const UpdateConversationRequest = z
-  .object({ title: Title, avatar_attachment_id: Id.nullable(), settings: GroupSettings.partial() })
+  .object({
+    title: Title,
+    description: Description,
+    avatar_attachment_id: Id.nullable(),
+    settings: GroupSettings.partial(),
+  })
   .partial();
+
+// ------------------------------------------------- media, links and files tab
+
+/** media = photos, videos and GIFs; files = documents; links = text messages with a web link. */
+export const SharedKind = z.enum(['media', 'files', 'links']);
+export const SharedQuery = z.object({
+  kind: SharedKind,
+  before_seq: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(LIMITS.MAX_PAGE_SIZE).default(LIMITS.DEFAULT_PAGE_SIZE),
+});
+export const SharedPage = Paginated(MessageRecord);
 
 export const UpdateChatPrefsRequest = ChatPrefs.partial();
 

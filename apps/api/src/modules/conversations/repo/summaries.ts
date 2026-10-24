@@ -20,6 +20,7 @@ import { fromRow } from '../../messages/domain/content.js';
 function chatListRows(db: Db, userId: string) {
   return buildChatListQuery(db, userId).select([
     'c.created_at',
+    'c.description',
     'c.disappearing_seconds',
     'c.admin_only_send',
     'c.admin_only_edit',
@@ -126,6 +127,7 @@ async function toSummaries(
       type: r.type,
       title: r.type === 'group' ? r.name : null,
       avatar_url: mediaUrl(config, r.avatar_object_key),
+      description: r.type === 'group' ? r.description : null,
       peer: peers.get(r.id) ?? null,
       member_count: memberCount.get(r.id) ?? 0,
       my_role: r.role,

@@ -7,6 +7,7 @@ import * as groups from '../repo/groups.js';
 import * as invites from '../repo/invites.js';
 import { updatePrefs } from '../repo/prefs.js';
 import { requireActiveMember } from '../repo/core.js';
+import { listShared } from '../repo/shared.js';
 import {
   getConversation,
   getMember,
@@ -91,6 +92,7 @@ export function conversationRoutes(app: FastifyInstance, deps: AppDeps): void {
     route(E.update, async ({ userId, params, body }) => {
       await groups.updateConversation(db, userId, params.conversation_id, {
         title: body.title,
+        description: body.description,
         avatarAttachmentId: body.avatar_attachment_id,
         settings: body.settings,
       });
@@ -128,6 +130,15 @@ export function conversationRoutes(app: FastifyInstance, deps: AppDeps): void {
       await groups.setRole(db, userId, params.conversation_id, params.user_id, body.role);
       conversationChanges.inc({ action: 'role_changed' });
       return getMember(db, config, params.conversation_id, params.user_id);
+    });
+
+    route(E.shared, async ({ userId, params, query }) => {
+      await requireActiveMember(db, params.conversation_id, userId);
+      return listShared(db, userId, params.conversation_id, {
+        kind: query.kind,
+        beforeSeq: query.before_seq,
+        limit: query.limit,
+      });
     });
 
     route(E.mentionCandidates, async ({ userId, params, query }) => {

@@ -15,7 +15,7 @@ import {
   type UserSummary,
 } from '@chat/contracts';
 import type { z } from 'zod';
-import type { Member as MemberSchema } from '@chat/contracts';
+import type { Member as MemberSchema, UpdateConversationRequest } from '@chat/contracts';
 import { notify } from '@/components/ui/notify';
 import { getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -112,6 +112,11 @@ interface ChatState {
   removeMember: (conversationId: string, userId: string) => Promise<void>;
   setRole: (conversationId: string, userId: string, role: Member['role']) => Promise<void>;
   renameGroup: (conversationId: string, title: string) => Promise<void>;
+  /** Name, description, photo (an uploaded attachment id) and the group switches, in one PATCH. */
+  updateGroup: (
+    conversationId: string,
+    patch: z.infer<typeof UpdateConversationRequest>,
+  ) => Promise<boolean>;
   leave: (conversationId: string) => Promise<void>;
   reset: () => void;
 }
@@ -689,6 +694,20 @@ export const useChatStore = create<ChatState>()((set, get) => {
         get().conversationUpdated(conversationId, summary);
       } catch (error) {
         notify.error(getErrorMessage(error, "Couldn't rename the group."));
+      }
+    },
+
+    updateGroup: async (conversationId, patch) => {
+      try {
+        const summary = await getApi().call(ENDPOINTS.conversations.update, {
+          params: { conversation_id: conversationId },
+          body: patch,
+        });
+        get().conversationUpdated(conversationId, summary);
+        return true;
+      } catch (error) {
+        notify.error(getErrorMessage(error, "Couldn't update the group."));
+        return false;
       }
     },
 
