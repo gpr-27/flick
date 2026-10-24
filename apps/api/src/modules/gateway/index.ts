@@ -25,7 +25,8 @@ import {
   syncMany,
   toApiError,
 } from '../messages/index.js';
-import { createCalls, type CallEventName } from './calls.js';
+import type { CallPushJob } from './call-push.js';
+import { createCalls, type CallEventName, type Calls } from './calls.js';
 import { createPresence, PRESENCE_TTL_MS } from './presence.js';
 import { TokenBucket } from './rate-limit.js';
 import { createGatewayRepo } from './repo.js';
@@ -35,6 +36,10 @@ export interface GatewayDeps {
   redis: Redis;
   logger: Logger;
   authenticateSocket: (token: string, deviceId: string) => Promise<AuthContext | null>;
+  /** Queues a Web Push for a call (see call-push.ts). Without it, offline users cannot be rung. */
+  enqueueCallPush?: (job: CallPushJob) => Promise<void>;
+  /** How long a call waits for an offline callee (default 45 s); tests make it short. */
+  parkedTtlMs?: number;
 }
 
 const CALL_EVENTS: CallEventName[] = [
@@ -50,11 +55,23 @@ const CALL_EVENTS: CallEventName[] = [
 /** The auth context the handshake middleware stored on the socket. */
 const authOf = (socket: { data: unknown }) => (socket.data as { auth: AuthContext }).auth;
 
-export function attachGateway(io: Server, deps: GatewayDeps): { close(): Promise<void> } {
+export function attachGateway(
+  io: Server,
+  deps: GatewayDeps,
+): { close(): Promise<void>; calls: Calls } {
   const { db, redis, logger } = deps;
   const repo = createGatewayRepo(db);
   const presence = createPresence(redis);
-  const calls = createCalls({ io, db, redis, repo, presence, logger });
+  const calls = createCalls({
+    io,
+    db,
+    redis,
+    repo,
+    presence,
+    logger,
+    enqueueCallPush: deps.enqueueCallPush,
+    parkedTtlMs: deps.parkedTtlMs,
+  });
   const messageDeps = { db };
 
   // The Clerk session token is in the handshake `auth` object, never in the URL.
@@ -105,6 +122,14 @@ export function attachGateway(io: Server, deps: GatewayDeps): { close(): Promise
         if (cameOnline) await announce(ctx.userId);
       })
       .catch((error: unknown) => logger.warn({ error }, 'presence add failed'));
+    // A call that rang this person's push notification while they were away is handed over now, and
+    // once more after their first sync (by then the app has certainly bound its call handlers).
+    const deliverParked = () =>
+      calls
+        .deliverParked(socket, ctx.userId)
+        .catch((error: unknown) => logger.warn({ error }, 'delivering a parked call failed'));
+    void online.then(deliverParked);
+    let deliveredAfterSync = false;
 
     const bucket = new TokenBucket(40, 20); // per socket, in memory
     const lastSent = new Map<string, number>();
@@ -158,7 +183,14 @@ export function attachGateway(io: Server, deps: GatewayDeps): { close(): Promise
     on('read_ack', async (d) => {
       await acknowledgeRead(messageDeps, ctx, { conversationId: d.conversation_id, seq: d.seq });
     });
-    on('sync_request', (d) => syncMany(messageDeps, ctx, d));
+    on('sync_request', async (d) => {
+      const result = await syncMany(messageDeps, ctx, d);
+      if (!deliveredAfterSync) {
+        deliveredAfterSync = true;
+        void deliverParked();
+      }
+      return result;
+    });
 
     // Typing and recording are never stored: relayed to the other members and forgotten.
     async function relayToMembers(
@@ -219,6 +251,7 @@ export function attachGateway(io: Server, deps: GatewayDeps): { close(): Promise
   refresh.unref();
 
   return {
+    calls,
     async close() {
       clearInterval(refresh);
       calls.close();

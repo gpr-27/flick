@@ -10,7 +10,11 @@ import type { UploadStorage } from './jobs/sweep-uploads.js';
 import { createLogger } from './logger.js';
 import { SimulatedLogNotificationProvider, type NotificationProvider } from './notifications.js';
 import { createOpsServer } from './server.js';
-import { WebPushNotificationProvider, createWebPushSender } from './web-push-provider.js';
+import {
+  WebPushNotificationProvider,
+  createWebPushSender,
+  type PushSender,
+} from './web-push-provider.js';
 
 function readConfig(): Config {
   try {
@@ -50,12 +54,14 @@ if (startup.status !== 'ready') process.exit(1);
 
 // Real Web Push when the VAPID keys are set; otherwise a clearly labelled simulation.
 let provider: NotificationProvider;
+let pushSender: PushSender | null = null;
 if (config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY && config.VAPID_SUBJECT) {
   const sender = createWebPushSender({
     subject: config.VAPID_SUBJECT,
     publicKey: config.VAPID_PUBLIC_KEY,
     privateKey: config.VAPID_PRIVATE_KEY,
   });
+  pushSender = sender;
   provider = new WebPushNotificationProvider(db, sender, logger);
 } else {
   logger.warn('VAPID keys not set: notifications are SIMULATED (logged, nothing is sent)');
@@ -82,7 +88,14 @@ const boss = new PgBoss({
   connectionString: config.DATABASE_URL,
   application_name: 'chat-worker-boss',
 });
-await startJobs({ boss, db, logger, notify: { db, redis, provider }, storage });
+await startJobs({
+  boss,
+  db,
+  logger,
+  notify: { db, redis, provider },
+  callPush: { db, redis, sender: pushSender, logger },
+  storage,
+});
 logger.info(
   {
     port: config.WORKER_METRICS_PORT,

@@ -7,6 +7,12 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { startJobs, stopJobs } from '../../src/jobs/boss.js';
 import { expireMessages } from '../../src/jobs/expire-messages.js';
+import {
+  CANCEL_OPTIONS,
+  RING_OPTIONS,
+  handleCallPush,
+  type CallPushJob,
+} from '../../src/jobs/call-push.js';
 import { NOTIFY_QUEUE, handleNotify } from '../../src/jobs/notify.js';
 import { sweepUploads } from '../../src/jobs/sweep-uploads.js';
 import { createLogger } from '../../src/logger.js';
@@ -154,7 +160,14 @@ describe('notify', () => {
     const { conversationId, messageIds } = await makeChat([alice, bob], 1);
     const { sent, provider } = recorder();
     const boss = new PgBoss(url);
-    await startJobs({ boss, db, logger, notify: { db, redis, provider }, storage: undefined });
+    await startJobs({
+      boss,
+      db,
+      logger,
+      notify: { db, redis, provider },
+      callPush: { db, redis, sender: null, logger },
+      storage: undefined,
+    });
     try {
       await boss.send(NOTIFY_QUEUE, {
         user_id: bob,
@@ -274,5 +287,116 @@ describe('sweep-uploads', () => {
       .where('id', 'in', [oldPending.id, freshPending.id, oldUploaded.id])
       .execute();
     expect(left.map((r) => r.id).sort()).toEqual([freshPending.id, oldUploaded.id].sort());
+  });
+});
+
+describe('call push', () => {
+  const sent: { endpoint: string; payload: Record<string, unknown>; options: unknown }[] = [];
+  const sender: PushSender = (target, payload, options) => {
+    sent.push({
+      endpoint: target.endpoint,
+      payload: JSON.parse(payload) as Record<string, unknown>,
+      options,
+    });
+    return Promise.resolve();
+  };
+  const job = (user_id: string, kind: 'ring' | 'cancel'): CallPushJob => ({
+    kind,
+    user_id,
+    call_id: randomUUID(),
+    conversation_id: randomUUID(),
+    caller_name: 'Praneeth',
+    media: 'video',
+    ...(kind === 'ring' ? { decline_token: 'tok' } : {}),
+  });
+  const park = (j: CallPushJob) =>
+    redis.set(`call:parked:${j.user_id}:${j.call_id}`, '{}', 'EX', 30);
+
+  it('rings every subscription with a short, high-urgency push, only while the call is parked', async () => {
+    sent.length = 0;
+    const bob = await makeUser('bob');
+    await db
+      .insertInto('push_subscriptions')
+      .values([
+        { user_id: bob, endpoint: `https://push.example/${randomUUID()}`, p256dh: 'p', auth: 'a' },
+        { user_id: bob, endpoint: `https://push.example/${randomUUID()}`, p256dh: 'p', auth: 'a' },
+      ])
+      .execute();
+    const deps = { db, redis, sender, logger };
+    const ring = job(bob, 'ring');
+
+    // The call was already cancelled or expired when the job ran: nothing is sent.
+    expect(await handleCallPush(deps, ring)).toBe('skipped_expired');
+    expect(sent).toHaveLength(0);
+
+    await park(ring);
+    expect(await handleCallPush(deps, ring)).toBe('sent');
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toMatchObject({
+      payload: {
+        type: 'call',
+        call_id: ring.call_id,
+        caller_name: 'Praneeth',
+        media: 'video',
+        decline_token: 'tok',
+      },
+      options: RING_OPTIONS,
+    });
+    expect(RING_OPTIONS).toEqual({ ttlSeconds: 30, urgency: 'high' });
+  });
+
+  it('does not ring someone who came online meanwhile (the app rings itself)', async () => {
+    sent.length = 0;
+    const bob = await makeUser('bob');
+    const ring = job(bob, 'ring');
+    await park(ring);
+    await redis.zadd(`presence:user:${bob}`, Date.now() + 60_000, randomUUID());
+    expect(await handleCallPush({ db, redis, sender, logger }, ring)).toBe('skipped_online');
+    expect(sent).toHaveLength(0);
+  });
+
+  it('always sends the cancel, as a not-urgent push that outlives the ring', async () => {
+    sent.length = 0;
+    const bob = await makeUser('bob');
+    await db
+      .insertInto('push_subscriptions')
+      .values({
+        user_id: bob,
+        endpoint: `https://push.example/${randomUUID()}`,
+        p256dh: 'p',
+        auth: 'a',
+      })
+      .execute();
+    const cancel = job(bob, 'cancel'); // nothing parked any more
+    expect(await handleCallPush({ db, redis, sender, logger }, cancel)).toBe('sent');
+    expect(sent[0]).toMatchObject({
+      payload: { type: 'call_cancel', call_id: cancel.call_id },
+      options: CANCEL_OPTIONS,
+    });
+    expect(sent[0]!.payload.decline_token).toBeUndefined();
+  });
+
+  it('only logs when there are no VAPID keys, and sends nothing', async () => {
+    const bob = await makeUser('bob');
+    const cancel = job(bob, 'cancel');
+    expect(await handleCallPush({ db, redis, sender: null, logger }, cancel)).toBe('simulated');
+  });
+
+  it('disables a subscription the push service says is gone', async () => {
+    const bob = await makeUser('bob');
+    const endpoint = `https://push.example/${randomUUID()}`;
+    await db
+      .insertInto('push_subscriptions')
+      .values({ user_id: bob, endpoint, p256dh: 'p', auth: 'a' })
+      .execute();
+    const gone: PushSender = () =>
+      Promise.reject(Object.assign(new Error('gone'), { statusCode: 410 }));
+    await handleCallPush({ db, redis, sender: gone, logger }, job(bob, 'cancel'));
+    const row = await db
+      .selectFrom('push_subscriptions')
+      .select('disabled_at')
+      .where('endpoint', '=', endpoint)
+      .executeTakeFirstOrThrow();
+    expect(row.disabled_at).not.toBeNull();
   });
 });

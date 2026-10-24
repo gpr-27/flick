@@ -446,6 +446,13 @@ export const ENDPOINTS = {
       params: Calls.CallLinkParams,
       response: null,
     },
+    declineFromPush: {
+      method: 'POST',
+      path: '/calls/decline-from-push',
+      auth: false,
+      body: Calls.DeclineFromPushRequest,
+      response: null,
+    },
     log: {
       method: 'GET',
       path: '/calls',

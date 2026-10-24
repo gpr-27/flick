@@ -2,6 +2,7 @@ import type { Database } from '@chat/db';
 import type { Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Logger } from '../logger.js';
+import { CALL_PUSH_QUEUE, registerCallPush, type CallPushDeps } from './call-push.js';
 import { EXPIRE_QUEUE, registerExpireMessages } from './expire-messages.js';
 import { NOTIFY_QUEUE, registerNotify, type NotifyDeps } from './notify.js';
 import { SWEEP_UPLOADS_QUEUE, registerSweepUploads, type UploadStorage } from './sweep-uploads.js';
@@ -15,15 +16,19 @@ export async function startJobs(deps: {
   db: Kysely<Database>;
   logger: Logger;
   notify: NotifyDeps;
+  callPush: CallPushDeps;
   storage: UploadStorage | undefined;
 }): Promise<void> {
-  const { boss, db, logger, notify, storage } = deps;
+  const { boss, db, logger, notify, callPush, storage } = deps;
   boss.on('error', (error) => logger.error({ err: error }, 'pg-boss error'));
   await boss.start();
   // A failed notify job is retried 5 times with growing delays: 10s, 20s, 40s, ...
   await boss.createQueue(NOTIFY_QUEUE, { retryLimit: 5, retryDelay: 10, retryBackoff: true });
+  // A ring push is only useful for a few seconds: quick, short retries (same options as the API).
+  await boss.createQueue(CALL_PUSH_QUEUE, { retryLimit: 2, retryDelay: 2 });
   await boss.createQueue(EXPIRE_QUEUE);
   await registerNotify(boss, notify, logger);
+  await registerCallPush(boss, callPush, logger);
   await registerExpireMessages(boss, db, logger);
   if (storage) {
     await boss.createQueue(SWEEP_UPLOADS_QUEUE);

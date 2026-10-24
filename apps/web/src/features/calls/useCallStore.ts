@@ -9,6 +9,7 @@ import type { ClientEvents, RealtimeTransport, Unsubscribe } from '@/lib/realtim
 import { notify } from '@/components/ui/notify';
 import { useChatStore } from '@/features/chat/useChatStore';
 import type { CallType, PeerSummary } from '@/types/domain';
+import { closeCallNotification } from './callNotifications';
 import { fetchIceServers } from './iceServers';
 import {
   capVideoBitrate,
@@ -391,6 +392,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
   acceptCall: async () => {
     const { otherUser, _incomingOffer, callType, callId } = get();
     if (!otherUser || !_incomingOffer || !callType) return;
+    if (callId) void closeCallNotification(callId);
     if (!hasMediaSupport()) {
       get()._emit('call_reject', {});
       get()._cleanup();
@@ -446,6 +448,8 @@ export const useCallStore = create<CallState>()((set, get) => ({
   },
 
   rejectCall: () => {
+    const { callId } = get();
+    if (callId) void closeCallNotification(callId);
     get()._emit('call_reject', {});
     get()._cleanup();
   },
@@ -644,6 +648,8 @@ export const bindCallRealtime = (t: RealtimeTransport): Unsubscribe => {
 
   const offs: Unsubscribe[] = [
     t.on('call_offer', ({ call_id, media, sdp, from_user_id }) => {
+      // The server may hand the same parked offer over twice (on connect and after sync).
+      if (get().callId === call_id) return;
       // Already busy: tell the caller we're on another call.
       if (get().callStatus !== 'idle') {
         t.send('call_busy', { call_id });
@@ -659,6 +665,7 @@ export const bindCallRealtime = (t: RealtimeTransport): Unsubscribe => {
         _incomingOffer: sdp,
         _pendingCandidates: get()._pendingCandidates.filter((c) => c.callId === call_id),
       });
+      void closeCallNotification(call_id); // the call is on screen now
       // Safety net in case the caller vanishes without a hang-up reaching us.
       get()._setTimer('ring', RING_TIMEOUT_MS + 5000, () => {
         if (get().callId === call_id && get().callStatus === 'ringing') get()._cleanup();
@@ -730,7 +737,11 @@ export const bindCallRealtime = (t: RealtimeTransport): Unsubscribe => {
       const name = nameOf();
       get()._cleanup();
       get()._fail(
-        reason === 'offline' ? `${name} is offline right now.` : `You can't call ${name}.`,
+        reason === 'unreachable'
+          ? `${name} is not reachable right now: they are offline and have not turned on call notifications.`
+          : reason === 'offline'
+            ? `${name} is offline right now.`
+            : `You can't call ${name}.`,
       );
     }),
 
@@ -747,7 +758,11 @@ export const bindCallRealtime = (t: RealtimeTransport): Unsubscribe => {
         if (get().callStatus === 'ringing') get()._cleanup();
         return;
       }
-      notify.info(get().callStatus === 'ringing' ? 'Missed call' : 'Call ended');
+      if (reason === 'timeout' && get().isCaller && get().callStatus === 'calling') {
+        notify.info(`${nameOf()} didn't answer`);
+      } else {
+        notify.info(get().callStatus === 'ringing' ? 'Missed call' : 'Call ended');
+      }
       get()._cleanup();
     }),
   ];

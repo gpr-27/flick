@@ -5,6 +5,7 @@ import { ENDPOINTS } from '@chat/contracts';
 import { Button, EmptyState, ErrorState, Spinner } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
+import { CallNotificationCard } from '@/features/calls/components/CallNotificationCard';
 import { useCallStore } from '@/features/calls/useCallStore';
 import { useChatStore } from '@/features/chat/useChatStore';
 import { conversationTitle } from '@/features/chat/conversationView';
@@ -187,6 +188,7 @@ export const CallLogPage = () => {
             Chats
           </Link>
         </div>
+        <CallNotificationCard className="mb-3" />
         {body}
       </div>
     </main>

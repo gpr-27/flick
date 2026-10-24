@@ -56,6 +56,37 @@ describe('call signalling', () => {
     expect(useCallStore.getState().callId).toBe(CALL);
   });
 
+  it('takes the same offer twice (parked offer handed over on connect and after sync) as one ring', () => {
+    ring();
+    ring();
+    expect(transport.sentOf('call_busy')).toEqual([]);
+    expect(useCallStore.getState()).toMatchObject({ callId: CALL, callStatus: 'ringing' });
+  });
+
+  it('says the callee is not reachable when they are offline with no call notifications', () => {
+    useCallStore.setState({
+      callId: CALL,
+      callStatus: 'calling',
+      isCaller: true,
+      otherUser: { id: BOB, display_name: 'Bob', avatar_url: null },
+    });
+    transport.fire('call_unavailable', { call_id: CALL, reason: 'unreachable' });
+    expect(useCallStore.getState().callStatus).toBe('idle');
+    expect(useCallStore.getState().failure).toMatch(/Bob is not reachable/);
+  });
+
+  it('tells the caller nobody answered when the server ends a parked call by timeout', () => {
+    useCallStore.setState({
+      callId: CALL,
+      callStatus: 'calling',
+      isCaller: true,
+      otherUser: { id: BOB, display_name: 'Bob', avatar_url: null },
+    });
+    transport.fire('call_end', { call_id: CALL, reason: 'timeout', from_user_id: BOB });
+    expect(useCallStore.getState().callStatus).toBe('idle');
+    expect(notify.info).toHaveBeenCalledWith("Bob didn't answer");
+  });
+
   it('ignores events for other calls and reports a missed call', () => {
     ring();
     transport.fire('call_end', { call_id: OTHER, reason: 'hangup', from_user_id: BOB });

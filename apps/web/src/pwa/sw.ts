@@ -1,7 +1,8 @@
 // Flick's service worker (built by vite-plugin-pwa, "injectManifest" strategy).
 // Three jobs, nothing else:
 //   1. precache the app shell (JS, CSS, index.html, icons) so the app opens offline;
-//   2. show a notification for each push and focus/open the app when it is clicked;
+//   2. show a notification for each push (a message, or an incoming call with Answer/Decline
+//      buttons) and focus/open the app when it is clicked;
 //   3. apply an update when the page asks for it.
 // It never caches API responses, uploads or tokens: only the build output listed in
 // self.__WB_MANIFEST, plus index.html as the answer to page navigations.
@@ -11,6 +12,13 @@ import {
   precacheAndRoute,
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
+import {
+  callNotification,
+  declineRequest,
+  missedCallNotification,
+  parseCallPush,
+  planClick,
+} from './callPush';
 import { parsePushPayload, toNotification } from './pushPayload';
 
 // This file is compiled with the DOM lib (not "webworker"), so declare the few worker APIs used.
@@ -25,6 +33,8 @@ interface PushEventLike extends WorkerEvent {
   data: { json: () => unknown } | null;
 }
 interface ClickEventLike extends WorkerEvent {
+  /** The button that was pressed ("answer", "decline"), or "" for a tap on the notification. */
+  action: string;
   notification: { close: () => void; data?: { url?: string } };
 }
 interface MessageEventLike extends Event {
@@ -61,13 +71,35 @@ sw.addEventListener('push', (event: PushEventLike) => {
   } catch {
     // not JSON: fall back to the generic notification
   }
-  const { title, options } = toNotification(parsePushPayload(raw));
-  event.waitUntil(sw.registration.showNotification(title, options));
+  // A call push rings (Answer / Decline); its cancel turns the ring into "Missed call".
+  const call = parseCallPush(raw);
+  const shown = call
+    ? call.type === 'call'
+      ? callNotification(call)
+      : missedCallNotification(call)
+    : toNotification(parsePushPayload(raw));
+  event.waitUntil(sw.registration.showNotification(shown.title, shown.options));
 });
 
 sw.addEventListener('notificationclick', (event: ClickEventLike) => {
   event.notification.close();
-  const url = event.notification.data?.url ?? '/';
+  const plan = planClick(event.action, event.notification.data ?? {});
+  if (plan.type === 'decline') {
+    // No login here: the token that came in the push proves who is declining. Best effort.
+    const { url, init } = declineRequest(
+      import.meta.env.VITE_API_URL as string,
+      plan.callId,
+      plan.token,
+    );
+    event.waitUntil(
+      fetch(url, init).then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    return;
+  }
+  const url = plan.url;
   event.waitUntil(
     (async () => {
       const open = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });

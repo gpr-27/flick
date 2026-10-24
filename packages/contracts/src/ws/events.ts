@@ -158,10 +158,13 @@ export const SyncPagePayload = z.object({
   next_cursor: Cursor.nullable(),
 });
 
-/** Sent only to the caller when the call cannot start: the pair is blocked, or the callee is offline. */
+/**
+ * Sent only to the caller when the call cannot start: the pair is blocked, the callee is offline,
+ * or the callee is offline and has no push subscription, so nothing could ring them ('unreachable').
+ */
 export const CallUnavailablePayload = z.object({
   call_id: Id,
-  reason: z.enum(['blocked', 'offline']),
+  reason: z.enum(['blocked', 'offline', 'unreachable']),
 });
 
 /** The server forwards call events to the other side, adding who sent them. */

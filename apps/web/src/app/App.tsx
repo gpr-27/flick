@@ -10,7 +10,9 @@ import { setClerkBridge } from '@/features/auth/authBridge';
 import { SignInPage } from '@/features/auth/components/SignInPage';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CallOverlay } from '@/features/calls/components/CallOverlay';
+import { CallPermissionPrompt } from '@/features/calls/components/CallPermissionPrompt';
 import { IncomingCallModal } from '@/features/calls/components/IncomingCallModal';
+import { useAnswerFromNotification } from '@/features/calls/useAnswerFromNotification';
 import { bindCallRealtime } from '@/features/calls/useCallStore';
 import { CallLogPage } from '@/features/calllog/CallLogPage';
 import { CallLinkPage } from '@/features/groupcall/CallLinkPage';
@@ -73,6 +75,7 @@ const SignedInApp = () => {
   useRealtimeBindings(userId);
   useOpenPendingConversation();
   useUnreadIndicators();
+  useAnswerFromNotification(status === 'authenticated');
 
   if (status !== 'authenticated') {
     return error ? (
@@ -109,6 +112,7 @@ const SignedInApp = () => {
       </div>
       <IncomingBanner />
       <IncomingCallModal />
+      <CallPermissionPrompt />
       <CallOverlay />
       <GroupCallOverlay />
     </>
