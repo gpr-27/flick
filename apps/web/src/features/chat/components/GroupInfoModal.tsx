@@ -5,6 +5,8 @@ import { Avatar, Button, Modal, Spinner } from '@/components/ui';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CallLinkSection } from '@/features/groupcall/components/CallLinkSection';
 import { useChatStore, type Member } from '../useChatStore';
+import { useContactInfo } from './useContactInfo';
+import { JoinRequestsSection } from './JoinRequestsSection';
 import { UserSearch } from './UserSearch';
 
 const ROLES: Member['role'][] = ['member', 'admin', 'owner'];
@@ -27,6 +29,7 @@ export const GroupInfoModal = ({
   const [title, setTitle] = useState(conversation.title ?? '');
   const [adding, setAdding] = useState(false);
   const canManage = conversation.my_role !== 'member';
+  const contact = useContactInfo();
 
   useEffect(() => {
     if (open) void loadMembers(id);
@@ -93,11 +96,20 @@ export const GroupInfoModal = ({
               const editable = canManage && !isMe && m.role !== 'owner';
               return (
                 <li key={m.user.id} className="flex items-center gap-3 rounded-xl p-2">
-                  <Avatar src={m.user.avatar_url} name="" size="xs" />
-                  <span className="min-w-0 flex-1 truncate font-semibold">
-                    {m.user.display_name}
-                    {isMe ? ' (you)' : ''}
-                  </span>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    aria-label={`View ${m.user.display_name}'s profile`}
+                    onClick={() => {
+                      contact.open(m.user);
+                    }}
+                  >
+                    <Avatar src={m.user.avatar_url} name="" size="xs" />
+                    <span className="min-w-0 flex-1 truncate font-semibold">
+                      {m.user.display_name}
+                      {isMe ? ' (you)' : ''}
+                    </span>
+                  </button>
                   {editable ? (
                     <>
                       <select
@@ -159,6 +171,8 @@ export const GroupInfoModal = ({
         </div>
       )}
 
+      {canManage && <JoinRequestsSection conversationId={id} />}
+
       {canManage && <CallLinkSection conversationId={id} />}
 
       <button
@@ -171,6 +185,7 @@ export const GroupInfoModal = ({
       >
         Leave group
       </button>
+      {contact.dialog}
     </Modal>
   );
 };

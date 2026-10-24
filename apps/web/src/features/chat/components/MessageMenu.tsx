@@ -3,6 +3,7 @@ import {
   Copy,
   Flag,
   Forward,
+  Info,
   Languages,
   Pencil,
   Pin,
@@ -32,6 +33,8 @@ export interface MessageMenuProps {
   onEdit: () => void;
   onTranslate: () => void;
   onReport: () => void;
+  /** Shown only when given: delivered/read details for my own message. */
+  onInfo?: () => void;
   onDelete: (scope: 'me' | 'everyone') => void;
 }
 
@@ -165,6 +168,11 @@ export const MessageMenu = (props: MessageMenuProps) => {
               {props.canEdit && (
                 <Item icon={<Pencil className="size-5" />} onClick={run(props.onEdit)}>
                   Edit
+                </Item>
+              )}
+              {props.onInfo && (
+                <Item icon={<Info className="size-5" />} onClick={run(props.onInfo)}>
+                  Message info
                 </Item>
               )}
               {!props.isMine && (

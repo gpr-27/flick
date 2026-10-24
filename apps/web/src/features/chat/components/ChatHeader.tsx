@@ -11,6 +11,7 @@ import { conversationAvatar, conversationTitle, presenceLabel } from '../convers
 import { useChatStore } from '../useChatStore';
 import { DisappearingDialog, DisappearingMenu } from '@/features/content/DisappearingMenu';
 import { timerLabel } from '@/features/content/disappearing';
+import { useContactInfo } from './useContactInfo';
 import { GroupInfoModal } from './GroupInfoModal';
 
 export const ChatHeader = ({ conversation }: { conversation: ConversationSummary }) => {
@@ -25,6 +26,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
   const [searchOpen, setSearchOpen] = useState(false);
   const [flickOpen, setFlickOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
+  const contact = useContactInfo();
 
   const title = conversationTitle(conversation);
   const isGroup = conversation.type === 'group';
@@ -103,22 +105,45 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           <ArrowLeft className="size-5" aria-hidden="true" />
         </button>
 
-        <Avatar
-          src={conversationAvatar(conversation)}
-          name=""
-          size="sm"
-          online={Boolean(presence?.online)}
-          imgClassName="ring-2 ring-primary/20 shadow-sm"
-        />
+        {/* In a direct chat, the avatar and name open the person's profile. */}
+        {(() => {
+          const identity = (
+            <>
+              <Avatar
+                src={conversationAvatar(conversation)}
+                name=""
+                size="sm"
+                online={Boolean(presence?.online)}
+                imgClassName="ring-2 ring-primary/20 shadow-sm"
+              />
 
-        <div className="min-w-0">
-          <h2 className="truncate font-display text-base font-bold tracking-tight">{title}</h2>
-          <p
-            className={`truncate text-sm ${busy ? 'font-medium text-primary' : 'text-base-content/60'}`}
-          >
-            {subtitle}
-          </p>
-        </div>
+              <div className="min-w-0">
+                <h2 className="truncate font-display text-base font-bold tracking-tight">
+                  {title}
+                </h2>
+                <p
+                  className={`truncate text-sm ${busy ? 'font-medium text-primary' : 'text-base-content/60'}`}
+                >
+                  {subtitle}
+                </p>
+              </div>
+            </>
+          );
+          return peer ? (
+            <button
+              type="button"
+              onClick={() => {
+                contact.open(peer);
+              }}
+              className="flex min-w-0 items-center gap-3 text-left"
+              aria-label={`View ${title}'s profile`}
+            >
+              {identity}
+            </button>
+          ) : (
+            identity
+          );
+        })()}
       </div>
 
       <div className="flex items-center gap-1">
@@ -225,6 +250,8 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           setFlickOpen(false);
         }}
       />
+
+      {contact.dialog}
 
       {isGroup && (
         <GroupInfoModal

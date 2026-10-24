@@ -23,6 +23,8 @@ import { renderContent, previewContent, type ContentContext } from '../content/r
 import type { RowStatus, ThreadRow } from '../threadRows';
 import { useLongPress } from '../useLongPress';
 import { MessageMenu } from './MessageMenu';
+import { MessageInfoDialog } from './MessageInfoDialog';
+import { useContactInfo } from './useContactInfo';
 
 export interface MessageBubbleProps {
   row: ThreadRow;
@@ -103,6 +105,8 @@ const MessageBubbleImpl = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [translateOpen, setTranslateOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const contact = useContactInfo();
   const isMine = message.sender_user_id === myId;
   const isSystem = message.content?.type === 'system';
   const deleted = message.content === null;
@@ -153,14 +157,31 @@ const MessageBubbleImpl = ({
         aria-label={`${author} at ${time}`}
         role="article"
       >
-        {!isMine && (
-          <Avatar
-            src={sender?.avatar_url}
-            name=""
-            size="xs"
-            imgClassName="ring-2 ring-primary/15 shadow-sm"
-          />
-        )}
+        {!isMine &&
+          (isGroup && sender && !isBot ? (
+            <button
+              type="button"
+              onClick={() => {
+                contact.open(sender);
+              }}
+              className="shrink-0 rounded-full"
+              aria-label={`View ${sender.display_name}'s profile`}
+            >
+              <Avatar
+                src={sender.avatar_url}
+                name=""
+                size="xs"
+                imgClassName="ring-2 ring-primary/15 shadow-sm"
+              />
+            </button>
+          ) : (
+            <Avatar
+              src={sender?.avatar_url}
+              name=""
+              size="xs"
+              imgClassName="ring-2 ring-primary/15 shadow-sm"
+            />
+          ))}
 
         <div
           className={cn(
@@ -381,11 +402,29 @@ const MessageBubbleImpl = ({
           onReport={() => {
             setReportOpen(true);
           }}
+          onInfo={
+            isMine
+              ? () => {
+                  setInfoOpen(true);
+                }
+              : undefined
+          }
           onDelete={(scope) => {
             onDelete(message, scope);
           }}
         />
       )}
+
+      {infoOpen && (
+        <MessageInfoDialog
+          conversationId={message.conversation_id}
+          messageId={message.message_id}
+          onClose={() => {
+            setInfoOpen(false);
+          }}
+        />
+      )}
+      {contact.dialog}
 
       {message.content?.type === 'text' && (
         <TranslateDialog
