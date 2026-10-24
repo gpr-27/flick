@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 import { Avatar, Modal } from '@/components/ui';
+import { useCallSounds } from '../useCallSounds';
 import { useCallStore } from '../useCallStore';
 
 export const IncomingCallModal = () => {
@@ -8,6 +9,8 @@ export const IncomingCallModal = () => {
   const callType = useCallStore((s) => s.callType);
   const otherUser = useCallStore((s) => s.otherUser);
   const acceptRef = useRef<HTMLButtonElement>(null);
+  // Rings while a call comes in (and plays the caller's waiting tone on the other device).
+  useCallSounds();
 
   const open = callStatus === 'ringing';
   const isVideo = callType === 'video';

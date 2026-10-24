@@ -28,12 +28,17 @@ const pwaOptions: Partial<VitePWAOptions> = {
   registerType: 'prompt',
   injectRegister: false,
   manifest: {
+    id: '/',
     name: 'Flick',
     short_name: 'Flick',
     description: 'Real-time messaging',
+    lang: 'en',
+    categories: ['social', 'communication'],
     start_url: '/',
     scope: '/',
     display: 'standalone',
+    display_override: ['standalone', 'minimal-ui'],
+    prefer_related_applications: false,
     theme_color: '#F4F3FA',
     background_color: '#F4F3FA',
     icons: [

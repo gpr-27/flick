@@ -31,13 +31,34 @@ export const mediaErrorMessage = (error: unknown): string => {
  * Acquire local media. A video call on a device without a usable camera falls
  * back to audio-only so the call still connects (and still RECEIVES video).
  */
+// Voice quality: echo cancellation stops the other person hearing themselves, noise suppression
+// removes background noise, auto gain keeps quiet and loud speakers at a similar level. Browsers
+// apply these by default only sometimes, so they are asked for explicitly.
+const VOICE: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
+// A live call needs a picture that moves smoothly more than a sharp one. Asking the camera for
+// 720p at 30 frames per second (at most) keeps the phone's camera and encoder within budget; the
+// browser's default is often a larger size, which is what made the video lag on phones.
+const CAMERA: MediaTrackConstraints = {
+  width: { ideal: 1280, max: 1280 },
+  height: { ideal: 720, max: 720 },
+  frameRate: { ideal: 24, max: 30 },
+};
+
 export const getLocalMedia = async (type: CallType): Promise<MediaStream> => {
   try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
+    return await navigator.mediaDevices.getUserMedia({
+      audio: VOICE,
+      video: type === 'video' ? CAMERA : false,
+    });
   } catch (error) {
     const name = errorName(error);
     if (type !== 'video' || name === 'NotAllowedError' || name === 'SecurityError') throw error;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: VOICE, video: false });
     notify.info('No camera available — joining with audio only');
     return stream;
   }
@@ -45,3 +66,21 @@ export const getLocalMedia = async (type: CallType): Promise<MediaStream> => {
 
 export const describeError = (error: unknown): string =>
   error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+/**
+ * Caps how much video the sender pushes. Without a cap a weak connection makes the picture freeze
+ * (the browser keeps the resolution and drops frames). With a cap it lowers the picture quality
+ * first, which keeps the call moving. 1.2 Mbps is a clear 720p picture; audio is always kept.
+ */
+export const VIDEO_MAX_BITRATE = 1_200_000;
+
+export async function capVideoBitrate(sender: RTCRtpSender): Promise<void> {
+  const params = sender.getParameters();
+  const encodings = params.encodings.length > 0 ? params.encodings : [{}];
+  params.encodings = encodings.map((e) => ({
+    ...e,
+    maxBitrate: VIDEO_MAX_BITRATE,
+  }));
+  params.degradationPreference = 'maintain-framerate';
+  await sender.setParameters(params);
+}

@@ -1,14 +1,14 @@
 import { Download } from 'lucide-react';
-import { promptInstall, useInstallStore } from './install';
+import { startInstall, useInstallMode } from './install';
 
-/** Shown only while the browser says the app can be installed. */
+/** Shown while Flick can be installed: the browser's dialog, or the steps where there is none. */
 export const InstallButton = ({ className = '' }: { className?: string }) => {
-  const canInstall = useInstallStore((s) => s.event !== null);
-  if (!canInstall) return null;
+  const mode = useInstallMode();
+  if (mode === 'none') return null;
   return (
     <button
       type="button"
-      onClick={() => void promptInstall()}
+      onClick={() => void startInstall()}
       className={`btn btn-ghost btn-sm gap-2 rounded-full font-medium ${className}`}
     >
       <Download className="size-4" aria-hidden="true" />

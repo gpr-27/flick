@@ -1,17 +1,18 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
 import { MessageSquare, MoreVertical, Moon, Phone, Settings, Sun, User } from 'lucide-react';
-import { PopoverMenu, type PopoverMenuItem } from '@/components/ui';
+import { PopoverMenu, cn, type PopoverMenuItem } from '@/components/ui';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { InstallButton } from '@/pwa/InstallButton';
-import { promptInstall, useInstallStore } from '@/pwa/install';
+import { startInstall, useInstallMode } from '@/pwa/install';
+import { useChatStore } from '@/features/chat/useChatStore';
 import { useThemeStore } from '@/features/settings/useThemeStore';
 
 /** Phones: theme, install, settings and profile fold into one menu (see PopoverMenu). */
 const PhoneMenu = () => {
   const isDark = useThemeStore((s) => s.theme === 'dark');
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
-  const canInstall = useInstallStore((s) => s.event !== null);
+  const canInstall = useInstallMode() !== 'none';
   const items: PopoverMenuItem[] = [
     {
       label: isDark ? 'Switch to light mode' : 'Switch to dark mode',
@@ -22,7 +23,7 @@ const PhoneMenu = () => {
       ),
       onClick: toggleTheme,
     },
-    ...(canInstall ? [{ label: 'Install app', onClick: () => void promptInstall() }] : []),
+    ...(canInstall ? [{ label: 'Install app', onClick: () => void startInstall() }] : []),
     {
       label: 'Settings',
       to: '/settings',
@@ -42,9 +43,19 @@ const PhoneMenu = () => {
 
 // Rendered only when signed in.
 export const Navbar = () => {
+  // On a phone, an open chat has its own header (back button, name, call buttons). Showing this
+  // bar above it as well looked like a duplicate, so it steps aside until the chat is closed.
+  const chatOpen = useChatStore((s) => s.selectedId !== null);
+  const onHome = useLocation().pathname === '/';
+  const hideOnPhone = chatOpen && onHome;
   return (
     // The top padding keeps the bar below the iPhone notch / status bar.
-    <header className="glass fixed top-0 z-40 w-full border-b border-base-content/10 pt-[env(safe-area-inset-top)]">
+    <header
+      className={cn(
+        'glass fixed top-0 z-40 w-full border-b border-base-content/10 pt-[env(safe-area-inset-top)]',
+        hideOnPhone && 'max-sm:hidden',
+      )}
+    >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link to="/" className="group flex items-center gap-3 rounded-xl" aria-label="Flick home">
           <div

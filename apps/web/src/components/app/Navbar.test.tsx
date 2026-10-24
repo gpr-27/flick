@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { useChatStore } from '@/features/chat/useChatStore';
 import { useThemeStore } from '@/features/settings/useThemeStore';
 import { Navbar } from './Navbar';
 
@@ -42,5 +43,32 @@ describe('Navbar on phones', () => {
     const { user } = await open();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+});
+
+describe('Navbar with a chat open', () => {
+  const renderAt = (path: string) =>
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+  it('steps aside on phones while a chat is open, so there is no second bar above the chat header', () => {
+    useChatStore.setState({ selectedId: 'some-chat' });
+    renderAt('/');
+    expect(screen.getByRole('banner', { hidden: true })).toHaveClass('max-sm:hidden');
+  });
+
+  it('is back when no chat is open', () => {
+    useChatStore.setState({ selectedId: null });
+    renderAt('/');
+    expect(screen.getByRole('banner')).not.toHaveClass('max-sm:hidden');
+  });
+
+  it('stays on other pages even if a chat was open, since those pages have no header of their own', () => {
+    useChatStore.setState({ selectedId: 'some-chat' });
+    renderAt('/settings');
+    expect(screen.getByRole('banner')).not.toHaveClass('max-sm:hidden');
   });
 });

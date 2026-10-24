@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  Maximize,
   Mic,
   MicOff,
+  Minimize,
   PhoneOff,
   ScreenShare,
   ScreenShareOff,
@@ -14,6 +16,7 @@ import {
 import { cn, useFocusTrap } from '@/components/ui';
 import type { PeerSummary } from '@/types/domain';
 import { useCallStore } from '../useCallStore';
+import { SelfView } from './SelfView';
 
 type SinkableMedia = HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
 
@@ -183,6 +186,8 @@ export const CallOverlay = () => {
 
   const remoteAudioRef = useRef<SinkableMedia | null>(null);
   const [showDevices, setShowDevices] = useState(false);
+  // Fit shows the whole picture (a shared phone screen is never cropped); fill crops to cover the window.
+  const [fill, setFill] = useState(false);
 
   const localVideoRef = useMediaRef(
     isSharing ? screenStream : localStream,
@@ -283,7 +288,10 @@ export const CallOverlay = () => {
             autoPlay
             playsInline
             muted
-            className="absolute inset-0 h-full w-full bg-black object-cover"
+            className={cn(
+              'absolute inset-0 h-full w-full bg-black',
+              fill ? 'object-cover' : 'object-contain',
+            )}
           />
 
           {showRemotePlaceholder && (
@@ -297,27 +305,21 @@ export const CallOverlay = () => {
             </div>
           )}
 
-          {/* Local PiP: top-right on phones (clears the controls), bottom-right on larger screens. */}
-          <div className="absolute right-3 top-16 aspect-[3/4] w-24 overflow-hidden rounded-2xl shadow-xl ring-2 ring-white/20 sm:bottom-28 sm:right-4 sm:top-auto sm:w-32 md:w-40">
-            {!isSharing && (isCameraOff || !localStream) ? (
-              <div className="grid h-full w-full place-items-center bg-white/10 backdrop-blur">
-                <VideoOff
-                  className="size-7 text-white/50 sm:size-8"
-                  aria-label="Your camera is off"
-                  role="img"
-                />
-              </div>
-            ) : (
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                aria-label="Your camera"
-                className="h-full w-full scale-x-[-1] object-cover"
-              />
-            )}
-          </div>
+          <SelfView
+            videoRef={localVideoRef}
+            sharing={isSharing}
+            placeholder={
+              !isSharing && (isCameraOff || !localStream) ? (
+                <div className="grid h-full w-full place-items-center bg-white/10 backdrop-blur">
+                  <VideoOff
+                    className="size-7 text-white/50 sm:size-8"
+                    aria-label="Your camera is off"
+                    role="img"
+                  />
+                </div>
+              ) : null
+            }
+          />
         </>
       )}
 
@@ -442,6 +444,23 @@ export const CallOverlay = () => {
               <ScreenShareOff className="size-5" aria-hidden="true" />
             ) : (
               <ScreenShare className="size-5" aria-hidden="true" />
+            )}
+          </ControlButton>
+        )}
+
+        {callType === 'video' && hasRemoteVideo && (
+          <ControlButton
+            onClick={() => {
+              setFill((v) => !v);
+            }}
+            label={fill ? 'Show the whole picture' : 'Fill the screen'}
+            active={fill}
+            pressed={fill}
+          >
+            {fill ? (
+              <Minimize className="size-5" aria-hidden="true" />
+            ) : (
+              <Maximize className="size-5" aria-hidden="true" />
             )}
           </ControlButton>
         )}

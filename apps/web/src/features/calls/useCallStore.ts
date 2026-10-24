@@ -11,6 +11,7 @@ import { useChatStore } from '@/features/chat/useChatStore';
 import type { CallType, PeerSummary } from '@/types/domain';
 import { fetchIceServers } from './iceServers';
 import {
+  capVideoBitrate,
   describeError,
   errorName,
   getLocalMedia,
@@ -364,6 +365,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
 
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
+      await capVideoSenders(peer);
       if (peer.localDescription) {
         get()._emit('call_offer', {
           conversation_id: conversationId,
@@ -420,6 +422,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
       // reuses the transceivers created from the offer (both directions sendrecv).
       await peer.setRemoteDescription(_incomingOffer);
       stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+      await capVideoSenders(peer);
 
       set({
         audioInputId: trackDeviceId(stream.getAudioTracks()[0]),
@@ -600,7 +603,10 @@ export const useCallStore = create<CallState>()((set, get) => ({
       if (!newTrack) throw new Error('No video track from the selected device');
       newTrack.enabled = !isCameraOff;
       const sender = _peer?.getSenders().find((s) => s.track?.kind === 'video');
-      if (sender) await sender.replaceTrack(newTrack);
+      if (sender) {
+        await sender.replaceTrack(newTrack);
+        await capVideoBitrate(sender);
+      }
       localStream.getVideoTracks().forEach((t) => {
         localStream.removeTrack(t);
         t.stop();
@@ -613,6 +619,18 @@ export const useCallStore = create<CallState>()((set, get) => ({
     }
   },
 }));
+
+/** Every video sender on this connection gets the bitrate cap. Never fails the call over it. */
+async function capVideoSenders(peer: RTCPeerConnection): Promise<void> {
+  for (const sender of peer.getSenders()) {
+    if (sender.track?.kind !== 'video') continue;
+    try {
+      await capVideoBitrate(sender);
+    } catch (error) {
+      logger.warn('could not cap video bitrate:', describeError(error));
+    }
+  }
+}
 
 // ── signaling wiring ──────────────────────────────────────────────────────
 

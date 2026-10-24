@@ -1,3 +1,4 @@
+import { InstallCard } from '@/pwa/InstallCard';
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
   Archive,
@@ -203,6 +204,7 @@ export const Sidebar = () => {
       className="glass flex h-full w-full flex-col border-r border-base-content/10"
       aria-label="Conversations"
     >
+      <InstallCard />
       <div className="space-y-3 border-b border-base-content/10 p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-bold tracking-tight">Chats</h2>
