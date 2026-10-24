@@ -1,10 +1,12 @@
 // Called by the chat store for every new message it applies. When the tab is hidden and the
 // chat is not muted (or the message mentions me), show a browser Notification and play a sound.
 // This is separate from Web Push: push covers a closed browser, this covers a background tab.
+// Settings > Notifications decide the sound, vibration, previews and quiet hours.
 import type { ConversationSummary, MessageRecord } from '@chat/contracts';
+import { inQuietHours } from '@/features/settings/policy';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { excerptOf, shouldNotify } from './rules';
 import { playMessageSound } from './sound';
-import { useNotificationPrefs } from './useNotificationPrefs';
 
 export interface IncomingContext {
   summary: ConversationSummary;
@@ -14,7 +16,19 @@ export interface IncomingContext {
   open: () => void;
 }
 
+/** "Archived chats stay archived" is off: a message from someone else takes the chat out. */
+const unarchiveIfAsked = (message: MessageRecord, ctx: IncomingContext): void => {
+  const { keepArchived } = useSettingsStore.getState();
+  if (keepArchived || !ctx.summary.prefs.archived || message.sender_user_id === ctx.myId) return;
+  // Loaded when needed: the organise code imports the chat store, which imports this file.
+  void import('@/features/organise/prefs').then((m) =>
+    m.updatePrefs(ctx.summary.id, { archived: false }),
+  );
+};
+
 export const notifyIncoming = (message: MessageRecord, ctx: IncomingContext): void => {
+  unarchiveIfAsked(message, ctx);
+
   const allowed = shouldNotify({
     message,
     myId: ctx.myId,
@@ -24,11 +38,16 @@ export const notifyIncoming = (message: MessageRecord, ctx: IncomingContext): vo
   });
   if (!allowed || !message.content) return;
 
-  if (useNotificationPrefs.getState().sound) playMessageSound();
+  const settings = useSettingsStore.getState();
+  // Quiet hours silence the sound, the buzz and the desktop notification. Messages still arrive.
+  if (inQuietHours(settings)) return;
+
+  if (settings.messageSound) playMessageSound(settings.soundVolume);
+  if (settings.vibration && typeof navigator.vibrate === 'function') navigator.vibrate(200);
 
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const isGroup = ctx.summary.type === 'group';
-  const text = excerptOf(message.content);
+  const text = settings.messagePreviews ? excerptOf(message.content) : 'New message';
   const notification = new Notification(isGroup ? (ctx.summary.title ?? 'Group') : ctx.senderName, {
     body: isGroup ? `${ctx.senderName}: ${text}` : text,
     // One notification per conversation: a newer message replaces the older one.

@@ -32,6 +32,8 @@ import { readVideoMeta } from '@/features/content/videoMeta';
 import { MentionList } from '../../organise/MentionViews';
 import { MENTION_LIST_ID, mentionOptionId, useMentionAutocomplete } from '../../organise/mentions';
 import { useDraftStore } from '../../organise/drafts';
+import { enterAction } from '../../settings/policy';
+import { useSettingsStore } from '../../settings/useSettingsStore';
 import { previewContent } from '../content/registry';
 import { conversationTitle } from '../conversationView';
 import { sendMessage } from '../outbox/useOutboxStore';
@@ -168,6 +170,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
 
   const myId = useSessionStore((s) => s.user?.id);
   const notifyTyping = useChatStore((s) => s.notifyTyping);
+  const enterSends = useSettingsStore((s) => s.enterSends);
   const notifyStopTyping = useChatStore((s) => s.notifyStopTyping);
   const editMessage = useChatStore((s) => s.editMessage);
   const replyingTo = useChatStore((s) => s.replyingTo);
@@ -366,6 +369,19 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         setText(picked.text);
         caretRef.current = picked.caret;
       }
+      return;
+    }
+    // Settings > Chats > "Enter sends": plain Enter, or only Ctrl/Cmd + Enter.
+    const enter = enterAction(enterSends, {
+      key: e.key,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      shiftKey: e.shiftKey,
+      isComposing: e.nativeEvent.isComposing,
+    });
+    if (enter !== 'default') {
+      e.preventDefault();
+      if (enter === 'send') e.currentTarget.form?.requestSubmit();
       return;
     }
     if (e.key === 'Escape' && (editing || replyingTo)) {

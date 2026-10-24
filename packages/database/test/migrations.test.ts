@@ -65,6 +65,17 @@ describe('migrations', () => {
       ).rows[0]?.indexdef;
     expect(await searchIndex()).toContain('(conversation_id, search)');
 
+    const aiLanguageColumn = async () =>
+      (
+        await sql<{ column_name: string }>`
+          SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'user_settings' AND column_name = 'ai_language'`.execute(t.db)
+      ).rows.length;
+    expect(await aiLanguageColumn()).toBe(1);
+
+    await migrateDown(t.db); // undoes 0011 (account settings)
+    expect(await aiLanguageColumn()).toBe(0);
+
     await migrateDown(t.db); // undoes 0010 (search index by conversation)
     expect(await searchIndex()).toContain('(search)');
     expect(await searchIndex()).not.toContain('conversation_id');

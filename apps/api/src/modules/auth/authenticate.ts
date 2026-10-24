@@ -4,11 +4,15 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { AuthContext, Authenticate } from '../../auth-guard.js';
 import type { Db } from '../../db.js';
 import type { Redis } from '../../redis.js';
+import { deviceName } from '../devices/domain/name.js';
 import type { Clerk, ClerkProfile } from './clerk.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // How long we trust a past check. A disabled user can keep using an open session this long.
 const CACHE_SECONDS = 300;
+
+/** The Redis key of a remembered check. Revoking a device or deleting an account removes it. */
+export const authCacheKey = (clerkId: string, deviceId: string) => `auth:${clerkId}:${deviceId}`;
 
 class AuthError extends Error {
   constructor(
@@ -28,7 +32,11 @@ export interface Auth {
 export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
   const { db, redis, clerk } = deps;
 
-  async function check(token: string | undefined, deviceId: string | undefined) {
+  async function check(
+    token: string | undefined,
+    deviceId: string | undefined,
+    userAgent?: string,
+  ) {
     if (!token) throw new AuthError('UNAUTHORIZED', 'Missing bearer token');
     if (!deviceId || !UUID.test(deviceId))
       throw new AuthError('VALIDATION_FAILED', 'X-Device-Id must be a UUID made by the client');
@@ -38,12 +46,12 @@ export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
     } catch {
       throw new AuthError('UNAUTHORIZED', 'Invalid or expired token');
     }
-    const cacheKey = `auth:${clerkId}:${deviceId}`;
+    const cacheKey = authCacheKey(clerkId, deviceId);
     const cached = await redis.get(cacheKey).catch(() => null); // Redis is only a cache
     if (cached) return { userId: cached, deviceId };
 
     const userId = await findOrCreateUser(clerkId);
-    await upsertDevice(userId, deviceId);
+    await upsertDevice(userId, deviceId, userAgent);
     await redis.set(cacheKey, userId, 'EX', CACHE_SECONDS).catch(() => undefined);
     return { userId, deviceId };
   }
@@ -99,20 +107,36 @@ export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
     throw new AuthError('INTERNAL', 'Could not create the user');
   }
 
-  /** A device is created on first sight. A device id that belongs to another user is refused. */
-  async function upsertDevice(userId: string, deviceId: string): Promise<void> {
+  /**
+   * A device is created on first sight. A device id that belongs to another user is refused (403).
+   * One this user signed out ("revoked") gets 401, and stays signed out.
+   */
+  async function upsertDevice(
+    userId: string,
+    deviceId: string,
+    userAgent: string | undefined,
+  ): Promise<void> {
     const row = await db
       .insertInto('devices')
-      .values({ id: deviceId, user_id: userId })
+      .values({ id: deviceId, user_id: userId, name: deviceName(userAgent) })
       .onConflict((oc) =>
         oc
           .column('id')
-          .doUpdateSet((eb) => ({ last_active_at: eb.fn('now', []), revoked_at: null }))
-          .where('devices.user_id', '=', userId),
+          .doUpdateSet((eb) => ({ last_active_at: eb.fn('now', []) }))
+          .where('devices.user_id', '=', userId)
+          .where('devices.revoked_at', 'is', null),
       )
       .returning('id')
       .executeTakeFirst();
-    if (!row) throw new AuthError('FORBIDDEN', 'This device id belongs to another user');
+    if (row) return;
+    const existing = await db
+      .selectFrom('devices')
+      .select('user_id')
+      .where('id', '=', deviceId)
+      .executeTakeFirst();
+    if (existing?.user_id === userId)
+      throw new AuthError('UNAUTHORIZED', 'This device was signed out');
+    throw new AuthError('FORBIDDEN', 'This device id belongs to another user');
   }
 
   const authenticate = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -120,7 +144,11 @@ export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
     const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : undefined;
     const deviceId = req.headers['x-device-id'];
     try {
-      req.auth = await check(token, typeof deviceId === 'string' ? deviceId : undefined);
+      req.auth = await check(
+        token,
+        typeof deviceId === 'string' ? deviceId : undefined,
+        req.headers['user-agent'],
+      );
     } catch (error) {
       if (!(error instanceof AuthError)) throw error;
       await reply

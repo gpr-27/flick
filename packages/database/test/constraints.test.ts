@@ -193,4 +193,28 @@ describe('database constraints', () => {
       .executeTakeFirstOrThrow();
     expect(bot).toEqual({ username: 'flick', is_bot: true });
   });
+
+  it('the Flick language is 2-40 characters or empty', async () => {
+    const { id: user } = await makeUser(t.db);
+    await t.db
+      .insertInto('user_settings')
+      .values({ user_id: user, ai_language: 'Hindi' })
+      .execute();
+    await t.db
+      .updateTable('user_settings')
+      .set({ ai_language: null })
+      .where('user_id', '=', user)
+      .execute();
+    for (const bad of ['x', 'y'.repeat(41)]) {
+      await expectPgError(
+        t.db
+          .updateTable('user_settings')
+          .set({ ai_language: bad })
+          .where('user_id', '=', user)
+          .execute(),
+        CHECK,
+        'user_settings_ai_language_ck',
+      );
+    }
+  });
 });

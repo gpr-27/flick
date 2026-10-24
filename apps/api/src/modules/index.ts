@@ -7,6 +7,7 @@
 import { callRoutes } from './calls/index.js';
 import { aiRoutesModule } from './ai/routes.js';
 import { conversationRoutes } from './conversations/http/routes.js';
+import { deviceRoutes } from './devices/http/routes.js';
 import { extrasRoutes } from './extras/http/routes.js';
 import { healthRoutes } from './health/http/routes.js';
 import { userRoutes } from './users/http/routes.js';
@@ -24,4 +25,5 @@ export const modules = [
   pushRoutes,
   aiRoutesModule,
   userRoutes,
+  deviceRoutes,
 ];

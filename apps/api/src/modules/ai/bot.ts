@@ -96,12 +96,13 @@ export async function flickBotOnMessage(
 
     const lines = await loadLines(db, senderId, message.conversation_id, member, CONTEXT);
     const asker = lines.findLast((l) => l.fromMe)?.sender ?? 'the user';
+    const language = await preferredLanguage(db, senderId);
     try {
       // One pass through the provider chain, no retry loop. The package already falls through
       // providers; if all of them fail we post one short notice and stop.
       const result = await ai.chain.complete(
         {
-          system: BOT_SYSTEM,
+          system: language ? `${BOT_SYSTEM}\n${languageRule(language)}` : BOT_SYSTEM,
           messages: [
             {
               role: 'user',
@@ -127,6 +128,20 @@ export async function flickBotOnMessage(
     return 'failed';
   }
 }
+
+/** The language the user chose for Flick in Settings (already checked to be letters only). */
+export async function preferredLanguage(db: Db, userId: string): Promise<string | null> {
+  const row = await db
+    .selectFrom('user_settings')
+    .select('ai_language')
+    .where('user_id', '=', userId)
+    .executeTakeFirst();
+  return row?.ai_language ?? null;
+}
+
+/** Replaces the "reply in the language of the message" rule above for people who chose one. */
+export const languageRule = (language: string): string =>
+  `The person who asked prefers answers in ${language}. Use ${language} instead of the language of the message, unless they ask for another one.`;
 
 async function postAsBot(
   db: Db,

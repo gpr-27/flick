@@ -27,13 +27,18 @@ export const getAttachmentUrl = (attachmentId: string): Promise<string> => {
 };
 
 /** The download URL of an attachment, or null while loading / if it failed. */
-export const useAttachmentUrl = (attachmentId: string): { url: string | null; failed: boolean } => {
+/** Pass `enabled = false` to wait (for example until the person taps "Download"). */
+export const useAttachmentUrl = (
+  attachmentId: string,
+  enabled = true,
+): { url: string | null; failed: boolean } => {
   const [state, setState] = useState<{ id: string; url: string | null; failed: boolean }>({
     id: attachmentId,
     url: null,
     failed: false,
   });
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     getAttachmentUrl(attachmentId)
       .then((url) => {
@@ -45,6 +50,6 @@ export const useAttachmentUrl = (attachmentId: string): { url: string | null; fa
     return () => {
       alive = false;
     };
-  }, [attachmentId]);
+  }, [attachmentId, enabled]);
   return state.id === attachmentId ? state : { url: null, failed: false };
 };

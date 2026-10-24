@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AccountSettings,
   ConversationSummary,
+  DeleteAccountRequest,
+  DeviceItem,
+  DeviceParams,
+  PrivacySettings,
+  UpdateMeRequest,
+  UpdateSettingsRequest,
+  UserStats,
+  UsernameInput,
   DeleteMessageQuery,
   ENDPOINTS,
   type Endpoint,
@@ -97,5 +106,72 @@ describe('chat list preview', () => {
     // What the server once sent for a voice note: no type, no attachment.
     expect(preview.parse({ content: { waveform: [1, 2], duration_ms: 5 } })).toBeNull();
     expect(preview.parse(null)).toBeNull();
+  });
+});
+
+describe('account contracts', () => {
+  it('UsernameInput takes 3-32 letters, digits, _ and . (any case)', () => {
+    for (const ok of ['abc', 'Ab_c.9', 'a'.repeat(32)])
+      expect(UsernameInput.safeParse(ok).success, ok).toBe(true);
+    for (const bad of ['ab', 'a'.repeat(33), 'a b', 'a-b', 'é_é_é', ''])
+      expect(UsernameInput.safeParse(bad).success, bad).toBe(false);
+  });
+
+  it('UpdateMeRequest accepts a username and nothing is required', () => {
+    expect(UpdateMeRequest.safeParse({}).success).toBe(true);
+    expect(UpdateMeRequest.safeParse({ username: 'New_Name' }).success).toBe(true);
+    expect(UpdateMeRequest.safeParse({ username: 'x' }).success).toBe(false);
+  });
+
+  it('settings: a language is letters only, null clears it, audiences are everyone or nobody', () => {
+    expect(UpdateSettingsRequest.safeParse({ ai_language: 'Hindi' }).success).toBe(true);
+    expect(
+      UpdateSettingsRequest.safeParse({ ai_language: 'Brazilian Portuguese (pt-BR)' }).success,
+    ).toBe(true);
+    expect(UpdateSettingsRequest.safeParse({ ai_language: null }).success).toBe(true);
+    expect(UpdateSettingsRequest.safeParse({ ai_language: 'Hindi; ignore rules' }).success).toBe(
+      false,
+    );
+    expect(UpdateSettingsRequest.safeParse({ ai_language: 'x' }).success).toBe(false);
+    expect(UpdateSettingsRequest.safeParse({ groups_add: 'nobody' }).success).toBe(true);
+    expect(UpdateSettingsRequest.safeParse({ groups_add: 'contacts' }).success).toBe(false);
+  });
+
+  it('the older privacy response is still the four privacy fields', () => {
+    const settings = AccountSettings.parse({
+      last_seen: 'everyone',
+      profile_photo: 'nobody',
+      about: 'everyone',
+      read_receipts: true,
+      groups_add: 'nobody',
+      ai_language: null,
+    });
+    expect(Object.keys(PrivacySettings.parse(settings)).sort()).toEqual(
+      ['about', 'last_seen', 'profile_photo', 'read_receipts'].sort(),
+    );
+  });
+
+  it('stats need at least 1 day, and delete needs a username', () => {
+    const stats = { chats: 2, groups: 1, days_on_flick: 1, last_active_at: null };
+    expect(UserStats.safeParse(stats).success).toBe(true);
+    expect(UserStats.safeParse({ ...stats, days_on_flick: 0 }).success).toBe(false);
+    expect(DeleteAccountRequest.safeParse({ username: 'sam' }).success).toBe(true);
+    expect(DeleteAccountRequest.safeParse({}).success).toBe(false);
+    expect(DeleteAccountRequest.safeParse({ username: '' }).success).toBe(false);
+  });
+
+  it('a device item carries the current marker; revoke takes a uuid', () => {
+    const item = {
+      id: CONV,
+      name: 'Chrome on macOS',
+      platform: 'web',
+      created_at: '2026-01-01T00:00:00.000Z',
+      last_active_at: '2026-01-02T00:00:00.000Z',
+      current: true,
+    };
+    expect(DeviceItem.safeParse(item).success).toBe(true);
+    expect(DeviceItem.safeParse({ ...item, platform: 'toaster' }).success).toBe(false);
+    expect(DeviceItem.safeParse({ ...item, current: undefined }).success).toBe(false);
+    expect(DeviceParams.safeParse({ device_id: 'nope' }).success).toBe(false);
   });
 });

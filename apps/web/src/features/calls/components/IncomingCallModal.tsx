@@ -1,7 +1,9 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 import { Avatar, Modal } from '@/components/ui';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useCallStore } from '../useCallStore';
+import { startRingtone } from '../ringtone';
 
 export const IncomingCallModal = () => {
   const callStatus = useCallStore((s) => s.callStatus);
@@ -10,6 +12,20 @@ export const IncomingCallModal = () => {
   const acceptRef = useRef<HTMLButtonElement>(null);
 
   const open = callStatus === 'ringing';
+  const ringtoneEnabled = useSettingsStore((s) => s.ringtoneEnabled);
+  const soundVolume = useSettingsStore((s) => s.soundVolume);
+  const vibration = useSettingsStore((s) => s.vibration);
+
+  // Ring (and buzz) for as long as the call is ringing.
+  useEffect(() => {
+    if (!open) return;
+    if (vibration && typeof navigator.vibrate === 'function') navigator.vibrate([400, 200, 400]);
+    const stop = startRingtone({ enabled: ringtoneEnabled, volume: soundVolume });
+    return () => {
+      stop();
+      if (typeof navigator.vibrate === 'function') navigator.vibrate(0);
+    };
+  }, [open, ringtoneEnabled, soundVolume, vibration]);
   const isVideo = callType === 'video';
   const callerName = otherUser?.display_name ?? 'Unknown';
   const { acceptCall, rejectCall } = useCallStore.getState();

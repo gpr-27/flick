@@ -11,8 +11,8 @@ const config: Config & { daisyui: Record<string, unknown> } = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Nunito"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        display: ['"Quicksand"', '"Nunito"', 'sans-serif'],
+        sans: ['var(--app-font, "Nunito")', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['var(--display-font, "Quicksand")', '"Nunito"', 'sans-serif'],
       },
       colors: {
         // Signature pastel accents (also available as daisyUI tokens below).

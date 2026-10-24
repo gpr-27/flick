@@ -1,10 +1,20 @@
-import { ENDPOINTS } from '@chat/contracts';
+import { ENDPOINTS, PrivacySettings, UsernameInput } from '@chat/contracts';
+import { Readable } from 'node:stream';
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../../../app.js';
 import { ApiError, handle, parse } from '../errors.js';
 import { toMe, toSummary } from '../domain/present.js';
 import { createPresence } from '../../gateway/presence.js';
-import { findProfile, getPrivacy, updatePrivacy } from '../repo/privacy.js';
+import { revokeDevices } from '../../devices/revoke.js';
+import { findProfile, getSettings, updateSettings } from '../repo/privacy.js';
+import {
+  anonymiseUser,
+  exportChunks,
+  getStats,
+  hideFlickChat,
+  isUniqueViolation,
+  usernameTaken,
+} from '../repo/account.js';
 import { blockUser, createReport, listBlocks, unblockUser, userExists } from '../repo/blocks.js';
 import {
   claimAvatarAttachment,
@@ -19,6 +29,29 @@ const { users, moderation } = ENDPOINTS;
 // The `about` column is limited to 139 characters (the contract allows 280, so check it here
 // and answer with a clear 400 instead of a database error).
 const ABOUT_MAX = 139;
+
+/** What `viewerId` may see of a profile row. You always see yourself in full. */
+async function presentProfile(
+  deps: AppDeps,
+  presence: ReturnType<typeof createPresence>,
+  viewerId: string,
+  row: NonNullable<Awaited<ReturnType<typeof findProfile>>>,
+) {
+  const shows = (level: string | null) =>
+    row.id === viewerId || (level ?? 'everyone') === 'everyone';
+  // Redis is only a cache: if it is down, show the user as offline instead of failing.
+  const online = await presence.isOnline(row.id).catch(() => false);
+  const summary = toSummary(deps.config, row);
+  return {
+    ...summary,
+    avatar_url: shows(row.photo_privacy) ? summary.avatar_url : null,
+    about: shows(row.about_privacy) ? row.about : null,
+    last_seen_at:
+      !online && shows(row.last_seen_privacy) ? (row.last_seen_at?.toISOString() ?? null) : null,
+    online,
+    blocked_by_me: row.blocked_by_me,
+  };
+}
 
 export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
   const { config, db } = deps;
@@ -43,6 +76,7 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
       const body = parse(users.updateMe.body, req.body);
       const changes: ProfileChanges = {};
       if (body.display_name !== undefined) changes.display_name = body.display_name;
+      if (body.username !== undefined) changes.username = body.username.toLowerCase();
       if (body.about !== undefined) {
         if (body.about !== null && body.about.length > ABOUT_MAX)
           throw new ApiError(
@@ -64,7 +98,97 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
         if (!current) throw new ApiError('NOT_FOUND', 'User not found');
         return toMe(config, current);
       }
-      return toMe(config, await updateProfile(db, userId, changes));
+      try {
+        return toMe(config, await updateProfile(db, userId, changes));
+      } catch (error) {
+        // The unique index on usernames is the real check; the availability call is only a hint.
+        if (isUniqueViolation(error)) throw new ApiError('CONFLICT', 'That username is taken');
+        throw error;
+      }
+    }),
+  );
+
+  app.get(
+    users.usernameAvailable.path,
+    { ...guard, config: { rateLimit: { max: 60, timeWindow: 60_000 } } },
+    handle(async (req) => {
+      const { u } = parse(users.usernameAvailable.query, req.query);
+      if (!UsernameInput.safeParse(u).success) return { available: false, reason: 'invalid' };
+      return (await usernameTaken(db, u.toLowerCase(), req.auth!.userId))
+        ? { available: false, reason: 'taken' }
+        : { available: true };
+    }),
+  );
+
+  app.get(
+    users.stats.path,
+    guard,
+    handle(async (req) => {
+      const stats = await getStats(db, req.auth!.userId);
+      if (!stats) throw new ApiError('NOT_FOUND', 'User not found');
+      return {
+        chats: stats.chats,
+        groups: stats.groups,
+        days_on_flick: stats.days,
+        last_active_at: stats.last_active_at?.toISOString() ?? null,
+      };
+    }),
+  );
+
+  app.get(
+    users.settings.path,
+    guard,
+    handle((req) => getSettings(db, req.auth!.userId)),
+  );
+
+  app.patch(
+    users.updateSettings.path,
+    guard,
+    handle((req) =>
+      updateSettings(db, req.auth!.userId, parse(users.updateSettings.body, req.body)),
+    ),
+  );
+
+  // The data download. It streams, so a big history never sits in memory; a stricter limit than
+  // the global one because it reads a lot.
+  app.get(
+    users.export.path,
+    { ...guard, config: { rateLimit: { max: 5, timeWindow: 60_000 } } },
+    handle((req, reply) => {
+      const day = new Date().toISOString().slice(0, 10);
+      return Promise.resolve(
+        reply
+          .header('content-type', 'application/json; charset=utf-8')
+          .header('content-disposition', `attachment; filename="flick-export-${day}.json"`)
+          .header('cache-control', 'no-store')
+          .send(Readable.from(exportChunks(db, req.auth!.userId))),
+      );
+    }),
+  );
+
+  app.post(
+    users.deleteAccount.path,
+    guard,
+    handle(async (req, reply) => {
+      const { userId } = req.auth!;
+      const { username } = parse(users.deleteAccount.body, req.body);
+      const me = await findUserById(db, userId);
+      if (!me) throw new ApiError('NOT_FOUND', 'User not found');
+      if (username.toLowerCase() !== me.username.toLowerCase())
+        throw new ApiError('VALIDATION_FAILED', 'Type your username exactly to delete the account');
+      await anonymiseUser(db, userId);
+      await revokeDevices(app, deps, userId); // every device: 401 from now on, sockets closed
+      app.disconnectRooms([`user:${userId}`]);
+      return reply.code(204).send();
+    }),
+  );
+
+  app.delete(
+    users.clearFlickChat.path,
+    guard,
+    handle(async (req, reply) => {
+      await hideFlickChat(db, req.auth!.userId);
+      return reply.code(204).send();
     }),
   );
 
@@ -79,16 +203,21 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
     }),
   );
 
+  // The older privacy-only endpoints answer with just the four privacy fields.
   app.get(
     users.privacy.path,
     guard,
-    handle((req) => getPrivacy(db, req.auth!.userId)),
+    handle(async (req) => PrivacySettings.parse(await getSettings(db, req.auth!.userId))),
   );
 
   app.patch(
     users.updatePrivacy.path,
     guard,
-    handle((req) => updatePrivacy(db, req.auth!.userId, parse(users.updatePrivacy.body, req.body))),
+    handle(async (req) =>
+      PrivacySettings.parse(
+        await updateSettings(db, req.auth!.userId, parse(users.updatePrivacy.body, req.body)),
+      ),
+    ),
   );
 
   // Registered after the static /users/me and /users/search paths, which win over :user_id.
@@ -98,25 +227,22 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
     handle(async (req) => {
       const viewerId = req.auth!.userId;
       const { user_id } = parse(users.profile.params, req.params);
-      const row = await findProfile(db, viewerId, user_id);
+      const row = await findProfile(db, viewerId, { id: user_id });
       if (!row) throw new ApiError('NOT_FOUND', 'User not found');
-      // You always see yourself in full. Anyone else sees only what the user allows.
-      const shows = (level: string | null) =>
-        user_id === viewerId || (level ?? 'everyone') === 'everyone';
-      // Redis is only a cache: if it is down, show the user as offline instead of failing.
-      const online = await presence.isOnline(user_id).catch(() => false);
-      const summary = toSummary(config, row);
-      return {
-        ...summary,
-        avatar_url: shows(row.photo_privacy) ? summary.avatar_url : null,
-        about: shows(row.about_privacy) ? row.about : null,
-        last_seen_at:
-          !online && shows(row.last_seen_privacy)
-            ? (row.last_seen_at?.toISOString() ?? null)
-            : null,
-        online,
-        blocked_by_me: row.blocked_by_me,
-      };
+      return presentProfile(deps, presence, viewerId, row);
+    }),
+  );
+
+  // The page behind a shared link, /u/<username>. Same privacy rules as the profile above.
+  app.get(
+    users.byUsername.path,
+    guard,
+    handle(async (req) => {
+      const viewerId = req.auth!.userId;
+      const { username } = parse(users.byUsername.params, req.params);
+      const row = await findProfile(db, viewerId, { username });
+      if (!row) throw new ApiError('NOT_FOUND', 'User not found');
+      return presentProfile(deps, presence, viewerId, row);
     }),
   );
 

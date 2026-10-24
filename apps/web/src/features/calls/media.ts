@@ -27,17 +27,35 @@ export const mediaErrorMessage = (error: unknown): string => {
   }
 };
 
+/** The microphone choices from Settings > Calls. */
+export interface AudioOptions {
+  noiseSuppression: boolean;
+  echoCancellation: boolean;
+}
+
+const DEFAULT_AUDIO: AudioOptions = { noiseSuppression: true, echoCancellation: true };
+
 /**
  * Acquire local media. A video call on a device without a usable camera falls
  * back to audio-only so the call still connects (and still RECEIVES video).
  */
-export const getLocalMedia = async (type: CallType): Promise<MediaStream> => {
+export const getLocalMedia = async (
+  type: CallType,
+  audio: AudioOptions = DEFAULT_AUDIO,
+): Promise<MediaStream> => {
+  const constraints = {
+    noiseSuppression: audio.noiseSuppression,
+    echoCancellation: audio.echoCancellation,
+  };
   try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
+    return await navigator.mediaDevices.getUserMedia({
+      audio: constraints,
+      video: type === 'video',
+    });
   } catch (error) {
     const name = errorName(error);
     if (type !== 'video' || name === 'NotAllowedError' || name === 'SecurityError') throw error;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints, video: false });
     notify.info('No camera available — joining with audio only');
     return stream;
   }
@@ -45,3 +63,24 @@ export const getLocalMedia = async (type: CallType): Promise<MediaStream> => {
 
 export const describeError = (error: unknown): string =>
   error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+/**
+ * Limits how much bandwidth the outgoing video may use (bits per second). Called after the call
+ * is set up; a browser that does not allow it keeps its own default.
+ */
+export const limitVideoBitrate = async (
+  peer: Pick<RTCPeerConnection, 'getSenders'>,
+  maxBitrate: number,
+): Promise<void> => {
+  for (const sender of peer.getSenders()) {
+    if (sender.track?.kind !== 'video') continue;
+    try {
+      const params = sender.getParameters();
+      params.encodings = params.encodings.length > 0 ? params.encodings : [{}];
+      for (const encoding of params.encodings) encoding.maxBitrate = maxBitrate;
+      await sender.setParameters(params);
+    } catch {
+      // not supported yet at this point of the call: the default bitrate is used
+    }
+  }
+};

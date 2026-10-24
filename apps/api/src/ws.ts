@@ -37,13 +37,26 @@ export async function closeIo(io: Server): Promise<void> {
     .catch(() => undefined);
 }
 
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** Closes every socket in these rooms (`device:<id>`, `user:<id>`), on every API replica. */
+    disconnectRooms: (rooms: string[]) => void;
+  }
+}
+
 /** Starts the real-time gateway and the outbox dispatcher with the app, and stops them with it. */
 export function registerRealtime(app: FastifyInstance, deps: AppDeps): void {
+  let io: Server | undefined;
+  // Always available (a no-op while the gateway is off, as in most tests). The Redis adapter
+  // carries the order to the other replicas.
+  app.decorate('disconnectRooms', (rooms: string[]) => {
+    io?.in(rooms).disconnectSockets(true);
+  });
+
   const { authenticateSocket } = deps;
   if (!authenticateSocket) return;
 
   const stops: (() => Promise<unknown> | void)[] = [];
-  let io: Server | undefined;
   // Fastify waits for open connections before it runs onClose, and a Socket.IO connection stays
   // open until someone closes it. So the sockets are disconnected first (clients reconnect to
   // another replica); without this a shutdown with connected users would hang.

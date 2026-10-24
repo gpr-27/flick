@@ -1,27 +1,461 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { UserButton } from '@clerk/clerk-react';
-import { Avatar } from '@/components/ui';
+import { Camera, Copy, Image as ImageIcon, Share2, Trash2 } from 'lucide-react';
+import { ENDPOINTS, type UpdateMeRequest, type UserStats } from '@chat/contracts';
+import type { z } from 'zod';
+import { Avatar, Modal, PopoverMenu, cn } from '@/components/ui';
+import { notify } from '@/components/ui/notify';
 import { useSessionStore } from '@/features/auth/useSessionStore';
+import { uploadAttachment } from '@/features/chat/upload';
+import { ApiError, getErrorMessage } from '@/lib/api';
+import { getApi } from '@/lib/services';
+import { AvatarCropper } from './AvatarCropper';
+import {
+  ABOUT_MAX,
+  DISPLAY_NAME_MAX,
+  STATUS_PRESETS,
+  USERNAME_MAX,
+  completeness,
+  copyText,
+  profileLink,
+  shareProfile,
+  validateAbout,
+  validateDisplayName,
+  validateUsername,
+} from './profileLogic';
+import { useUnsavedGuard } from './useUnsavedGuard';
+import { useUsernameCheck, type UsernameStatus } from './useUsernameCheck';
 
-/** Name and avatar from /users/me; account management and sign out live in Clerk's user button. */
+type Stats = z.infer<typeof UserStats>;
+type AvatarDraft =
+  { kind: 'unchanged' } | { kind: 'new'; blob: Blob; previewUrl: string } | { kind: 'removed' };
+
+const USERNAME_NOTE: Partial<Record<UsernameStatus, { text: string; good: boolean }>> = {
+  checking: { text: 'Checking...', good: true },
+  available: { text: 'Available', good: true },
+  taken: { text: 'That username is taken.', good: false },
+  unknown: { text: 'Could not check right now. Saving will tell you.', good: true },
+};
+
+const date = (iso: string | null | undefined): string =>
+  iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : 'Not yet';
+
+/** Edit your name, username, About and photo; see your stats; share your profile. */
 export const ProfilePage = () => {
   const user = useSessionStore((s) => s.user);
+  const setUser = useSessionStore((s) => s.setUser);
+  const [name, setName] = useState(user?.display_name ?? '');
+  const [username, setUsername] = useState(user?.username ?? '');
+  const [about, setAbout] = useState(user?.about ?? '');
+  const [avatar, setAvatar] = useState<AvatarDraft>({ kind: 'unchanged' });
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getApi()
+      .call(ENDPOINTS.users.stats)
+      .then(
+        (s) => {
+          if (!cancelled) setStats(s);
+        },
+        () => undefined, // the numbers are a nicety; the page works without them
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const usernameStatus = useUsernameCheck(username, user?.username ?? '');
+
+  // What would be sent: only the fields that changed.
+  const changes = useMemo(() => {
+    if (!user) return {};
+    const body: z.input<typeof UpdateMeRequest> = {};
+    if (name.trim() !== user.display_name) body.display_name = name.trim();
+    if (username.toLowerCase() !== user.username) body.username = username;
+    if ((about.trim() || null) !== user.about) body.about = about.trim() || null;
+    return body;
+  }, [user, name, username, about]);
+  const dirty = Object.keys(changes).length > 0 || avatar.kind !== 'unchanged';
+  const guard = useUnsavedGuard(dirty);
+
   if (!user) return null;
+
+  const nameError = validateDisplayName(name);
+  const usernameError = username === user.username ? null : validateUsername(username);
+  const aboutError = validateAbout(about);
+  const blocked = usernameStatus === 'taken' || usernameStatus === 'checking';
+  const canSave = dirty && !saving && !nameError && !usernameError && !aboutError && !blocked;
+
+  const shownAvatar =
+    avatar.kind === 'new' ? avatar.previewUrl : avatar.kind === 'removed' ? null : user.avatar_url;
+  const progress = completeness({
+    display_name: name,
+    username,
+    about: about.trim() || null,
+    avatar_url: shownAvatar,
+  });
+  const link = profileLink(window.location.origin, user.username);
+
+  const pickPhoto = (file: File | undefined): void => {
+    if (file?.type.startsWith('image/')) setCropFile(file);
+    else if (file) notify.error('Please pick a picture.');
+  };
+
+  const useCropped = (blob: Blob): void => {
+    if (avatar.kind === 'new') URL.revokeObjectURL(avatar.previewUrl);
+    setAvatar({ kind: 'new', blob, previewUrl: URL.createObjectURL(blob) });
+    setCropFile(null);
+  };
+
+  const save = async (): Promise<void> => {
+    setSaving(true);
+    setServerError(null);
+    const previous = user;
+    try {
+      const body = { ...changes };
+      if (avatar.kind === 'new') {
+        body.avatar_attachment_id = await uploadAttachment(avatar.blob, {
+          purpose: 'avatar',
+          mime: 'image/jpeg',
+          fileName: 'avatar.jpg',
+        });
+      } else if (avatar.kind === 'removed') {
+        body.avatar_attachment_id = null;
+      }
+      // Show the new text at once; the server's answer replaces it, a refusal puts it back.
+      setUser({
+        ...user,
+        display_name: body.display_name ?? user.display_name,
+        about: body.about === undefined ? user.about : body.about,
+      });
+      const me = await getApi().call(ENDPOINTS.users.updateMe, { body });
+      setUser(me);
+      setName(me.display_name);
+      setUsername(me.username);
+      setAbout(me.about ?? '');
+      setAvatar({ kind: 'unchanged' });
+      notify.success('Profile saved.');
+    } catch (error) {
+      setUser(previous);
+      if (error instanceof ApiError && error.status === 409) {
+        setServerError('That username is taken. Try another one.');
+      } else {
+        notify.error(getErrorMessage(error, "Couldn't save your profile."));
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const share = async (): Promise<void> => {
+    const result = await shareProfile(link, user.display_name);
+    if (result === 'copied') notify.success('Profile link copied.');
+    else if (result === 'failed') notify.error("Couldn't share. Copy the link yourself: " + link);
+  };
+
+  const copyUsername = async (): Promise<void> => {
+    if ((await copyText(`@${user.username}`)) === 'copied') notify.success('Username copied.');
+    else notify.error("Couldn't copy.");
+  };
 
   return (
     <main className="app-bg min-h-dvh-screen px-4 pb-16 pt-24">
       <div className="blobs" aria-hidden="true" />
-      <div className="mx-auto max-w-lg animate-fade-in-up">
-        <section className="glass-card rounded-3xl p-6" aria-labelledby="profile-title">
-          <div className="flex flex-col items-center gap-2">
-            <Avatar src={user.avatar_url} name={user.display_name} size="xl" />
-            <h1 id="profile-title" className="font-display text-2xl font-bold">
-              {user.display_name}
-            </h1>
-            <p className="text-sm text-base-content/60">@{user.username}</p>
-            <UserButton />
+      <div className="mx-auto grid max-w-5xl animate-fade-in-up gap-6 lg:grid-cols-[22rem_1fr]">
+        <div className="space-y-4">
+          <section
+            className="glass-card overflow-hidden rounded-3xl"
+            aria-labelledby="profile-title"
+          >
+            <div
+              className="h-28 bg-gradient-to-r from-primary via-secondary to-accent"
+              aria-hidden="true"
+            />
+            <div className="-mt-14 flex flex-col items-center gap-2 px-5 pb-6">
+              <div className="relative">
+                <Avatar
+                  src={shownAvatar}
+                  name={user.display_name}
+                  size="xl"
+                  imgClassName="ring-4 ring-base-100"
+                />
+                <PopoverMenu
+                  label="Change photo"
+                  icon={<Camera className="size-5" aria-hidden="true" />}
+                  className="absolute -bottom-1 -right-1 rounded-full bg-base-100 shadow"
+                  items={[
+                    {
+                      label: 'Choose a photo',
+                      icon: <ImageIcon className="size-5" aria-hidden="true" />,
+                      onClick: () => fileRef.current?.click(),
+                    },
+                    {
+                      label: 'Take a photo',
+                      icon: <Camera className="size-5" aria-hidden="true" />,
+                      onClick: () => cameraRef.current?.click(),
+                    },
+                    {
+                      label: 'Remove photo',
+                      icon: <Trash2 className="size-5" aria-hidden="true" />,
+                      disabled: !shownAvatar,
+                      onClick: () => {
+                        setAvatar({ kind: 'removed' });
+                      },
+                    },
+                  ]}
+                />
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  aria-label="Choose a photo"
+                  onChange={(e) => {
+                    pickPhoto(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+                {/* On phones `capture` opens the camera; on laptops it is the same as choosing a file. */}
+                <input
+                  ref={cameraRef}
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  className="hidden"
+                  aria-label="Take a photo"
+                  onChange={(e) => {
+                    pickPhoto(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+              <h1 id="profile-title" className="font-display text-2xl font-bold">
+                {user.display_name}
+              </h1>
+              <p className="text-sm text-base-content/60">@{user.username}</p>
+              {user.about && <p className="text-center text-sm">{user.about}</p>}
+              <div className="mt-1 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm min-h-11 gap-2 rounded-2xl"
+                  onClick={() => void share()}
+                >
+                  <Share2 className="size-4" aria-hidden="true" /> Share profile
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm min-h-11 gap-2 rounded-2xl"
+                  onClick={() => void copyUsername()}
+                >
+                  <Copy className="size-4" aria-hidden="true" /> Copy @username
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="glass-card rounded-3xl p-5" aria-label="Your stats">
+            <dl className="grid grid-cols-3 text-center">
+              {[
+                ['Chats', stats?.chats],
+                ['Groups', stats?.groups],
+                ['Days on Flick', stats?.days_on_flick],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dd className="font-display text-2xl font-bold">{value ?? '-'}</dd>
+                  <dt className="text-xs text-base-content/60">{label}</dt>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <section className="glass-card rounded-3xl p-5" aria-label="Profile completeness">
+            <div className="flex items-center justify-between text-sm font-semibold">
+              <span>Profile completeness</span>
+              <span>{progress.percent}%</span>
+            </div>
+            <progress
+              className="progress progress-primary mt-2 w-full"
+              value={progress.percent}
+              max={100}
+              aria-label="Profile completeness"
+            />
+            <p className="mt-2 text-sm text-base-content/70">{progress.hint}</p>
+          </section>
+        </div>
+
+        <form
+          className="glass-card space-y-5 rounded-3xl p-5 sm:p-6"
+          aria-label="Edit profile"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (canSave) void save();
+          }}
+        >
+          <h2 className="font-display text-lg font-bold">Edit profile</h2>
+
+          <div className="text-sm font-semibold">
+            <label htmlFor="name-input">Display name</label>
+            <input
+              id="name-input"
+              className="input-soft mt-1 min-h-11 w-full"
+              value={name}
+              maxLength={DISPLAY_NAME_MAX + 10}
+              onChange={(e) => {
+                setName(e.target.value);
+              }}
+              aria-invalid={nameError !== null}
+              aria-describedby="name-note"
+            />
+            <span
+              id="name-note"
+              role={nameError ? 'alert' : undefined}
+              className={cn(
+                'mt-1 block text-xs font-normal',
+                nameError ? 'text-error' : 'text-base-content/60',
+              )}
+            >
+              {nameError ?? `${String(name.trim().length)}/${String(DISPLAY_NAME_MAX)}`}
+            </span>
           </div>
-        </section>
+
+          <div className="text-sm font-semibold">
+            <label htmlFor="username-input">Username</label>
+            <input
+              id="username-input"
+              className="input-soft mt-1 min-h-11 w-full"
+              value={username}
+              maxLength={USERNAME_MAX + 10}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setServerError(null);
+              }}
+              aria-invalid={usernameError !== null || usernameStatus === 'taken'}
+              aria-describedby="username-note"
+            />
+            <span
+              id="username-note"
+              role={usernameError || serverError || usernameStatus === 'taken' ? 'alert' : 'status'}
+              className={cn(
+                'mt-1 block text-xs font-normal',
+                usernameError || serverError || USERNAME_NOTE[usernameStatus]?.good === false
+                  ? 'text-error'
+                  : 'text-base-content/60',
+              )}
+            >
+              {usernameError ??
+                serverError ??
+                USERNAME_NOTE[usernameStatus]?.text ??
+                '3 to 32 letters, numbers, _ or .'}
+            </span>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold" htmlFor="about-input">
+              About
+            </label>
+            <textarea
+              id="about-input"
+              className="textarea textarea-bordered mt-1 min-h-24 w-full"
+              value={about}
+              onChange={(e) => {
+                setAbout(e.target.value);
+              }}
+              aria-invalid={aboutError !== null}
+              aria-describedby="about-count"
+            />
+            <p
+              id="about-count"
+              className={cn('text-xs', aboutError ? 'text-error' : 'text-base-content/60')}
+            >
+              {about.length}/{ABOUT_MAX}
+              {aboutError ? ` - ${aboutError}` : ''}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Quick statuses">
+              {STATUS_PRESETS.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  className="chip min-h-11 rounded-full px-3 text-sm"
+                  onClick={() => {
+                    setAbout(status);
+                  }}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <dl className="grid gap-3 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-base-content/60">Email</dt>
+              <dd className="truncate font-semibold">{user.email ?? 'None'}</dd>
+            </div>
+            <div>
+              <dt className="text-base-content/60">Member since</dt>
+              <dd className="font-semibold">{date(user.created_at)}</dd>
+            </div>
+            <div>
+              <dt className="text-base-content/60">Last active</dt>
+              <dd className="font-semibold">{date(stats?.last_active_at)}</dd>
+            </div>
+          </dl>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="flex items-center gap-2 text-xs text-base-content/60">
+              Password and sign-in are managed by your account menu <UserButton />
+            </p>
+            <button
+              type="submit"
+              className="btn btn-primary min-h-11 rounded-2xl px-8"
+              disabled={!canSave}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
       </div>
+
+      <AvatarCropper
+        file={cropFile}
+        onCancel={() => {
+          setCropFile(null);
+        }}
+        onDone={useCropped}
+      />
+
+      <Modal
+        open={guard.pending !== null}
+        onClose={guard.stay}
+        labelledBy="discard-title"
+        className="glass-card mx-4 w-full max-w-sm space-y-3 rounded-3xl p-6 animate-scale-in"
+      >
+        <h2 id="discard-title" className="font-display text-lg font-bold">
+          Discard your changes?
+        </h2>
+        <p className="text-sm">You have changes that are not saved.</p>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-ghost min-h-11 rounded-2xl" onClick={guard.stay}>
+            Keep editing
+          </button>
+          <button
+            type="button"
+            className="btn btn-error min-h-11 rounded-2xl"
+            onClick={guard.leave}
+          >
+            Discard
+          </button>
+        </div>
+      </Modal>
     </main>
   );
 };

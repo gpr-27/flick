@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ENDPOINTS } from '@chat/contracts';
 import { installFakePush, removeFakePush } from '../../../test/browserFakes';
 import { fakeApi, installFakeServices } from '../../../test/fakes';
-import { NotificationSettings } from './NotificationSettings';
+import { PushToggle } from './NotificationSettings';
 
 afterEach(removeFakePush);
 beforeEach(() => {
@@ -22,11 +22,11 @@ const setup = (publicKey: string | null = 'AQID') => {
 
 const pushSwitch = () => screen.getByRole('switch', { name: 'Push notifications' });
 
-describe('NotificationSettings', () => {
+describe('PushToggle', () => {
   it('turns push on after a click and off again', async () => {
     const api = setup();
     installFakePush();
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     await waitFor(() => {
       expect(pushSwitch()).toBeEnabled();
     });
@@ -46,7 +46,7 @@ describe('NotificationSettings', () => {
 
   it('explains when the browser does not support push', async () => {
     setup();
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     expect(await screen.findByRole('alert')).toHaveTextContent("can't receive push");
     expect(pushSwitch()).toBeDisabled();
   });
@@ -54,7 +54,7 @@ describe('NotificationSettings', () => {
   it('explains when permission is blocked', async () => {
     setup();
     installFakePush({ permission: 'denied' });
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     expect(await screen.findByRole('alert')).toHaveTextContent('blocked');
     expect(pushSwitch()).toBeDisabled();
   });
@@ -62,7 +62,7 @@ describe('NotificationSettings', () => {
   it('explains when the server has no VAPID key', async () => {
     setup(null);
     installFakePush();
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     expect(await screen.findByRole('alert')).toHaveTextContent("aren't set up on this server");
     expect(pushSwitch()).toBeDisabled();
   });
@@ -70,23 +70,12 @@ describe('NotificationSettings', () => {
   it('shows a denied message when the user rejects the browser prompt', async () => {
     setup();
     installFakePush({ answer: 'denied' });
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     await waitFor(() => {
       expect(pushSwitch()).toBeEnabled();
     });
     await userEvent.click(pushSwitch());
     expect(await screen.findByRole('alert')).toHaveTextContent('blocked');
     expect(pushSwitch()).not.toBeChecked();
-  });
-
-  it('remembers the sound toggle', async () => {
-    setup();
-    installFakePush();
-    render(<NotificationSettings />);
-    const sound = screen.getByRole('switch', { name: 'Message sound' });
-    expect(sound).toBeChecked();
-    await userEvent.click(sound);
-    expect(sound).not.toBeChecked();
-    expect(localStorage.getItem('flick-notification-prefs')).toBe('{"sound":false}');
   });
 });

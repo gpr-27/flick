@@ -27,9 +27,18 @@ type Reason = (typeof REASONS)[number]['value'];
 interface ReportDialogProps {
   target: ReportTarget | null;
   onClose: () => void;
+  /** The heading; "Report a problem" when the dialog is opened from About. */
+  title?: string;
+  /** Offer "Also block this user". Off for the Flick account itself. */
+  canBlock?: boolean;
 }
 
-export const ReportDialog = ({ target, onClose }: ReportDialogProps) => {
+export const ReportDialog = ({
+  target,
+  onClose,
+  title = 'Report',
+  canBlock = true,
+}: ReportDialogProps) => {
   const [reason, setReason] = useState<Reason>('spam');
   const [details, setDetails] = useState('');
   const [block, setBlock] = useState(false);
@@ -57,7 +66,7 @@ export const ReportDialog = ({ target, onClose }: ReportDialogProps) => {
     <Modal open={target !== null} onClose={onClose} labelledBy="report-title">
       <div className="glass-card w-full max-w-sm space-y-4 rounded-3xl p-6">
         <h2 id="report-title" className="font-display text-lg font-bold">
-          Report
+          {title}
         </h2>
         <label className="block text-sm font-semibold">
           Reason
@@ -86,7 +95,7 @@ export const ReportDialog = ({ target, onClose }: ReportDialogProps) => {
             }}
           />
         </label>
-        {target?.user_id && (
+        {target?.user_id && canBlock && (
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"

@@ -102,6 +102,17 @@ async function checkAddable(
         .execute()
     ).map((b) => (b.blocker_id === actorId ? b.blocked_id : b.blocker_id)),
   );
+  // People who chose "Who can add me to groups: nobody" can only join by an invite link.
+  const refuseAdds = new Set(
+    (
+      await trx
+        .selectFrom('user_settings')
+        .select('user_id')
+        .where('user_id', 'in', unique)
+        .where('groups_add_privacy', '=', 'nobody')
+        .execute()
+    ).map((r) => r.user_id),
+  );
   const members = conv
     ? await trx
         .selectFrom('conversation_members')
@@ -116,6 +127,7 @@ async function checkAddable(
   for (const id of unique) {
     if (!existing.has(id)) failed.push({ user_id: id, code: 'NOT_FOUND' });
     else if (blocked.has(id)) failed.push({ user_id: id, code: 'BLOCKED' });
+    else if (refuseAdds.has(id)) failed.push({ user_id: id, code: 'FORBIDDEN' });
     else if (alreadyIn.has(id)) failed.push({ user_id: id, code: 'CONFLICT' });
     else if (ok.length + alreadyIn.size >= LIMITS.MAX_GROUP_MEMBERS) {
       failed.push({ user_id: id, code: 'GROUP_FULL' });

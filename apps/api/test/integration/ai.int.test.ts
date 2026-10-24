@@ -22,9 +22,11 @@ class FakeProvider implements ProviderAdapter {
   readonly models = ['fake-model'];
   mode: 'ok' | 'down' = 'ok';
   prompts: string[] = [];
+  systems: string[] = [];
 
   complete({ request }: ProviderCallParams): Promise<string> {
     this.prompts.push(request.messages.map((m) => m.content).join('\n'));
+    this.systems.push(request.system ?? '');
     if (this.mode === 'down') {
       return Promise.reject(Object.assign(new Error('provider down'), { status: 503 }));
     }
@@ -101,6 +103,7 @@ afterAll(async () => {
 beforeEach(() => {
   fake.mode = 'ok';
   fake.prompts = [];
+  fake.systems = [];
 });
 
 async function makeUser(name = 'User') {
@@ -402,5 +405,43 @@ describe('@flick bot', () => {
     const quiet = { ...deps(), ai: aiServiceFromChain(new AiChain({ adapters: [] })) };
     expect(await flickBotOnMessage(quiet, mention)).toBe('ignored');
     expect(await botMessages(room)).toHaveLength(0);
+  });
+});
+
+describe('preferred reply language (Settings > AI)', () => {
+  const deps = () => ({
+    db,
+    redis,
+    logger: createLogger('silent'),
+    ai: aiServiceFromChain(new AiChain({ adapters: [fake] })),
+  });
+
+  it('is added to the @flick prompt only for people who chose one', async () => {
+    const [alice, bob] = [await makeUser(), await makeUser()];
+    const room = await makeGroup(alice, bob);
+    await db.insertInto('user_settings').values({ user_id: alice, ai_language: 'Hindi' }).execute();
+
+    expect(await flickBotOnMessage(deps(), await say(room, alice, '@flick hello'))).toBe('replied');
+    expect(fake.systems[0]).toContain('prefers answers in Hindi');
+
+    expect(await flickBotOnMessage(deps(), await say(room, bob, '@flick hello'))).toBe('replied');
+    expect(fake.systems[1]).not.toContain('prefers answers in');
+    expect(fake.systems[1]).toContain('reply in the language of that message');
+  });
+
+  it('starts the "Ask Flick" history with a language turn', async () => {
+    const alice = await makeUser();
+    await db
+      .insertInto('user_settings')
+      .values({ user_id: alice, ai_language: 'French' })
+      .execute();
+    const res = await post(alice, '/ai/chat', { messages: [{ role: 'user', content: 'hi' }] });
+    expect(res.statusCode).toBe(200);
+    expect(fake.prompts[0]).toContain('prefers answers in French');
+    expect(fake.prompts[0]).toContain('hi');
+
+    const plain = await makeUser();
+    await post(plain, '/ai/chat', { messages: [{ role: 'user', content: 'hello' }] });
+    expect(fake.prompts[1]).not.toContain('prefers answers in');
   });
 });

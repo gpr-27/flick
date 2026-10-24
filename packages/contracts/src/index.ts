@@ -9,6 +9,7 @@ export * from './message.js';
 export * from './rest/ai.js';
 export * from './rest/calls.js';
 export * from './rest/conversations.js';
+export * from './rest/devices.js';
 export * from './rest/endpoints.js';
 export * from './rest/extras.js';
 export * from './rest/media.js';

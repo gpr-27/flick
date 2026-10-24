@@ -3,6 +3,7 @@ import { AiConversationRequest, AskAiRequest, makeError, type ErrorCode } from '
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppDeps } from '../../app.js';
 import { rateLimitRejections } from '../../metrics.js';
+import { languageRule, preferredLanguage } from './bot.js';
 import { getMembership, loadLines, transcript, type ChatLine } from './context.js';
 import { AI_KEY_NAMES, createAiService } from './service.js';
 
@@ -120,6 +121,16 @@ export function aiRoutesModule(app: FastifyInstance, deps: AppDeps): void {
             ? [context, { role: 'assistant', content: 'Got it.' }, ...messages]
             : [context, ...messages];
       }
+    }
+    // "Ask Flick" is the one-to-one chat with the assistant: honour the language chosen in Settings
+    // with a first turn (the package owns the system prompt). Turns must keep alternating.
+    const language = await preferredLanguage(db, req.auth!.userId);
+    if (language) {
+      const rule = { role: 'user' as const, content: languageRule(language) };
+      history =
+        history[0]!.role === 'user'
+          ? [rule, { role: 'assistant', content: 'Understood.' }, ...history]
+          : [rule, ...history];
     }
     req.body = { history };
     return undefined;

@@ -19,6 +19,8 @@ import { startChatSession } from '@/features/chat/chatSession';
 import { HomePage } from '@/features/chat/HomePage';
 import { useOpenPendingConversation } from '@/features/notifications/useOpenPendingConversation';
 import { ProfilePage } from '@/features/profile/ProfilePage';
+import { PublicProfilePage } from '@/features/profile/PublicProfilePage';
+import { AppLock } from '@/features/settings/components/AppLock';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { useThemeStore } from '@/features/settings/useThemeStore';
@@ -95,12 +97,14 @@ const SignedInApp = () => {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route path="/calls" element={<CallLogPage />} />
           <Route path="/call/:token" element={<CallLinkPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
+      <AppLock />
       <IncomingCallModal />
       <CallOverlay />
       <GroupCallOverlay />

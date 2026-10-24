@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
 import { MessageSquare, MoreVertical, Moon, Phone, Settings, Sun, User } from 'lucide-react';
-import { PopoverMenu, type PopoverMenuItem } from '@/components/ui';
+import { Avatar, PopoverMenu, type PopoverMenuItem } from '@/components/ui';
+import { useSessionStore } from '@/features/auth/useSessionStore';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { InstallButton } from '@/pwa/InstallButton';
 import { promptInstall, useInstallStore } from '@/pwa/install';
@@ -42,6 +43,7 @@ const PhoneMenu = () => {
 
 // Rendered only when signed in.
 export const Navbar = () => {
+  const me = useSessionStore((s) => s.user);
   return (
     // The top padding keeps the bar below the iPhone notch / status bar.
     <header className="glass fixed top-0 z-40 w-full border-b border-base-content/10 pt-[env(safe-area-inset-top)]">
@@ -84,7 +86,13 @@ export const Navbar = () => {
             to="/profile"
             className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:hidden"
           >
-            <User className="size-4" aria-hidden="true" />
+            <Avatar
+              src={me?.avatar_url}
+              name=""
+              size="xs"
+              className="!size-6"
+              imgClassName="size-6 rounded-full object-cover"
+            />
             <span className="hidden sm:inline">Profile</span>
             <span className="sr-only sm:hidden">Profile</span>
           </Link>

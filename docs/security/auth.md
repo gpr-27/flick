@@ -46,6 +46,20 @@ and sends it as `X-Device-Id`. We need it because delivery is tracked **per devi
 laptop and phone each catch up on the messages they missed, and presence is per device. A device
 id already owned by another user is refused (403), so one person cannot read another's sync state.
 
+**Signing a device out.** Settings > Account lists a user's devices (`GET /devices`) and can sign
+one out (`DELETE /devices/:id`) or all but the current one (`POST /devices/revoke-others`). That sets
+`devices.revoked_at`, deletes the remembered check in Redis (otherwise it would work for up to 5
+minutes) and closes the device's sockets on every API replica. From then on that device id gets
+401, and using it again does not bring it back. A user can only see and revoke their own devices:
+another user's device id answers 404. The device name ("Chrome on macOS") comes from the
+User-Agent the first time the device is seen.
+
+**Deleting an account.** `POST /users/me/delete` with the exact username sets `status = 'deleted'`,
+replaces the display name with "Deleted user", clears About, photo and email, frees the username,
+removes push subscriptions and revokes every device. The row and the Clerk id stay, so the old
+messages keep a sender and a later sign-in with the same Clerk account is refused (403) instead of
+creating a new account.
+
 ## Errors
 
 | Case                                | Answer |
@@ -53,6 +67,7 @@ id already owned by another user is refused (403), so one person cannot read ano
 | No token, bad token, expired token  | 401    |
 | `X-Device-Id` missing or not a UUID | 400    |
 | Device id belongs to another user   | 403    |
+| Device was signed out (revoked)     | 401    |
 | Local user is disabled or deleted   | 403    |
 
 A missing `CLERK_SECRET_KEY` stops the API at startup with a message naming the variable.

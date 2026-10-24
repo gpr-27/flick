@@ -1,56 +1,42 @@
 import { create } from 'zustand';
 import type { ThemeMode } from '@/types/domain';
+import {
+  THEMES,
+  applyAppearance,
+  effectiveTheme,
+  readEnvironment,
+  startAppearance,
+} from './appearance';
+import { useSettingsStore } from './useSettingsStore';
 
-// Two daisyUI themes back light/dark (see tailwind.config.ts). STORAGE_KEY and
-// the mapping must match the no-flash <head> script in index.html.
-export const THEMES: Record<ThemeMode, string> = { light: 'pastel-glass', dark: 'pastel-night' };
-export const THEME_STORAGE_KEY = 'chat-theme';
-const PAGE_BG: Record<ThemeMode, string> = { light: '#F4F3FA', dark: '#14111F' };
-
-const isThemeMode = (v: unknown): v is ThemeMode => v === 'light' || v === 'dark';
-
-export const getInitialMode = (): ThemeMode => {
-  try {
-    const saved = localStorage.getItem(THEME_STORAGE_KEY);
-    if (isThemeMode(saved)) return saved;
-  } catch {
-    // localStorage unavailable (private mode): fall through to the OS preference.
-  }
-  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return 'light';
-};
-
-const applyMode = (mode: ThemeMode): void => {
-  if (typeof document === 'undefined') return;
-  document.documentElement.setAttribute('data-theme', THEMES[mode]);
-  document.documentElement.style.colorScheme = mode;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', PAGE_BG[mode]);
-};
+// The theme the page is showing right now ("light" or "dark"). What the person chose, including
+// "system", is the `theme` setting in useSettingsStore; this store is the quick sun/moon switch
+// that the navbar uses, and it keeps `theme` in step with the settings and the operating system.
 
 interface ThemeState {
+  /** The theme that is showing. */
   theme: ThemeMode;
-  /** Re-assert the DOM from the store (safety net if the <head> script was blocked). */
+  /** Apply the saved appearance now and keep it applied (safety net if the <head> script was blocked). */
   initTheme: () => void;
+  /** Choose light or dark explicitly. */
   setTheme: (mode: ThemeMode) => void;
   toggleTheme: () => void;
 }
 
+let stopAppearance: (() => void) | null = null;
+
 export const useThemeStore = create<ThemeState>()((set, get) => ({
-  theme: getInitialMode(),
+  theme: effectiveTheme(useSettingsStore.getState().theme, readEnvironment()),
   initTheme: () => {
-    applyMode(get().theme);
+    stopAppearance?.();
+    stopAppearance = startAppearance((theme) => {
+      set({ theme });
+    });
   },
   setTheme: (mode) => {
-    if (!isThemeMode(mode)) return;
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, mode);
-    } catch {
-      // ignore persistence failures
-    }
-    applyMode(mode);
-    set({ theme: mode });
+    if (!Object.hasOwn(THEMES, mode)) return;
+    useSettingsStore.getState().update({ theme: mode });
+    set({ theme: applyAppearance(useSettingsStore.getState()) });
   },
   toggleTheme: () => {
     get().setTheme(get().theme === 'dark' ? 'light' : 'dark');

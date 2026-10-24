@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
@@ -8,6 +9,10 @@ import { VitePWA, type VitePWAOptions } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 
 const here = dirname(fileURLToPath(import.meta.url));
+// The app version shown in Settings > About comes from this package.json (see __APP_VERSION__).
+const { version } = JSON.parse(readFileSync(resolve(here, 'package.json'), 'utf8')) as {
+  version: string;
+};
 // The single shared .env lives at the repo root (two levels up). Only VITE_*
 // variables reach the client bundle; FRONTEND_PORT is read here, in Node only.
 const rootEnvDir = resolve(here, '..', '..');
@@ -56,6 +61,7 @@ export default defineConfig(({ mode }) => {
       ...(mode === 'test' ? [] : [VitePWA(pwaOptions)]),
     ],
     envDir: rootEnvDir,
+    define: { __APP_VERSION__: JSON.stringify(version) },
     // Workspace packages resolve to their TypeScript sources, so no prior build is needed.
     resolve: {
       alias: {
