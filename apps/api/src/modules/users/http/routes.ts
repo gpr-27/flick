@@ -9,12 +9,35 @@ import { blockUser, createReport, listBlocks, unblockUser, userExists } from '..
 import {
   claimAvatarAttachment,
   findUserById,
+  listDirectory,
   searchUsers,
   updateProfile,
   type ProfileChanges,
 } from '../repo/users.js';
 
 const { users, moderation } = ENDPOINTS;
+
+// The directory cursor carries the sort key of the last row: the name, then the username.
+// Base64url, so it is safe in a query string; a bad value is a 400, never a server error.
+const encodeDirectoryCursor = (key: { name: string; username: string }): string =>
+  Buffer.from(JSON.stringify(key)).toString('base64url');
+
+function parseDirectoryCursor(cursor: string): { name: string; username: string } {
+  try {
+    const key = JSON.parse(Buffer.from(cursor, 'base64url').toString()) as unknown;
+    if (
+      typeof key === 'object' &&
+      key !== null &&
+      typeof (key as { name?: unknown }).name === 'string' &&
+      typeof (key as { username?: unknown }).username === 'string'
+    ) {
+      return key as { name: string; username: string };
+    }
+  } catch {
+    // fall through to the error below
+  }
+  throw new ApiError('VALIDATION_FAILED', 'Invalid cursor');
+}
 
 // The `about` column is limited to 139 characters (the contract allows 280, so check it here
 // and answer with a clear 400 instead of a database error).
@@ -65,6 +88,22 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
         return toMe(config, current);
       }
       return toMe(config, await updateProfile(db, userId, changes));
+    }),
+  );
+
+  app.get(
+    users.directory.path,
+    guard,
+    handle(async (req) => {
+      const { cursor, limit } = parse(users.directory.query, req.query);
+      const after = cursor ? parseDirectoryCursor(cursor) : null;
+      const rows = await listDirectory(db, req.auth!.userId, after, limit);
+      const last = rows.at(-1);
+      const next =
+        rows.length === limit && last
+          ? encodeDirectoryCursor({ name: last.display_name, username: last.username })
+          : null;
+      return { items: rows.map((row) => toSummary(config, row)), next_cursor: next };
     }),
   );
 

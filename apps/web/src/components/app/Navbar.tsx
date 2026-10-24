@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
-import { MessageSquare, MoreVertical, Moon, Phone, Settings, Sun, User } from 'lucide-react';
+import { MessageSquare, MoreVertical, Moon, Phone, Settings, Sun, User, Users } from 'lucide-react';
 import { PopoverMenu, type PopoverMenuItem } from '@/components/ui';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { InstallButton } from '@/pwa/InstallButton';
@@ -23,6 +23,7 @@ const PhoneMenu = () => {
       onClick: toggleTheme,
     },
     ...(canInstall ? [{ label: 'Install app', onClick: () => void promptInstall() }] : []),
+    { label: 'People', to: '/people', icon: <Users className="size-5" aria-hidden="true" /> },
     {
       label: 'Settings',
       to: '/settings',
@@ -72,6 +73,13 @@ export const Navbar = () => {
             <Phone className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Calls</span>
             <span className="sr-only sm:hidden">Calls</span>
+          </Link>
+          <Link
+            to="/people"
+            className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:hidden"
+          >
+            <Users className="size-4" aria-hidden="true" />
+            <span className="hidden sm:inline">People</span>
           </Link>
           <Link
             to="/settings"

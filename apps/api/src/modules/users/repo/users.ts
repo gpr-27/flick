@@ -40,6 +40,53 @@ const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
  * username prefix, then everything else alphabetically. Never returns the caller, inactive
  * accounts, or people who blocked the caller (so a blocked person cannot find them again).
  */
+/**
+ * Everyone on Flick, A to Z by display name (then username, so two equal names still page
+ * correctly). Same rules as search: never the caller, inactive accounts, or people who blocked
+ * the caller. `after` is the cursor: the (name, username) of the last row of the previous page.
+ */
+export async function listDirectory(
+  db: Db,
+  callerId: string,
+  after: { name: string; username: string } | null,
+  limit: number,
+) {
+  return (
+    db
+      .selectFrom('users')
+      .select(['id', 'username', 'display_name', 'avatar_object_key', 'avatar_url', 'is_bot'])
+      .where('id', '!=', callerId)
+      .where('status', '=', 'active')
+      .where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom('blocks')
+              .select('blocks.blocker_id')
+              .whereRef('blocks.blocker_id', '=', 'users.id')
+              .where('blocks.blocked_id', '=', callerId),
+          ),
+        ),
+      )
+      .$if(after !== null, (qb) =>
+        qb.where((eb) =>
+          eb.or([
+            eb(sql`lower(display_name)`, '>', after!.name.toLowerCase()),
+            eb.and([
+              eb(sql`lower(display_name)`, '=', after!.name.toLowerCase()),
+              eb(sql`lower(username)`, '>', after!.username.toLowerCase()),
+            ]),
+          ]),
+        ),
+      )
+      // Case-insensitive, so "anna" sits with the A's; the lower-case key is what paging compares.
+      .orderBy(sql`lower(display_name)`)
+      .orderBy(sql`lower(username)`)
+      .limit(limit)
+      .execute()
+  );
+}
+
 export async function searchUsers(db: Db, callerId: string, query: string, limit: number) {
   const exact = query.toLowerCase();
   const prefix = `${escapeLike(query)}%`;

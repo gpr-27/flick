@@ -18,6 +18,7 @@ import { GroupCallOverlay } from '@/features/groupcall/components/GroupCallOverl
 import { startChatSession } from '@/features/chat/chatSession';
 import { HomePage } from '@/features/chat/HomePage';
 import { useOpenPendingConversation } from '@/features/notifications/useOpenPendingConversation';
+import { PeoplePage } from '@/features/directory/PeoplePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
@@ -95,6 +96,7 @@ const SignedInApp = () => {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/people" element={<PeoplePage />} />
           <Route path="/calls" element={<CallLogPage />} />
           <Route path="/call/:token" element={<CallLinkPage />} />
           <Route path="/settings" element={<SettingsPage />} />

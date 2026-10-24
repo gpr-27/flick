@@ -43,6 +43,13 @@ export const ENDPOINTS = {
       query: Users.UserSearchQuery,
       response: Users.UserSearchResponse,
     },
+    directory: {
+      method: 'GET',
+      path: '/users/directory',
+      auth: true,
+      query: Users.DirectoryQuery,
+      response: Users.UserSearchResponse,
+    },
     profile: {
       method: 'GET',
       path: '/users/:user_id',
