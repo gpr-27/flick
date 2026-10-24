@@ -160,6 +160,7 @@ export const makeConversation = (
 ): ConversationSummary => ({
   id: CONV,
   type: 'direct',
+  is_saved: false,
   title: null,
   avatar_url: null,
   peer: { id: BOB, username: 'bob', display_name: 'Bob', avatar_url: null, is_bot: false },

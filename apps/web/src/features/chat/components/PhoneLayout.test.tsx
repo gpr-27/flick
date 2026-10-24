@@ -33,7 +33,14 @@ describe('composer "+" menu', () => {
     const names = within(menu)
       .getAllByRole('menuitem')
       .map((i) => i.textContent);
-    expect(names).toEqual(['Emoji', 'Photo or video', 'File', 'GIFs and stickers', 'Poll']);
+    expect(names).toEqual([
+      'Emoji',
+      'Photo or video',
+      'File',
+      'GIFs and stickers',
+      'Poll',
+      'Schedule send',
+    ]);
   });
 
   it('Emoji opens the emoji picker', async () => {

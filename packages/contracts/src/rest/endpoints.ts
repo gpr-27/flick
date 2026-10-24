@@ -10,6 +10,7 @@ import * as Media from './media.js';
 import * as Msg from './messages.js';
 import * as Mod from './moderation.js';
 import * as Push from './push.js';
+import * as Scheduled from './scheduled.js';
 import * as Users from './users.js';
 
 export interface Endpoint {
@@ -84,6 +85,13 @@ export const ENDPOINTS = {
       path: '/conversations/direct',
       auth: true,
       body: Conv.CreateDirectRequest,
+      response: Conv.ConversationSummary,
+    },
+    /** Your chat with yourself ("Saved messages"); created on first use. */
+    openSaved: {
+      method: 'POST',
+      path: '/conversations/saved',
+      auth: true,
       response: Conv.ConversationSummary,
     },
     createGroup: {
@@ -431,6 +439,24 @@ export const ENDPOINTS = {
       auth: true,
       query: Calls.CallLogQuery,
       response: Calls.CallLog,
+    },
+  },
+  scheduled: {
+    create: {
+      method: 'POST',
+      path: '/conversations/:conversation_id/scheduled',
+      auth: true,
+      params: Conv.ConversationParams,
+      body: Scheduled.ScheduleMessageRequest,
+      response: Scheduled.ScheduledMessage,
+    },
+    list: { method: 'GET', path: '/scheduled', auth: true, response: Scheduled.ScheduledList },
+    cancel: {
+      method: 'DELETE',
+      path: '/scheduled/:scheduled_id',
+      auth: true,
+      params: Scheduled.ScheduledParams,
+      response: null,
     },
   },
   ai: {

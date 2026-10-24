@@ -27,6 +27,14 @@ export const LIMITS = {
   FANOUT_BATCH_SIZE: 500,
   MAX_UPLOAD_BYTES: 100 * MiB,
   MAX_AVATAR_BYTES: 5 * MiB,
+  /** Max characters in the profile "about" line. */
+  MAX_ABOUT_LENGTH: 139,
+  /** A scheduled message must be at least this far ahead (the worker checks once a minute)... */
+  SCHEDULE_MIN_LEAD_S: 60,
+  /** ...and at most this far ahead (one year). */
+  SCHEDULE_MAX_LEAD_S: 365 * 86_400,
+  /** Max waiting (pending or failed) scheduled messages per user. */
+  MAX_SCHEDULED_PER_USER: 50,
 } as const;
 
 export const TYPING = {

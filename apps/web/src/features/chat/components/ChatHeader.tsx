@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { ArrowLeft, Info, Phone, Sparkles, Timer, Users, Video, X } from 'lucide-react';
+import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { ArrowLeft, Bookmark, Info, Phone, Sparkles, Timer, Users, Video, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, type PopoverMenuItem } from '@/components/ui';
 import { FlickPanel } from '@/features/ai/FlickPanel';
@@ -11,6 +11,7 @@ import { conversationAvatar, conversationTitle, presenceLabel } from '../convers
 import { useChatStore } from '../useChatStore';
 import { DisappearingDialog, DisappearingMenu } from '@/features/content/DisappearingMenu';
 import { timerLabel } from '@/features/content/disappearing';
+import { ProfilePopup } from '@/features/profile/ProfilePopup';
 import { GroupInfoModal } from './GroupInfoModal';
 
 export const ChatHeader = ({ conversation }: { conversation: ConversationSummary }) => {
@@ -25,6 +26,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
   const [searchOpen, setSearchOpen] = useState(false);
   const [flickOpen, setFlickOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const title = conversationTitle(conversation);
   const isGroup = conversation.type === 'group';
@@ -37,7 +39,9 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
         : 'sending a file…'
     : isGroup
       ? `${conversation.member_count} members`
-      : presenceLabel(presence);
+      : conversation.is_saved
+        ? 'Message yourself'
+        : presenceLabel(presence);
 
   const close = (): void => {
     select(null);
@@ -103,15 +107,40 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           <ArrowLeft className="size-5" aria-hidden="true" />
         </button>
 
-        <Avatar
-          src={conversationAvatar(conversation)}
-          name=""
-          size="sm"
-          online={Boolean(presence?.online)}
-          imgClassName="ring-2 ring-primary/20 shadow-sm"
-        />
+        {conversation.is_saved ? (
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+            <Bookmark className="size-5" aria-hidden="true" />
+          </span>
+        ) : (
+          <Avatar
+            src={conversationAvatar(conversation)}
+            name=""
+            size="sm"
+            online={Boolean(presence?.online)}
+            imgClassName="ring-2 ring-primary/20 shadow-sm"
+          />
+        )}
 
-        <div className="min-w-0">
+        {/* A direct chat's name opens that person's profile (about, last seen). */}
+        <div
+          className={`min-w-0 ${peer ? 'cursor-pointer' : ''}`}
+          {...(peer
+            ? {
+                role: 'button',
+                tabIndex: 0,
+                'aria-label': `View ${title}'s profile`,
+                onClick: () => {
+                  setProfileOpen(true);
+                },
+                onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setProfileOpen(true);
+                  }
+                },
+              }
+            : {})}
+        >
           <h2 className="truncate font-display text-base font-bold tracking-tight">{title}</h2>
           <p
             className={`truncate text-sm ${busy ? 'font-medium text-primary' : 'text-base-content/60'}`}
@@ -201,6 +230,16 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           <X className="size-5" aria-hidden="true" />
         </button>
       </div>
+
+      {peer && (
+        <ProfilePopup
+          user={peer}
+          open={profileOpen}
+          onClose={() => {
+            setProfileOpen(false);
+          }}
+        />
+      )}
 
       <DisappearingDialog
         conversation={conversation}

@@ -10,6 +10,7 @@ import * as m0007 from './0007_trim.js';
 import * as m0008 from './0008_calls.js';
 import * as m0009 from './0009_privacy.js';
 import * as m0010 from './0010_perf.js';
+import * as m0012 from './0012_saved_and_scheduled.js';
 
 // Listed explicitly (instead of scanning the folder) so the same code works under tsx, vitest
 // and compiled dist/. Kysely applies them in name order.
@@ -24,4 +25,5 @@ export const migrations: Record<string, Migration> = {
   '0008_calls': m0008,
   '0009_privacy': m0009,
   '0010_perf': m0010,
+  '0012_saved_and_scheduled': m0012,
 };

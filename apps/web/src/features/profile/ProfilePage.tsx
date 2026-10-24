@@ -1,6 +1,7 @@
 import { UserButton } from '@clerk/clerk-react';
 import { Avatar } from '@/components/ui';
 import { useSessionStore } from '@/features/auth/useSessionStore';
+import { AboutEditor } from './AboutEditor';
 
 /** Name and avatar from /users/me; account management and sign out live in Clerk's user button. */
 export const ProfilePage = () => {
@@ -19,6 +20,7 @@ export const ProfilePage = () => {
             </h1>
             <p className="text-sm text-base-content/60">@{user.username}</p>
             <UserButton />
+            <AboutEditor />
           </div>
         </section>
       </div>

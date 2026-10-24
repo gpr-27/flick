@@ -87,6 +87,8 @@ export interface ConversationsTable {
   admin_only_send: Generated<boolean>;
   admin_only_edit: Generated<boolean>;
   approval_required: Generated<boolean>;
+  // Set on a user's "Saved messages" chat (a chat with yourself); null on every other chat.
+  saved_for: string | null;
   created_at: CreatedAt;
 }
 
@@ -317,6 +319,19 @@ export interface ViewOnceOpensTable {
   opened_at: CreatedAt;
 }
 
+export type ScheduledStatus = 'pending' | 'sent' | 'failed';
+
+export interface ScheduledMessagesTable {
+  id: Generated<string>;
+  user_id: string;
+  conversation_id: string;
+  body_text: string;
+  send_at: Timestamp;
+  status: Generated<ScheduledStatus>;
+  failed_reason: string | null;
+  created_at: CreatedAt;
+}
+
 export interface Database {
   users: UsersTable;
   user_settings: UserSettingsTable;
@@ -345,6 +360,7 @@ export interface Database {
   message_events: MessageEventsTable;
   hidden_messages: HiddenMessagesTable;
   view_once_opens: ViewOnceOpensTable;
+  scheduled_messages: ScheduledMessagesTable;
 }
 
 // Every application table; the seed truncates these and a test checks they all exist.
@@ -376,6 +392,7 @@ export const APP_TABLES: ReadonlyArray<keyof Database> = [
   'message_events',
   'hidden_messages',
   'view_once_opens',
+  'scheduled_messages',
 ];
 
 export type User = Selectable<UsersTable>;

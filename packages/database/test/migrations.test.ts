@@ -65,6 +65,9 @@ describe('migrations', () => {
       ).rows[0]?.indexdef;
     expect(await searchIndex()).toContain('(conversation_id, search)');
 
+    await migrateDown(t.db); // undoes 0012 (saved and scheduled messages)
+    expect(await tables()).not.toContain('scheduled_messages');
+
     await migrateDown(t.db); // undoes 0010 (search index by conversation)
     expect(await searchIndex()).toContain('(search)');
     expect(await searchIndex()).not.toContain('conversation_id');
