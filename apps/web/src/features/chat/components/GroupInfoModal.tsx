@@ -141,6 +141,8 @@ export const GroupInfoModal = ({
             <UserSearch
               excludeIds={(members ?? []).map((m) => m.user.id)}
               actionLabel={(u) => `Add ${u.display_name} to the group`}
+              buttonText="Add"
+              disabledLabel="In this group"
               onPick={(user) => {
                 void addMembers(id, [user.id]);
               }}

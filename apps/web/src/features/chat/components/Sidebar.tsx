@@ -24,6 +24,7 @@ import { SearchPanel } from '../../search/SearchPanel';
 import { previewContent } from '../content/registry';
 import { conversationAvatar, conversationTitle } from '../conversationView';
 import { useChatStore } from '../useChatStore';
+import { InviteButton } from '@/features/directory/InviteButton';
 import { NewChatModal, NewGroupModal } from './NewChatModals';
 import { SidebarSkeleton } from './SidebarSkeleton';
 
@@ -331,11 +332,18 @@ export const Sidebar = () => {
             }}
           />
         ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={<Users className="size-8" />}
-            title={all.length === 0 ? 'No chats yet' : 'No matches found'}
-            description={all.length === 0 ? 'Start a new chat to say hello.' : undefined}
-          />
+          <>
+            <EmptyState
+              icon={<Users className="size-8" />}
+              title={all.length === 0 ? 'No chats yet' : 'No matches found'}
+              description={all.length === 0 ? 'Start a new chat to say hello.' : undefined}
+            />
+            {all.length === 0 && (
+              <div className="flex justify-center">
+                <InviteButton />
+              </div>
+            )}
+          </>
         ) : (
           <ul ref={listRef} role="listbox" aria-label="Chats" onKeyDown={onListKeyDown}>
             {filtered.map((c) => (

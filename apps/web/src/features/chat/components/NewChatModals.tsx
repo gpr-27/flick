@@ -97,6 +97,8 @@ export const NewGroupModal = ({ open, onClose }: { open: boolean; onClose: () =>
         <UserSearch
           excludeIds={picked.map((u) => u.id)}
           actionLabel={(u) => `Add ${u.display_name}`}
+          buttonText="Add"
+          disabledLabel="Added"
           onPick={(user) => {
             setPicked((list) => [...list, user]);
           }}
