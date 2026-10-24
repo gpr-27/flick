@@ -1,8 +1,8 @@
 // The "⋮" menu in the chat header: pin, archive, favourite, mute, wallpaper, lock, search.
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MoreVertical, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
-import { Modal, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
+import { AnchoredPanel, Modal, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
 import { useChatStore } from '../chat/useChatStore';
 import { LockModal } from './ChatLock';
 import { useLockStore } from './lock';
@@ -153,6 +153,7 @@ export const ChatOptionsMenu = ({
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const select = useChatStore((s) => s.select);
   const relock = useLockStore((s) => s.relock);
   const { prefs, id } = conversation;
@@ -161,6 +162,18 @@ export const ChatOptionsMenu = ({
     setOpen(false);
   };
   useFocusTrap(menuRef, open, { onEscape: close });
+  // Escape must work wherever the focus is while the menu is open. The menu lives in <body>, so
+  // a key handler on the menu alone does not see keys pressed elsewhere.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: globalThis.KeyboardEvent): void => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   const act = (fn: () => void): (() => void) => {
     return () => {
@@ -171,6 +184,11 @@ export const ChatOptionsMenu = ({
   const dialogItem = (d: Dialog) => act(() => setDialog(d));
 
   const onMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'Escape') {
+      close();
+      buttonRef.current?.focus();
+      return;
+    }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
     const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
@@ -182,6 +200,7 @@ export const ChatOptionsMenu = ({
   return (
     <div className="relative">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => {
           setOpen((v) => !v);
@@ -196,14 +215,13 @@ export const ChatOptionsMenu = ({
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-30" aria-hidden="true" onClick={close} />
+        <AnchoredPanel anchor={buttonRef} onClose={close}>
           <div
             ref={menuRef}
             role="menu"
             aria-label="Chat options"
             onKeyDown={onMenuKeyDown}
-            className="glass-card absolute right-0 top-full z-40 mt-1 w-56 rounded-xl border border-base-content/10 p-1 shadow-xl"
+            className="glass-card max-h-[70dvh] w-56 overflow-y-auto rounded-xl border border-base-content/10 p-1 shadow-xl"
           >
             {phoneItems.length > 0 && (
               <div className="sm:hidden">
@@ -259,9 +277,8 @@ export const ChatOptionsMenu = ({
             )}
             <Item onClick={act(onSearch)}>Search in chat</Item>
           </div>
-        </>
+        </AnchoredPanel>
       )}
-
       <MuteModal
         conversationId={id}
         open={dialog === 'mute'}
