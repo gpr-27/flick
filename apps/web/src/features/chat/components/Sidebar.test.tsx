@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ENDPOINTS } from '@chat/contracts';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import {
   BOB,
   ME,
+  fakeApi,
   installFakeServices,
   makeConversation,
   makeMessage,
@@ -87,5 +89,45 @@ describe('Sidebar', () => {
     await user.click(screen.getByRole('button', { name: 'New chat' }));
     expect(screen.getByRole('dialog', { name: 'New chat' })).toBeInTheDocument();
     expect(BOB).toBeTruthy();
+  });
+
+  it('shows Saved messages first, outside the chat list, and creates the chat on first tap', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    const saved = makeConversation({ id: nextId(), is_saved: true, peer: null, member_count: 1 });
+    api.call.mockResolvedValue(saved);
+    installFakeServices(undefined, api);
+    load();
+    render(<Sidebar />);
+
+    // Not one of the options: the list still has just the two normal chats.
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: /Saved messages/ }));
+
+    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.conversations.openSaved);
+    expect(useChatStore.getState().selectedId).toBe(saved.id);
+  });
+
+  it('opens an existing Saved messages chat without asking the server', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    installFakeServices(undefined, api);
+    load();
+    const saved = makeConversation({
+      id: nextId(),
+      is_saved: true,
+      peer: null,
+      last_message: makeMessage({ content: { type: 'text', text: 'buy milk' } }),
+    });
+    useChatStore.setState({
+      conversations: { ...useChatStore.getState().conversations, [saved.id]: saved },
+    });
+    render(<Sidebar />);
+
+    expect(screen.getByText('buy milk')).toBeInTheDocument();
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: /Saved messages/ }));
+    expect(useChatStore.getState().selectedId).toBe(saved.id);
+    expect(api.call).not.toHaveBeenCalledWith(ENDPOINTS.conversations.openSaved);
   });
 });

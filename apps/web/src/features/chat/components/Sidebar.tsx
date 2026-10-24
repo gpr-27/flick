@@ -3,6 +3,8 @@ import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
   Archive,
   BellOff,
+  Bookmark,
+  CalendarClock,
   Lock,
   MessageSquarePlus,
   Pin,
@@ -21,8 +23,9 @@ import { useIsHidden } from '../../organise/lock';
 import { isMuted } from '../../organise/prefs';
 import { StarredPanel } from '../../organise/StarredPanel';
 import { SearchPanel } from '../../search/SearchPanel';
+import { ScheduledDialog } from '@/features/scheduled/ScheduledDialog';
 import { previewContent } from '../content/registry';
-import { conversationAvatar, conversationTitle } from '../conversationView';
+import { SAVED_TITLE, conversationAvatar, conversationTitle } from '../conversationView';
 import { useChatStore } from '../useChatStore';
 import { InviteButton } from '@/features/directory/InviteButton';
 import { NewChatModal, NewGroupModal } from './NewChatModals';
@@ -135,6 +138,43 @@ const ConversationRow = ({
   );
 };
 
+/** "Saved messages" (notes to yourself): always the first row; the chat is created on first tap. */
+const SavedRow = ({
+  conversation,
+  isActive,
+}: {
+  conversation: ConversationSummary | undefined;
+  isActive: boolean;
+}) => {
+  const select = useChatStore((s) => s.select);
+  const openSaved = useChatStore((s) => s.openSaved);
+  const last = conversation?.last_message;
+  return (
+    <button
+      type="button"
+      aria-current={isActive}
+      onClick={() => {
+        if (conversation) select(conversation.id);
+        else void openSaved();
+      }}
+      className={cn(
+        'mb-1 flex w-full items-center gap-3 rounded-2xl p-2.5 text-left outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/50',
+        isActive ? 'bg-primary/12 ring-1 ring-primary/30' : 'hover:bg-base-content/5',
+      )}
+    >
+      <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+        <Bookmark className="size-6" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold">{SAVED_TITLE}</span>
+        <span className="block truncate text-sm text-base-content/60">
+          {last ? previewContent(last.content) : 'Notes to yourself'}
+        </span>
+      </span>
+    </button>
+  );
+};
+
 export const Sidebar = () => {
   const conversations = useChatStore((s) => s.conversations);
   const listStatus = useChatStore((s) => s.listStatus);
@@ -152,9 +192,18 @@ export const Sidebar = () => {
   const [view, setView] = useState<ChatView>('chats');
   const [searchOpen, setSearchOpen] = useState(false);
   const [starredOpen, setStarredOpen] = useState(false);
+  const [scheduledOpen, setScheduledOpen] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const all = useMemo(() => Object.values(conversations), [conversations]);
+  // Saved messages has its own row at the top, so it is not part of the filtered list.
+  const saved = useMemo(
+    () => Object.values(conversations).find((c) => c.is_saved),
+    [conversations],
+  );
+  const all = useMemo(
+    () => Object.values(conversations).filter((c) => !c.is_saved),
+    [conversations],
+  );
   const archivedCount = useMemo(() => all.filter((c) => c.prefs.archived).length, [all]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -162,6 +211,10 @@ export const Sidebar = () => {
       conversationTitle(c).toLowerCase().includes(q),
     );
   }, [all, tab, view, search]);
+  const showSaved =
+    view === 'chats' &&
+    tab === 'all' &&
+    SAVED_TITLE.toLowerCase().includes(search.trim().toLowerCase());
 
   if (listStatus === 'idle' || (listStatus === 'loading' && all.length === 0)) {
     return <SidebarSkeleton />;
@@ -240,6 +293,17 @@ export const Sidebar = () => {
               }}
             >
               <Star className="size-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="btn btn-circle btn-ghost btn-sm"
+              aria-label="Scheduled messages"
+              title="Scheduled messages"
+              onClick={() => {
+                setScheduledOpen(true);
+              }}
+            >
+              <CalendarClock className="size-5" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -323,6 +387,7 @@ export const Sidebar = () => {
       )}
 
       <div className="scroll-slim flex-1 overflow-y-auto p-2">
+        {showSaved && <SavedRow conversation={saved} isActive={saved?.id === selectedId} />}
         {view === 'chats' && archivedCount > 0 && (
           <button
             type="button"
@@ -386,6 +451,12 @@ export const Sidebar = () => {
         open={starredOpen}
         onClose={() => {
           setStarredOpen(false);
+        }}
+      />
+      <ScheduledDialog
+        open={scheduledOpen}
+        onClose={() => {
+          setScheduledOpen(false);
         }}
       />
       <NewChatModal

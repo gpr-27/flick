@@ -1,7 +1,11 @@
 // Every function here changes membership or settings in ONE transaction that also writes the
 // system message and the outbox event (see announce). If any step fails, nothing is kept.
 import { LIMITS, type MemberRole } from '@chat/contracts';
-import { type ConversationsTable, findOrCreateDirectConversation } from '@chat/db';
+import {
+  type ConversationsTable,
+  findOrCreateDirectConversation,
+  findOrCreateSavedConversation,
+} from '@chat/db';
 import type { Updateable } from 'kysely';
 import type { Db } from '../../../db.js';
 import {
@@ -63,6 +67,12 @@ export async function openDirect(db: Db, userId: string, otherId: string): Promi
       data: { created_by: userId, member_ids: [userId, otherId] },
     });
   }
+  return conversationId;
+}
+
+/** The caller's "Saved messages" chat. Only they are in it, so there is nobody to announce it to. */
+export async function openSaved(db: Db, userId: string): Promise<string> {
+  const { conversationId } = await findOrCreateSavedConversation(db, userId);
   return conversationId;
 }
 

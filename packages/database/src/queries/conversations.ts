@@ -57,6 +57,36 @@ export async function findOrCreateDirectConversation(
   return { conversationId: winner!.conversation_id, created: false };
 }
 
+// Returns the user's "Saved messages" chat (a chat with themselves), creating it the first time.
+// saved_for is UNIQUE, so if two requests race only one insert wins; the other finds that row.
+export async function findOrCreateSavedConversation(
+  db: Kysely<Database>,
+  userId: string,
+): Promise<{ conversationId: string; created: boolean }> {
+  const find = () =>
+    db.selectFrom('conversations').select('id').where('saved_for', '=', userId).executeTakeFirst();
+
+  const existing = await find();
+  if (existing) return { conversationId: existing.id, created: false };
+
+  const newId = await db.transaction().execute(async (trx) => {
+    const conv = await trx
+      .insertInto('conversations')
+      .values({ type: 'direct', created_by: userId, saved_for: userId })
+      .onConflict((oc) => oc.column('saved_for').doNothing())
+      .returning('id')
+      .executeTakeFirst();
+    if (!conv) return null; // lost the race: the winner's row is committed by now
+    await trx
+      .insertInto('conversation_members')
+      .values({ conversation_id: conv.id, user_id: userId })
+      .execute();
+    return conv.id;
+  });
+  if (newId) return { conversationId: newId, created: true };
+  return { conversationId: (await find())!.id, created: false };
+}
+
 // The chat list for one user, most recent activity first, with unread counts computed from the
 // cursors (last_seq - read_seq) instead of counting messages. There is no index on
 // last_message_at on purpose: it changes on every message, and the sort only covers one

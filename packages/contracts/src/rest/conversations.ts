@@ -53,6 +53,8 @@ export type ChatPrefs = z.infer<typeof ChatPrefs>;
 export const ConversationSummary = z.object({
   id: Id,
   type: ConversationType,
+  /** True for your own "Saved messages" chat (peer is null; show "Saved messages"). */
+  is_saved: z.boolean(),
   /** null for direct chats; show the other user's name. */
   title: z.string().max(100).nullable(),
   avatar_url: HttpUrl.nullable(),

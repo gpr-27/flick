@@ -78,6 +78,11 @@ export function conversationRoutes(app: FastifyInstance, deps: AppDeps): void {
       return summary(userId, id);
     });
 
+    route(E.openSaved, async ({ userId }) => {
+      const id = await groups.openSaved(db, userId);
+      return summary(userId, id);
+    });
+
     route(E.createGroup, async ({ userId, body, reply }) => {
       const id = await groups.createGroup(db, userId, {
         title: body.title,

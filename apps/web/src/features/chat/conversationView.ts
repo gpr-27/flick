@@ -2,8 +2,14 @@
 import type { ConversationSummary } from '@chat/contracts';
 import { formatLastSeen } from '@/lib/time';
 
+export const SAVED_TITLE = 'Saved messages';
+
 export const conversationTitle = (c: ConversationSummary): string =>
-  c.type === 'direct' ? (c.peer?.display_name ?? 'Unknown') : (c.title ?? 'Group');
+  c.is_saved
+    ? SAVED_TITLE
+    : c.type === 'direct'
+      ? (c.peer?.display_name ?? 'Unknown')
+      : (c.title ?? 'Group');
 
 export const conversationAvatar = (c: ConversationSummary): string | null =>
   c.type === 'direct' ? (c.peer?.avatar_url ?? null) : c.avatar_url;
@@ -14,5 +20,8 @@ export const presenceLabel = (
 ): string => {
   if (!presence) return '';
   if (presence.online) return 'Online';
-  return presence.last_seen_at ? `last seen ${formatLastSeen(presence.last_seen_at)}` : '';
+  // Hidden by the user's privacy settings (null) or not a real date: show nothing, never "Invalid Date".
+  const lastSeen = presence.last_seen_at;
+  if (!lastSeen || Number.isNaN(new Date(lastSeen).getTime())) return '';
+  return `last seen ${formatLastSeen(lastSeen)}`;
 };

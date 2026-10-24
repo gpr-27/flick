@@ -39,10 +39,6 @@ function parseDirectoryCursor(cursor: string): { name: string; username: string 
   throw new ApiError('VALIDATION_FAILED', 'Invalid cursor');
 }
 
-// The `about` column is limited to 139 characters (the contract allows 280, so check it here
-// and answer with a clear 400 instead of a database error).
-const ABOUT_MAX = 139;
-
 export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
   const { config, db } = deps;
   const guard = { preHandler: app.authenticate };
@@ -66,14 +62,9 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
       const body = parse(users.updateMe.body, req.body);
       const changes: ProfileChanges = {};
       if (body.display_name !== undefined) changes.display_name = body.display_name;
-      if (body.about !== undefined) {
-        if (body.about !== null && body.about.length > ABOUT_MAX)
-          throw new ApiError(
-            'VALIDATION_FAILED',
-            `about is limited to ${String(ABOUT_MAX)} characters`,
-          );
-        changes.about = body.about;
-      }
+      // The contract limits `about` to LIMITS.MAX_ABOUT_LENGTH characters (the column's limit).
+      // An empty line clears it.
+      if (body.about !== undefined) changes.about = body.about === '' ? null : body.about;
       if (body.avatar_attachment_id !== undefined) {
         if (body.avatar_attachment_id === null) changes.avatar_object_key = null;
         else {

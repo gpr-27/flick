@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LIMITS } from '../limits.js';
 import {
   DisplayName,
   HttpUrl,
@@ -14,7 +15,7 @@ export const Me = z.object({
   username: Username,
   email: z.email().nullable(),
   display_name: DisplayName,
-  about: z.string().max(280).nullable(),
+  about: z.string().max(LIMITS.MAX_ABOUT_LENGTH).nullable(),
   avatar_url: HttpUrl.nullable(),
   is_demo: z.boolean(),
   created_at: IsoDateTime,
@@ -23,7 +24,7 @@ export const Me = z.object({
 export const UpdateMeRequest = z
   .object({
     display_name: DisplayName,
-    about: z.string().max(280).nullable(),
+    about: z.string().trim().max(LIMITS.MAX_ABOUT_LENGTH).nullable(),
     /** An attachment uploaded with purpose "avatar"; null removes the avatar. */
     avatar_attachment_id: Id.nullable(),
   })
@@ -48,7 +49,7 @@ export const UserParams = z.object({ user_id: Id });
 
 /** A profile as the caller may see it; fields hidden by privacy settings are null. */
 export const UserProfile = UserSummary.extend({
-  about: z.string().max(280).nullable(),
+  about: z.string().max(LIMITS.MAX_ABOUT_LENGTH).nullable(),
   /** null while online, or when the user hides it. */
   last_seen_at: IsoDateTime.nullable(),
   online: z.boolean(),

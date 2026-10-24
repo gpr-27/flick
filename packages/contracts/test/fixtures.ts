@@ -72,6 +72,7 @@ export const RECORD = {
 export const SUMMARY = {
   id: CONV,
   type: 'group' as const,
+  is_saved: false,
   title: 'Team',
   avatar_url: null,
   description: null,

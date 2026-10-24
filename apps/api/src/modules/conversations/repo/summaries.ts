@@ -25,6 +25,7 @@ function chatListRows(db: Db, userId: string) {
     'c.admin_only_send',
     'c.admin_only_edit',
     'c.approval_required',
+    'c.saved_for',
     'cm.wallpaper',
     'cm.lock_hash',
   ]);
@@ -125,6 +126,7 @@ async function toSummaries(
     return {
       id: r.id,
       type: r.type,
+      is_saved: r.saved_for !== null,
       title: r.type === 'group' ? r.name : null,
       avatar_url: mediaUrl(config, r.avatar_object_key),
       description: r.type === 'group' ? r.description : null,

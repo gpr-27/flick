@@ -106,6 +106,8 @@ interface ChatState {
   deleteMessage: (message: MessageRecord, scope: 'me' | 'everyone') => Promise<void>;
   react: (message: MessageRecord, emoji: string) => Promise<void>;
   openDirect: (userId: string) => Promise<void>;
+  /** Opens your "Saved messages" chat (created on first use). */
+  openSaved: () => Promise<void>;
   createGroup: (title: string, memberIds: string[]) => Promise<boolean>;
   loadMembers: (conversationId: string) => Promise<void>;
   addMembers: (conversationId: string, userIds: string[]) => Promise<void>;
@@ -607,6 +609,16 @@ export const useChatStore = create<ChatState>()((set, get) => {
         get().select(summary.id);
       } catch (error) {
         notify.error(getErrorMessage(error, "Couldn't start the chat."));
+      }
+    },
+
+    openSaved: async () => {
+      try {
+        const summary = await getApi().call(ENDPOINTS.conversations.openSaved);
+        if (!get().conversations[summary.id]) addConversations([summary]);
+        get().select(summary.id);
+      } catch (error) {
+        notify.error(getErrorMessage(error, "Couldn't open your saved messages."));
       }
     },
 

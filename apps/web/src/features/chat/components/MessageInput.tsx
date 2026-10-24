@@ -9,6 +9,7 @@ import {
 } from 'react';
 import {
   BarChart3,
+  CalendarClock,
   Check,
   Eye,
   ImagePlus,
@@ -22,13 +23,14 @@ import {
   X,
 } from 'lucide-react';
 import type { ConversationSummary, MessageContent, MessageRecord } from '@chat/contracts';
-import { PopoverMenu, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
+import { PopoverMenu, cn, notify, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
 import { prepareImage } from '@/lib/imageCompress';
 import { SuggestReplies } from '@/features/ai/SuggestReplies';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { ComposerExtras } from '@/features/content/ComposerExtras';
 import { readVideoMeta } from '@/features/content/videoMeta';
+import { ScheduleDialog } from '@/features/scheduled/ScheduleDialog';
 import { MentionList } from '../../organise/MentionViews';
 import { MENTION_LIST_ID, mentionOptionId, useMentionAutocomplete } from '../../organise/mentions';
 import { useDraftStore } from '../../organise/drafts';
@@ -36,6 +38,7 @@ import { previewContent } from '../content/registry';
 import { conversationTitle } from '../conversationView';
 import { sendMessage } from '../outbox/useOutboxStore';
 import { uploadAttachment } from '../upload';
+import { useLongPress } from '../useLongPress';
 import { useChatStore } from '../useChatStore';
 
 const EMOJIS = [
@@ -159,6 +162,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const [showEmojis, setShowEmojis] = useState(false);
   const [showGifs, setShowGifs] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -385,6 +389,17 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     }
   };
 
+  // "Schedule send" works on typed text only (not edits or attachments).
+  const openSchedule = (): void => {
+    if (editing || attachment || !text.trim()) {
+      notify.info('Type a message first, then choose Schedule send.');
+      return;
+    }
+    setShowSchedule(true);
+  };
+  // Touch: hold Send. Mouse: right-click Send. Keyboard and phones: the clock button / "+" menu.
+  const holdSend = useLongPress(openSchedule);
+
   // Phones: the secondary composer actions fold into one "+" menu (the inline buttons are
   // `max-sm:hidden`, the menu is `sm:hidden`); every handler is the same as the inline one.
   const icon = (Icon: typeof Smile): ReactNode => <Icon className="size-5" aria-hidden="true" />;
@@ -424,6 +439,12 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       onClick: () => {
         setShowPoll(true);
       },
+    },
+    {
+      label: 'Schedule send',
+      icon: icon(CalendarClock),
+      disabled: locked || uploading,
+      onClick: openSchedule,
     },
   ];
 
@@ -663,8 +684,25 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         />
 
         <button
+          type="button"
+          onClick={openSchedule}
+          disabled={locked || uploading}
+          className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
+          aria-label="Schedule send"
+          title="Schedule send"
+        >
+          <CalendarClock className="size-5" aria-hidden="true" />
+        </button>
+
+        <button
           type="submit"
           disabled={sendDisabled}
+          {...holdSend}
+          onContextMenu={(e) => {
+            // Right-click opens the schedule dialog; on touch the long press already did.
+            e.preventDefault();
+            if (!sendDisabled) openSchedule();
+          }}
           className="btn-grad grid size-11 place-items-center rounded-full max-sm:order-2 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={editing ? 'Save edit' : 'Send message'}
         >
@@ -675,6 +713,20 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           )}
         </button>
       </form>
+      {showSchedule && (
+        <ScheduleDialog
+          conversation={conversation}
+          text={text}
+          open
+          onClose={() => {
+            setShowSchedule(false);
+          }}
+          onScheduled={() => {
+            setText('');
+            setReplyingTo(null);
+          }}
+        />
+      )}
     </div>
   );
 };
