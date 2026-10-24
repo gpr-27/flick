@@ -411,6 +411,20 @@ export const ENDPOINTS = {
       body: Calls.LivekitTokenRequest,
       response: Calls.LivekitToken,
     },
+    groupPresence: {
+      method: 'GET',
+      path: '/calls/group/:conversation_id',
+      auth: true,
+      params: Calls.GroupCallParams,
+      response: Calls.GroupCallPresence,
+    },
+    groupBeat: {
+      method: 'POST',
+      path: '/calls/group/presence',
+      auth: true,
+      body: Calls.GroupCallBeat,
+      response: Calls.GroupCallPresence,
+    },
     createLink: {
       method: 'POST',
       path: '/calls/links',

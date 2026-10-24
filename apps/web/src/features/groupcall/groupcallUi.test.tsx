@@ -54,18 +54,29 @@ describe('active group call', () => {
     expect(findActiveGroupCall([makeMessage()])).toBeNull();
   });
 
-  it('shows a Join call button that joins the conversation call', async () => {
-    api.call.mockRejectedValue(
-      new ApiError({ status: 501, code: 'FEATURE_DISABLED', message: 'x' }),
+  // The banner asks the server who is in the call right now (not a guess from old messages).
+  const presence = (active: boolean) => {
+    api.call.mockImplementation((...args: unknown[]) =>
+      (args[0] as { path: string }).path.startsWith('/calls/group')
+        ? Promise.resolve({ active, participants: active ? 2 : 0 })
+        : Promise.reject(new ApiError({ status: 501, code: 'FEATURE_DISABLED', message: 'x' })),
     );
+  };
+
+  it('shows a Join call button when someone is in the call, and joins it', async () => {
+    presence(true);
     render(<GroupCallBanner conversationId={CONV} messages={[started()]} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Join call' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Join call' }));
     expect(api.call).toHaveBeenCalledWith(expect.anything(), { body: { conversation_id: CONV } });
     expect(useGroupCallStore.getState().error).toMatch(/not set up/);
   });
 
-  it('shows nothing when there is no recent call', () => {
-    render(<GroupCallBanner conversationId={CONV} messages={[makeMessage()]} />);
+  it('shows nothing once everyone has left, even if the call message is recent', async () => {
+    presence(false);
+    render(<GroupCallBanner conversationId={CONV} messages={[started()]} />);
+    await waitFor(() => {
+      expect(api.call).toHaveBeenCalled();
+    });
     expect(screen.queryByRole('button', { name: 'Join call' })).toBeNull();
   });
 });

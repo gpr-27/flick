@@ -34,6 +34,17 @@ export const LivekitTokenRequest = z
     'set conversation_id or call_link',
   );
 
+/** Who is in a group call right now. `active` is false once the last person has left. */
+export const GroupCallPresence = z.object({ active: z.boolean(), participants: z.number().int() });
+
+/** Sent every ~25 s while someone is in the call, and once with `leave` when they hang up. */
+export const GroupCallBeat = z.object({
+  conversation_id: Id,
+  action: z.enum(['beat', 'leave']).default('beat'),
+});
+
+export const GroupCallParams = z.object({ conversation_id: Id });
+
 export const LivekitToken = z.object({
   call_id: Id,
   url: z.url({ protocol: /^wss?$/ }),

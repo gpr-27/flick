@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import type { z } from 'zod';
 import type { AppDeps } from '../../../app.js';
 import { ApiError, registerErrorHandler } from '../../conversations/http/errors.js';
+import * as presence from '../domain/group-presence.js';
+import { requireActiveMember } from '../../conversations/repo/core.js';
 import { turnCredentials } from '../domain/turn.js';
 import { listCalls } from '../repo/call-log.js';
 import { joinByCallLink, joinGroupCall } from '../repo/group-call.js';
@@ -27,7 +29,7 @@ function parse<S extends z.ZodType>(schema: S, data: unknown): z.output<S> {
 const linkLimit = { rateLimit: { max: 20, timeWindow: 60_000 } };
 
 export function callRoutes(app: FastifyInstance, deps: AppDeps): void {
-  const { db, config } = deps;
+  const { db, config, redis } = deps;
 
   void app.register((scope) => {
     registerErrorHandler(scope);
@@ -43,9 +45,27 @@ export function callRoutes(app: FastifyInstance, deps: AppDeps): void {
     scope.post(E.livekitToken.path, { ...auth, config: linkLimit }, (req) => {
       const body = parse(E.livekitToken.body, req.body);
       const userId = req.auth!.userId;
-      return body.call_link
-        ? joinByCallLink(db, config, userId, body.call_link)
-        : joinGroupCall(db, config, userId, body.conversation_id!, body.media);
+      if (body.call_link) return joinByCallLink(db, config, userId, body.call_link);
+      return joinGroupCall(db, config, userId, body.conversation_id!, body.media, undefined, redis);
+    });
+
+    // Is anyone in this group's call right now? (The chat banner asks this.)
+    scope.get(E.groupPresence.path, auth, async (req) => {
+      const { conversation_id: id } = parse(E.groupPresence.params, req.params);
+      await requireActiveMember(db, id, req.auth!.userId);
+      const n = await presence.participants(redis, id);
+      return { active: n > 0, participants: n };
+    });
+
+    // The client says "still here" (beat) or "left". The last one to leave ends the call.
+    scope.post(E.groupBeat.path, auth, async (req) => {
+      const body = parse(E.groupBeat.body, req.body);
+      const userId = req.auth!.userId;
+      await requireActiveMember(db, body.conversation_id, userId);
+      if (body.action === 'leave') await presence.leave(redis, body.conversation_id, userId);
+      else await presence.beat(redis, body.conversation_id, userId);
+      const n = await presence.participants(redis, body.conversation_id);
+      return { active: n > 0, participants: n };
     });
 
     scope.post(E.createLink.path, auth, async (req, reply) => {

@@ -40,7 +40,7 @@ export const VoiceComposer = ({
       const attachmentId = await uploadAttachment(recording.blob, {
         purpose: 'message',
         mime: recording.mime,
-        fileName: `voice.${recording.mime === 'audio/mp4' ? 'm4a' : 'webm'}`,
+        fileName: `voice.${recording.mime === 'audio/mp4' ? 'm4a' : recording.mime === 'audio/wav' ? 'wav' : 'webm'}`,
       });
       onSend({
         type: 'voice',

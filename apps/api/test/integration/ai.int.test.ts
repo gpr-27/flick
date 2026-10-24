@@ -126,7 +126,7 @@ async function makeGroup(...members: string[]) {
   return c.id;
 }
 
-async function say(conversationId: string, senderId: string, text: string) {
+async function say(conversationId: string, senderId: string, text: string, replyToId?: string) {
   const { message } = await allocateSeqAndInsertMessage(db, {
     conversationId,
     senderId,
@@ -134,6 +134,7 @@ async function say(conversationId: string, senderId: string, text: string) {
     clientMessageId: null,
     type: 'text',
     bodyText: text,
+    ...(replyToId ? { replyToId } : {}),
   });
   return message;
 }
@@ -286,6 +287,31 @@ describe('@flick bot', () => {
 
   const deps = () => ({ db, redis, logger: createLogger('silent'), ai: aiServiceFromChain(chain) });
   const chain = new AiChain({ adapters: [fake] });
+
+  it('answers a reply to one of its own answers in a group, without another @flick', async () => {
+    const [alice, bob] = [await makeUser(), await makeUser()];
+    const room = await makeGroup(alice, bob);
+    const mention = await say(room, alice, '@flick what is 2+2?');
+    expect(await flickBotOnMessage(deps(), mention)).toBe('replied');
+    const [answer] = await botMessages(room);
+    const answerRow = await db
+      .selectFrom('messages')
+      .select('id')
+      .where('conversation_id', '=', room)
+      .where('sender_id', '=', FLICK_BOT_USER_ID)
+      .executeTakeFirstOrThrow();
+    expect(answer).toBeDefined();
+
+    // A plain message is still ignored, but a reply to Flick's answer is answered.
+    expect(await flickBotOnMessage(deps(), await say(room, bob, 'and 3+3?'))).toBe('ignored');
+    const followUp = await say(room, bob, 'and 3+3?', answerRow.id);
+    expect(await flickBotOnMessage(deps(), followUp)).toBe('replied');
+
+    // A reply to a person's message is not for Flick.
+    const human = await say(room, alice, 'hello');
+    const toHuman = await say(room, bob, 'hi back', human.id);
+    expect(await flickBotOnMessage(deps(), toHuman)).toBe('ignored');
+  });
 
   it('answers a mention once, as the bot, as a reply to the mention', async () => {
     const [alice, bob] = [await makeUser(), await makeUser()];

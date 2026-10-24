@@ -6,10 +6,13 @@ import { hasGroupFeatures } from '../../conversations/domain/roles.js';
 import { ApiError } from '../../conversations/http/errors.js';
 import { lockConversation, requireActiveMember } from '../../conversations/repo/core.js';
 import { hashInviteCode } from '../../conversations/domain/invite-code.js';
+import type { Redis } from '../../../redis.js';
+import * as presence from '../domain/group-presence.js';
 import { livekitSettings, signLivekitToken, type SignToken } from '../domain/livekit.js';
 
-// LiveKit tells us nothing about who is in a room unless we call it, so "a call is already
-// running" is approximated: a "started" message in the last hour means someone already announced.
+// LiveKit tells us nothing about who is in a room unless we call it. When Redis is given, "a call
+// is already running" means someone is in it right now (see group-presence.ts). Without Redis it
+// falls back to "a call message in the last hour".
 const ANNOUNCE_WINDOW = sql`interval '1 hour'`;
 
 const invalidLink = () => new ApiError('INVITE_INVALID', 'This call link is not valid');
@@ -26,8 +29,16 @@ export async function joinGroupCall(
   conversationId: string,
   media: CallType,
   sign: SignToken = signLivekitToken,
+  redis?: Redis,
 ) {
   const settings = livekitSettings(config); // 501 before any database work
+  // Presence is a nicety: if Redis is down, joining still works and falls back to the message check.
+  const running = redis
+    ? await presence
+        .participants(redis, conversationId)
+        .then((n) => n > 0)
+        .catch(() => undefined)
+    : undefined;
   return db.transaction().execute(async (trx) => {
     const conv = await lockConversation(trx, conversationId);
     await requireActiveMember(trx, conversationId, userId);
@@ -35,14 +46,17 @@ export async function joinGroupCall(
       throw new ApiError('VALIDATION_FAILED', 'Group calls are for groups; use a 1:1 call here');
     }
 
-    const recent = await trx
-      .selectFrom('messages')
-      .select('id')
-      .where('conversation_id', '=', conversationId)
-      .where('type', '=', 'call_event')
-      .where(sql<boolean>`created_at > now() - ${ANNOUNCE_WINDOW}`)
-      .limit(1)
-      .executeTakeFirst();
+    const recent =
+      running !== undefined
+        ? running
+        : await trx
+            .selectFrom('messages')
+            .select('id')
+            .where('conversation_id', '=', conversationId)
+            .where('type', '=', 'call_event')
+            .where(sql<boolean>`created_at > now() - ${ANNOUNCE_WINDOW}`)
+            .limit(1)
+            .executeTakeFirst();
     if (!recent) {
       await allocateSeqAndInsertMessage(trx, {
         conversationId,
@@ -64,6 +78,7 @@ export async function joinGroupCall(
     }
 
     const issued = await sign(settings, userId, conversationId);
+    if (redis) await presence.beat(redis, conversationId, userId).catch(() => undefined);
     return { call_id: conversationId, ...issued };
   });
 }

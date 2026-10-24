@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
+import { ENDPOINTS } from '@chat/contracts';
+import { getApi } from '@/lib/services';
 import { Video } from 'lucide-react';
 import type { MessageRecord } from '@chat/contracts';
-import { findActiveGroupCall } from '../activeCall';
 import { useGroupCallStore } from '../useGroupCallStore';
 
 /** "A group call is going" with a Join button, shown above the messages. */
@@ -13,7 +14,27 @@ export const GroupCallBanner = ({
   messages: readonly MessageRecord[];
 }) => {
   const status = useGroupCallStore((s) => s.status);
-  const active = useMemo(() => findActiveGroupCall(messages), [messages]);
+  // The server knows who is in the call right now. Ask when the chat opens, when a call message
+  // arrives, and every 20 s while the banner could matter.
+  const [active, setActive] = useState(false);
+  const callMessages = messages.filter((m) => m.content?.type === 'call_event').length;
+  useEffect(() => {
+    let cancelled = false;
+    const check = (): void => {
+      getApi()
+        .call(ENDPOINTS.calls.groupPresence, { params: { conversation_id: conversationId } })
+        .then((r) => {
+          if (!cancelled) setActive(r.active);
+        })
+        .catch(() => undefined);
+    };
+    check();
+    const timer = setInterval(check, 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [conversationId, callMessages, status]);
   if (!active || status !== 'idle') return null;
 
   return (

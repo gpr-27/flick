@@ -87,8 +87,36 @@ const tileOf = (lk: LiveKit, p: Participant): ParticipantTile => {
   };
 };
 
+// While in a conversation's call, tell the server "still here" so the chat banner knows the call
+// is on; when we leave (or the beats stop), the call ends once nobody is left.
+const BEAT_MS = 25_000;
+let beatTimer: ReturnType<typeof setInterval> | null = null;
+let beatConversation: string | null = null;
+
+const sendBeat = (conversationId: string, action: 'beat' | 'leave'): void => {
+  void getApi()
+    .call(ENDPOINTS.calls.groupBeat, { body: { conversation_id: conversationId, action } })
+    .catch(() => undefined);
+};
+
+const startBeats = (conversationId: string): void => {
+  stopBeats();
+  beatConversation = conversationId;
+  beatTimer = setInterval(() => {
+    sendBeat(conversationId, 'beat');
+  }, BEAT_MS);
+};
+
+function stopBeats(): void {
+  if (beatTimer) clearInterval(beatTimer);
+  beatTimer = null;
+  if (beatConversation) sendBeat(beatConversation, 'leave');
+  beatConversation = null;
+}
+
 export const useGroupCallStore = create<GroupCallState>()((set, get) => {
   const leaveRoom = (): void => {
+    stopBeats();
     const current = room;
     room = null;
     removeAudioElements();
@@ -108,6 +136,7 @@ export const useGroupCallStore = create<GroupCallState>()((set, get) => {
   };
 
   const fail = (message: string): void => {
+    stopBeats();
     const current = room;
     room = null;
     removeAudioElements();
@@ -188,6 +217,7 @@ export const useGroupCallStore = create<GroupCallState>()((set, get) => {
         await next.connect(token.url, token.token);
         if (room !== next) return;
         set({ status: 'connected', callId: token.call_id });
+        if ('conversation_id' in target) startBeats(target.conversation_id);
         snapshot(lk);
         void next.startAudio().catch(() => undefined);
         try {
