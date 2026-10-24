@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, Button, Modal, Spinner, notify } from '@/components/ui';
+import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
+import { isFlickBot } from '@/features/ai/isFlickBot';
 import { getErrorMessage } from '@/lib/api';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CallLinkSection } from '@/features/groupcall/components/CallLinkSection';
@@ -226,10 +228,14 @@ export const GroupInfoModal = ({
                           contact.open(m.user);
                         }}
                       >
-                        <Avatar src={m.user.avatar_url} name="" size="xs" />
+                        {isFlickBot(m.user.id, m.user) ? (
+                          <FlickAvatar size="xs" />
+                        ) : (
+                          <Avatar src={m.user.avatar_url} name="" size="xs" />
+                        )}
                         <span className="min-w-0 flex-1 truncate font-semibold">
                           {name}
-                          {isMe ? ' (you)' : ''}
+                          {isMe ? ' (you)' : ''} {isFlickBot(m.user.id, m.user) && <FlickBadge />}
                         </span>
                       </button>
                       {m.role !== 'member' && (

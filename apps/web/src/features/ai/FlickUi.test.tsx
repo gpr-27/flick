@@ -132,6 +132,7 @@ describe('bot messages', () => {
         onJumpTo={vi.fn()}
       />,
     );
-    expect(screen.getAllByText('Flick')).toHaveLength(2); // the name line and the badge
+    expect(screen.getByText('Flick')).toBeInTheDocument(); // the name line
+    expect(screen.getByRole('img', { name: 'Flick AI assistant' })).toBeInTheDocument();
   });
 });

@@ -418,7 +418,7 @@ describe('link previews', () => {
     await waitFor(() => {
       expect(api.call).toHaveBeenCalled();
     });
-    // Only the link inside the text; no preview card.
+    // Only the link in the text itself: no preview card.
     expect(container.querySelectorAll('a')).toHaveLength(1);
     expect(container).toHaveTextContent('see https://example.test/broken');
   });

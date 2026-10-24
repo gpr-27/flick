@@ -1,6 +1,7 @@
 // Pure, immutable operations on one conversation's messages and its list summary.
 // A thread is an array of MessageRecord sorted by seq; sync and live events go through here.
 import type { ConversationSummary, MessageRecord, SyncEvent } from '@chat/contracts';
+import { isFlickChat } from '@/features/ai/isFlickBot';
 
 type Reactions = MessageRecord['reactions'];
 
@@ -129,6 +130,9 @@ export function sortConversations(list: readonly ConversationSummary[]): Convers
   const time = (c: ConversationSummary): number =>
     Date.parse(c.last_message?.created_at ?? c.created_at);
   return [...list].sort(
-    (a, b) => Number(b.prefs.pinned) - Number(a.prefs.pinned) || time(b) - time(a),
+    (a, b) =>
+      Number(isFlickChat(b)) - Number(isFlickChat(a)) ||
+      Number(b.prefs.pinned) - Number(a.prefs.pinned) ||
+      time(b) - time(a),
   );
 }

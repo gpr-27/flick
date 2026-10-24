@@ -9,10 +9,11 @@ import type { ContentType, MessageContent } from '@chat/contracts';
 import { ReloadButton, Spinner } from '@/components/ui';
 import { RemoteImage, VideoView } from '@/features/content/MediaViews';
 import { LinkPreviewCard } from '@/features/content/LinkPreviewCard';
-import { firstUrl, splitLinks } from '@/features/content/urls';
+import { firstUrl } from '@/features/content/urls';
 import { PollView } from '@/features/content/polls/PollView';
 import { ViewOnce } from '@/features/content/ViewOnce';
 import { VoicePlayer } from '@/features/content/voice/VoicePlayer';
+import { RichText } from '@/features/content/richText/RichText';
 import { MentionText } from '../../organise/MentionViews';
 import { useChatStore, userName } from '../useChatStore';
 import { getAttachmentUrl, refreshAttachmentUrl, useAttachmentUrl } from './attachments';
@@ -59,28 +60,12 @@ const TextView = ({ content }: { content: Of<'text'> }) => {
   const [expanded, setExpanded] = useState(false);
   return (
     <>
-      <p
-        className={`whitespace-pre-wrap break-words text-[15px] leading-relaxed ${long && !expanded ? 'line-clamp-[10]' : ''}`}
-      >
-        {splitLinks(content.text).map((part, i) =>
-          part.href ? (
-            <a
-              key={i}
-              href={part.href}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="underline underline-offset-2 break-all"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              {part.text}
-            </a>
-          ) : (
-            <MentionText key={i} text={part.text} known={known} />
-          ),
-        )}
-      </p>
+      <div className={long && !expanded ? 'line-clamp-[10] overflow-hidden' : undefined}>
+        <RichText
+          text={content.text}
+          renderText={(part) => <MentionText text={part} known={known} />}
+        />
+      </div>
       {long && (
         <button
           type="button"
