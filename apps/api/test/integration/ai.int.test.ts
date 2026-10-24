@@ -318,6 +318,54 @@ describe('@flick bot', () => {
     );
   });
 
+  it('answers every message in a direct chat with Flick, with no mention needed', async () => {
+    const alice = await makeUser();
+    // A direct chat between Alice and the bot.
+    const chat = await db
+      .insertInto('conversations')
+      .values({ type: 'direct', created_by: alice })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto('conversation_members')
+      .values([
+        { conversation_id: chat.id, user_id: alice },
+        { conversation_id: chat.id, user_id: FLICK_BOT_USER_ID },
+      ])
+      .execute();
+
+    const hi = await say(chat.id, alice, 'Hi');
+    expect(await flickBotOnMessage(deps(), hi)).toBe('replied');
+    const question = await say(chat.id, alice, 'Explain how a hash map works');
+    expect(await flickBotOnMessage(deps(), question)).toBe('replied');
+
+    const bot = await botMessages(chat.id);
+    expect(bot.map((m) => m.reply_to_id)).toEqual([hi.id, question.id]);
+    // It used the assistant prompt for one-to-one chats, not the short group one.
+    expect(fake.prompts).toHaveLength(2);
+    expect(fake.prompts[1]).toContain('Reply to the latest message, written by');
+  });
+
+  it('still needs a mention in a group, and in a direct chat between two people', async () => {
+    const [alice, bob] = [await makeUser(), await makeUser()];
+    const chat = await db
+      .insertInto('conversations')
+      .values({ type: 'direct', created_by: alice })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto('conversation_members')
+      .values([
+        { conversation_id: chat.id, user_id: alice },
+        { conversation_id: chat.id, user_id: bob },
+      ])
+      .execute();
+    const plain = await say(chat.id, alice, 'Hi Bob');
+    expect(await flickBotOnMessage(deps(), plain)).toBe('ignored');
+    const mention = await say(chat.id, alice, '@flick what is 2+2?');
+    expect(await flickBotOnMessage(deps(), mention)).toBe('replied');
+  });
+
   it('does not answer messages without a mention, or messages written by bots', async () => {
     const alice = await makeUser();
     const room = await makeGroup(alice);
