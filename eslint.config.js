@@ -7,7 +7,15 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  { ignores: ['**/node_modules/**', '**/dist/**', 'tests/e2e/.web-dist/**'] },
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      'tests/e2e/.web-dist/**',
+      'tests/e2e/.report/**',
+      'tests/e2e/.results/**',
+    ],
+  },
   js.configs.recommended,
   { languageOptions: { globals: globals.node } },
   {

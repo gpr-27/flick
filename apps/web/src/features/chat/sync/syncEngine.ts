@@ -40,6 +40,12 @@ export interface SyncEngine {
   /** Set the starting point of a conversation we do not track yet (from REST). No-op if known. */
   baseline(conversationId: string, seq: number): void;
   lastSeq(conversationId: string): number | undefined;
+  /**
+   * Tell the server this device has everything up to last_seq of these conversations (all of them
+   * when none are given), so the sender's tick can turn into "delivered". Safe to repeat: the
+   * server only records a receipt when the cursor moves forward.
+   */
+  acknowledge(conversationIds?: readonly string[]): void;
   /** We hold our own message `seq` (message_accepted). Advances last_seq if it is the next one. */
   noteOwn(conversationId: string, seq: number): void;
   /** Sync all conversations (after connecting) or just the given ones (after a gap). */
@@ -57,6 +63,9 @@ const MAX_ROUNDS = 4;
 
 export function createSyncEngine({ sink, request, retryMs = 3_000 }: SyncEngineDeps): SyncEngine {
   const last = new Map<string, number>();
+  // The highest seq per conversation we have told the server about, so the same receipt is not
+  // sent twice. Recorded when sending and undone if the send fails, so the next connect retries.
+  const acked = new Map<string, number>();
   let syncing = false;
   let buffer: SyncEvent[] = [];
   let cursors: { conversation_id: string; after_seq: number }[] = [];
@@ -89,10 +98,30 @@ export function createSyncEngine({ sink, request, retryMs = 3_000 }: SyncEngineD
       if (merged.gap) gaps.add(conversationId);
     }
     // "I have stored everything up to seq": sent only after the events above were applied.
-    for (let i = 0; i < acks.length; i += LIMITS.MAX_ACKS_PER_FRAME) {
-      void request('delivery_ack', { acks: acks.slice(i, i + LIMITS.MAX_ACKS_PER_FRAME) });
-    }
+    sendAcks(acks);
     return gaps;
+  }
+
+  function sendAcks(acks: { conversation_id: string; seq: number }[]): void {
+    for (let i = 0; i < acks.length; i += LIMITS.MAX_ACKS_PER_FRAME) {
+      const chunk = acks.slice(i, i + LIMITS.MAX_ACKS_PER_FRAME);
+      for (const a of chunk)
+        acked.set(a.conversation_id, Math.max(acked.get(a.conversation_id) ?? 0, a.seq));
+      void request('delivery_ack', { acks: chunk }).then((result) => {
+        if (result.ok) return;
+        for (const a of chunk)
+          if (acked.get(a.conversation_id) === a.seq) acked.delete(a.conversation_id);
+      });
+    }
+  }
+
+  function acknowledge(ids?: readonly string[]): void {
+    sendAcks(
+      [...new Set(ids ?? last.keys())].flatMap((id) => {
+        const seq = last.get(id) ?? 0;
+        return seq > (acked.get(id) ?? 0) ? [{ conversation_id: id, seq }] : [];
+      }),
+    );
   }
 
   function requestPage(cursor?: string): void {
@@ -186,11 +215,17 @@ export function createSyncEngine({ sink, request, retryMs = 3_000 }: SyncEngineD
       if (!last.has(conversationId)) last.set(conversationId, seq);
     },
     lastSeq: (conversationId) => last.get(conversationId),
+    acknowledge,
     noteOwn(conversationId, seq) {
       if (last.get(conversationId) === seq - 1) last.set(conversationId, seq);
     },
     start(conversationIds) {
       rounds = 0;
+      // On every connect: the chat list that loads when the app opens records each conversation's
+      // last seq without going through applyEvents, so a message that arrived while the app was
+      // closed would otherwise never be reported as delivered (the sender would stay on one tick
+      // until the chat is opened, and then jump straight to "read").
+      if (!conversationIds) acknowledge();
       begin(conversationIds ?? null);
     },
     onLive(event) {
@@ -203,11 +238,13 @@ export function createSyncEngine({ sink, request, retryMs = 3_000 }: SyncEngineD
     },
     forget: (conversationId) => {
       last.delete(conversationId);
+      acked.delete(conversationId);
     },
     stop,
     reset() {
       stop();
       last.clear();
+      acked.clear();
     },
   };
 }

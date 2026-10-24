@@ -171,6 +171,9 @@ export const useChatStore = create<ChatState>()((set, get) => {
 
   const addConversations = (list: readonly ConversationSummary[]): void => {
     for (const c of list) syncEngine.baseline(c.id, c.last_seq);
+    // A conversation that appears while we are connected (someone's first message) is delivered
+    // now; when we are not connected yet, start() reports it on connect.
+    syncEngine.acknowledge(list.map((c) => c.id));
     set((s) => ({
       conversations: { ...s.conversations, ...Object.fromEntries(list.map((c) => [c.id, c])) },
       users: rememberUsers(

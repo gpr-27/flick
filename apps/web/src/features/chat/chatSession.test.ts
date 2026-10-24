@@ -56,7 +56,9 @@ describe('chat session', () => {
     transport.fire('new_message', { message });
     transport.fire('new_message', { message });
 
+    // First what the device already had when it connected (seq 5), then the new message once.
     expect(transport.sentOf('delivery_ack')).toEqual([
+      { acks: [{ conversation_id: CONV, seq: 5 }] },
       { acks: [{ conversation_id: CONV, seq: 6 }] },
     ]);
     expect(useChatStore.getState().conversations[CONV]?.last_seq).toBe(6);

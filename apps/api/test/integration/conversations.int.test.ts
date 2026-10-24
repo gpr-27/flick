@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call -- test responses are untyped JSON */
+import { MessageContent } from '@chat/contracts';
 import { allocateSeqAndInsertMessage } from '@chat/db';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -55,6 +56,46 @@ describe('direct chats', () => {
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('BLOCKED');
     }
+  });
+});
+
+describe('chat list preview', () => {
+  it('shows a full message when the latest one is a voice note, so the app can read it', async () => {
+    const [a, b] = [await t.makeUser(), await t.makeUser()];
+    const chat = await t.call(a, 'POST', '/conversations/direct', { user_id: b });
+    const attachment = await t.db
+      .insertInto('attachments')
+      .values({
+        owner_id: a,
+        object_key: `voice/${chat.body.id}.webm`,
+        declared_mime: 'audio/webm',
+        verified_mime: 'audio/webm',
+        size_bytes: 1000,
+        sha256: Buffer.alloc(32, 1),
+        status: 'attached',
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await allocateSeqAndInsertMessage(t.db, {
+      conversationId: chat.body.id as string,
+      senderId: a,
+      senderDeviceId: null,
+      clientMessageId: null,
+      type: 'voice',
+      content: { duration_ms: 4548, waveform: [7, 11, 8, 95, 100, 41] },
+      attachmentId: attachment.id,
+      authorize: false,
+    });
+
+    const list = await t.call(b, 'GET', '/conversations');
+    const item = list.body.items.find((c: { id: string }) => c.id === chat.body.id);
+    // Before the fix this held only the waveform and the duration, with no type or attachment,
+    // and the app rejected the whole list.
+    expect(MessageContent.safeParse(item.last_message.content).success).toBe(true);
+    expect(item.last_message.content).toMatchObject({
+      type: 'voice',
+      attachment_id: attachment.id,
+    });
   });
 });
 

@@ -13,6 +13,7 @@ import { notFound } from '../http/errors.js';
 import { mediaUrl } from '../../../avatars.js';
 import { USER_COLUMNS, toUserSummary } from './core.js';
 import { decodeCursor, encodeCursor } from './cursor.js';
+import { fromRow } from '../../messages/domain/content.js';
 
 // The chat list is the DB helper's query (active memberships only, newest activity first,
 // unread = last_seq - read_seq) plus the extra columns the summary needs.
@@ -183,9 +184,10 @@ function toMessageRecord(m: MessageRow): MessageRecord {
   };
 }
 
+// The same rebuild the history uses: the type, the attachment and the text live in their own
+// columns, so the stored JSON alone is not a complete message for a photo, file or voice note.
 function storedContent(m: MessageRow): MessageContent | null {
-  if (m.content) return m.content as MessageContent;
-  return m.body_text ? { type: 'text', text: m.body_text } : null;
+  return fromRow(m);
 }
 
 // ------------------------------------------------------------------ members

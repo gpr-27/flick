@@ -35,6 +35,47 @@ describe('sync engine', () => {
     expect(engine.syncing).toBe(true);
   });
 
+  it('tells the server what this device already has when it connects', () => {
+    // The chat list loaded at app start recorded last_seq 10 without receiving any events, so
+    // nothing else would ever report those messages as delivered.
+    engine.start();
+    expect(transport.sentOf('delivery_ack')).toEqual([
+      { acks: [{ conversation_id: CONV, seq: 10 }] },
+    ]);
+  });
+
+  it('does not send the same delivery ack twice, but retries one that failed', async () => {
+    engine.start();
+    engine.start();
+    expect(transport.sentOf('delivery_ack')).toHaveLength(1);
+
+    // Offline: the ack fails, so it is sent again on the next connect.
+    const offline = createSyncEngine({ sink, request: (t, p) => transport.request(t, p) });
+    offline.baseline('conv-late', 7);
+    transport.open = false;
+    offline.start();
+    await Promise.resolve();
+    transport.open = true;
+    offline.start();
+    expect(transport.sentOf('delivery_ack').at(-1)).toEqual({
+      acks: [{ conversation_id: 'conv-late', seq: 7 }],
+    });
+  });
+
+  it('does not repeat the delivery ack when only one conversation is re-synced after a gap', () => {
+    engine.start([CONV]);
+    expect(transport.sentOf('delivery_ack')).toEqual([]);
+  });
+
+  it('acknowledges a conversation that appears while connected, and skips empty ones', () => {
+    engine.baseline('conv-new', 4);
+    engine.baseline('conv-empty', 0);
+    engine.acknowledge(['conv-new', 'conv-empty']);
+    expect(transport.sentOf('delivery_ack')).toEqual([
+      { acks: [{ conversation_id: 'conv-new', seq: 4 }] },
+    ]);
+  });
+
   it('buffers live events while syncing, then applies them in order without duplicates', async () => {
     engine.start();
     engine.onLive(newMessageEvent(13)); // arrives before the page that holds 11 and 12

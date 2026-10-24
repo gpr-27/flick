@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ConversationSummary,
   DeleteMessageQuery,
   ENDPOINTS,
   type Endpoint,
@@ -87,5 +88,14 @@ describe('request schemas', () => {
     expect(
       UpdateConversationRequest.safeParse({ settings: { disappearing_timer_s: 5 } }).success,
     ).toBe(false);
+  });
+});
+
+describe('chat list preview', () => {
+  it('turns a last message it cannot read into "no preview", so the list still loads', () => {
+    const preview = ConversationSummary.shape.last_message;
+    // What the server once sent for a voice note: no type, no attachment.
+    expect(preview.parse({ content: { waveform: [1, 2], duration_ms: 5 } })).toBeNull();
+    expect(preview.parse(null)).toBeNull();
   });
 });

@@ -63,7 +63,9 @@ export const ConversationSummary = z.object({
   /** The caller's read cursor; unread_count is derived from it. */
   read_seq: Seq,
   unread_count: z.number().int().min(0),
-  last_message: MessageRecord.nullable(),
+  // A preview the client cannot read (for example a message type from a newer server) becomes
+  // "no preview" instead of making the whole chat list fail to load.
+  last_message: MessageRecord.nullable().catch(null),
   created_at: IsoDateTime,
   settings: GroupSettings,
   prefs: ChatPrefs,
