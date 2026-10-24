@@ -1,0 +1,42 @@
+{
+  "name": "@chat/link-preview",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SSRF-hardened link preview fetcher, metadata parser, cache and Fastify route.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "@chat/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "htmlparser2": "^10.1.0",
+    "ioredis": "^6.0.0",
+    "ipaddr.js": "^2.2.0",
+    "undici": "^7.16.0",
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "fastify": "^5.0.0"
+  },
+  "devDependencies": {
+    "fastify": "^5.12.7"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "flick",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Flick: a real-time chat platform (TypeScript monorepo).",
+  "license": "ISC",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "tests/e2e"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,worker,web \"npm run dev -w @chat/api\" \"npm run dev -w @chat/worker\" \"npm run dev -w @chat/web\"",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint scripts eslint.config.js && npm run lint --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspaces --if-present",
+    "test:integration": "npm run test:integration --workspaces --if-present",
+    "migrate": "npm run migrate -w @chat/db",
+    "seed": "npm run seed -w @chat/db",
+    "db:reset": "npm run db:reset -w @chat/db",
+    "e2e": "node tests/e2e/run.mjs",
+    "e2e:screenshots": "node tests/e2e/run.mjs --screenshots"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
+    "concurrently": "^9.2.5",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "kysely": "^0.29.7",
+    "pg": "^8.23.1",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}

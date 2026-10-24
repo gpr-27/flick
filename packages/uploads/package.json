@@ -1,0 +1,27 @@
+{
+  "name": "@chat/uploads",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Removes attachment uploads that were started but never completed. Used by the worker's scheduled job.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@chat/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "echo 'covered by the worker integration tests'"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1156.0",
+    "@chat/db": "*",
+    "kysely": "^0.29.7"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "migrations/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+}

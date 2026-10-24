@@ -1,0 +1,76 @@
+# Throwaway dependencies for integration tests (CI and local).
+#
+#   eval "$(scripts/dev/test-deps-up.sh)"   # start, wait, export connection vars
+#   scripts/dev/test-deps-down.sh           # stop and delete everything
+#
+# Data lives on tmpfs and fsync is off: fast, and gone when the stack stops,
+# which is what tests want. Host ports are 5xxxx so this can run next to the
+# dev stack.
+
+name: chat-test
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    command:
+      [
+        'postgres',
+        '-c',
+        'fsync=off',
+        '-c',
+        'synchronous_commit=off',
+        '-c',
+        'full_page_writes=off',
+        '-c',
+        'max_connections=300',
+      ]
+    environment:
+      POSTGRES_USER: chat
+      POSTGRES_PASSWORD: chat
+      POSTGRES_DB: chat_test
+    ports: ['${TEST_POSTGRES_PORT:-55432}:5432']
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-h', '127.0.0.1', '-U', 'chat', '-d', 'chat_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports: ['${TEST_REDIS_PORT:-56379}:6379']
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli ping | grep -q PONG']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: ['server', '/data']
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin-test
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:5173
+    ports: ['${TEST_MINIO_PORT:-59000}:9000']
+    tmpfs: [/data]
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:9000/minio/health/live']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
+    entrypoint: ['/bin/sh', '/init/init-bucket.sh']
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin-test
+      S3_BUCKET: chat-media-test
+      S3_ACCESS_KEY_ID: chat-test
+      S3_SECRET_ACCESS_KEY: chat-test-secret
+    volumes:
+      - ../minio/init-bucket.sh:/init/init-bucket.sh:ro
+    depends_on:
+      minio: { condition: service_healthy }

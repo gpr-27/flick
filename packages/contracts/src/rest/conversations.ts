@@ -1,0 +1,166 @@
+import { z } from 'zod';
+import {
+  ConversationType,
+  Cursor,
+  HttpUrl,
+  Id,
+  IsoDateTime,
+  MemberRole,
+  Paginated,
+  Seq,
+  UserSummary,
+} from '../common.js';
+import { MessageRecord } from '../message.js';
+import { DISAPPEARING_TIMERS, LIMITS } from '../limits.js';
+
+const Title = z.string().trim().min(1).max(100);
+const DisappearingTimer = z
+  .number()
+  .int()
+  .refine((s) => (DISAPPEARING_TIMERS as readonly number[]).includes(s), 'unsupported timer');
+
+/** Group-wide settings, changed by admins. */
+export const GroupSettings = z.object({
+  only_admins_send: z.boolean(),
+  only_admins_edit_info: z.boolean(),
+  /** Joining by invite link needs an admin's approval. */
+  approval_required: z.boolean(),
+  /** 0 = off. New messages get expires_at = created_at + timer. */
+  disappearing_timer_s: DisappearingTimer,
+});
+
+/** The caller's own chat-list settings for this conversation; synced across their devices. */
+export const ChatPrefs = z.object({
+  archived: z.boolean(),
+  pinned: z.boolean(),
+  favorite: z.boolean(),
+  muted_until: IsoDateTime.nullable(),
+  /** Chat lock: the client asks for a PIN before opening. */
+  locked: z.boolean(),
+  /**
+   * Hash of the lock passcode, made by the client. The server only stores and returns it so the
+   * owner's other devices can check the passcode. It is a UI convenience lock, not security:
+   * the messages are still readable through the API.
+   */
+  lock_hash: z.string().min(16).max(256).nullable(),
+  wallpaper: z.string().max(64).nullable(),
+});
+
+export type ChatPrefs = z.infer<typeof ChatPrefs>;
+
+export const ConversationSummary = z.object({
+  id: Id,
+  type: ConversationType,
+  /** null for direct chats; show the other user's name. */
+  title: z.string().max(100).nullable(),
+  avatar_url: HttpUrl.nullable(),
+  /** The other user, for direct chats. */
+  peer: UserSummary.nullable(),
+  member_count: z.number().int().min(0),
+  my_role: MemberRole,
+  /** Highest seq in the conversation. */
+  last_seq: Seq,
+  /** The caller's read cursor; unread_count is derived from it. */
+  read_seq: Seq,
+  unread_count: z.number().int().min(0),
+  last_message: MessageRecord.nullable(),
+  created_at: IsoDateTime,
+  settings: GroupSettings,
+  prefs: ChatPrefs,
+});
+export type ConversationSummary = z.infer<typeof ConversationSummary>;
+
+export const ConversationParams = z.object({ conversation_id: Id });
+
+export const ConversationListQuery = z.object({
+  filter: z.enum(['all', 'unread', 'groups', 'favorites', 'archived']).default('all'),
+  cursor: Cursor.optional(),
+  limit: z.coerce.number().int().min(1).max(LIMITS.MAX_PAGE_SIZE).default(LIMITS.DEFAULT_PAGE_SIZE),
+});
+/** Ordered by pinned first, then latest activity (keyset, no OFFSET). */
+export const ConversationList = Paginated(ConversationSummary);
+
+/** Returns the existing chat if there is one: the DB keeps one direct chat per user pair. */
+export const CreateDirectRequest = z.object({ user_id: Id });
+
+export const CreateGroupRequest = z.object({
+  title: Title,
+  member_ids: z.array(Id).max(255),
+  avatar_attachment_id: Id.optional(),
+});
+
+export const UpdateConversationRequest = z
+  .object({ title: Title, avatar_attachment_id: Id.nullable(), settings: GroupSettings.partial() })
+  .partial();
+
+export const UpdateChatPrefsRequest = ChatPrefs.partial();
+
+// ------------------------------------------------------------------ members
+
+export const Member = z.object({ user: UserSummary, role: MemberRole, joined_at: IsoDateTime });
+export const MemberList = Paginated(Member);
+
+export const MemberParams = z.object({ conversation_id: Id, user_id: Id });
+
+export const AddMembersRequest = z.object({ user_ids: z.array(Id).min(1).max(256) });
+export const AddMembersResponse = z.object({
+  added: z.array(Id),
+  /** e.g. the user's privacy settings forbid it, or the group is full. */
+  failed: z.array(z.object({ user_id: Id, code: z.string() })),
+});
+
+export const UpdateRoleRequest = z.object({ role: MemberRole });
+
+// ------------------------------------------------------- invites and joins
+
+export const InviteCode = z.string().regex(/^[A-Za-z0-9_-]{16,32}$/);
+export const InviteParams = z.object({ code: InviteCode });
+
+export const CreateInviteRequest = z.object({
+  expires_in_s: z
+    .number()
+    .int()
+    .min(60)
+    .max(30 * 86_400)
+    .optional(),
+  max_uses: z.number().int().min(1).max(LIMITS.MAX_GROUP_MEMBERS).optional(),
+});
+
+export const Invite = z.object({
+  code: InviteCode,
+  conversation_id: Id,
+  expires_at: IsoDateTime.nullable(),
+});
+
+/** What a user sees before joining by link. */
+export const InvitePreview = z.object({
+  conversation_id: Id,
+  title: z.string().max(100),
+  avatar_url: HttpUrl.nullable(),
+  member_count: z.number().int().min(0),
+  approval_required: z.boolean(),
+});
+
+export const JoinResponse = z.object({
+  status: z.enum(['joined', 'requested']),
+  conversation_id: Id,
+});
+
+export const JoinRequest = z.object({
+  id: Id,
+  user: UserSummary,
+  created_at: IsoDateTime,
+});
+export const JoinRequestList = Paginated(JoinRequest);
+
+export const JoinRequestParams = z.object({ conversation_id: Id, request_id: Id });
+export const DecideJoinRequest = z.object({ approve: z.boolean() });
+
+// ------------------------------------------------------------ @mention list
+
+export const MentionQuery = z.object({
+  /** Prefix of the username or display name. */
+  q: z.string().trim().max(64).default(''),
+  limit: z.coerce.number().int().min(1).max(LIMITS.MAX_PAGE_SIZE).default(20),
+});
+export const MentionCandidates = z.object({ items: z.array(UserSummary) });

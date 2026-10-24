@@ -1,0 +1,24 @@
+# Generated / vendored
+node_modules
+**/dist
+**/coverage
+package-lock.json
+**/package-lock.json
+
+# Legacy code: kept in its pre-v2 formatting until it is ported or removed.
+backend
+
+# Pre-v2 root files describing the legacy deployment.
+README.md
+docs/DEPLOYMENT.md
+render.yaml
+
+# Owner-provided inputs and local-only files
+docs/requirements
+free-llm-api-guide.md
+render-upload.env
+interview
+.claude
+
+# Examples must stay one JSON frame per line: packages/contracts tests parse them.
+docs/messaging/protocol.md

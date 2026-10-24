@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "useDefineForClassFields": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom/vitest", "node"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "test", "vite.config.ts", "tailwind.config.ts", "eslint.config.ts"]
+}

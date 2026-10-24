@@ -1,0 +1,52 @@
+-- Search: common word "need" for a user in 1,000 chats
+-- run: 2026-10-24T20:15:37.737Z (second execution, warm cache)
+-- parameters: ["need","58310c70-4b9c-481e-bab1-5ec30dd2a415","need","58310c70-4b9c-481e-bab1-5ec30dd2a415",20]
+
+select "messages"."id", "messages"."conversation_id", "messages"."seq", "messages"."sender_id", "messages"."body_text", "messages"."created_at", messages.created_at::text as "created_at_text", ts_headline('simple', coalesce(messages.body_text, ''), websearch_to_tsquery('simple', $1),
+        'StartSel=' || chr(1) || ', StopSel=' || chr(2) || ', MaxFragments=1, MaxWords=25, MinWords=8') as "snippet" from "messages" inner join "conversation_members" as "cm" on "cm"."conversation_id" = "messages"."conversation_id" where "cm"."user_id" = $2 and "cm"."left_at" is null and "messages"."deleted_at" is null and messages.search @@ websearch_to_tsquery('simple', $3) and (messages.expire_at IS NULL OR messages.expire_at > now())
+    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = messages.id AND h.user_id = $4) order by "messages"."created_at" desc, "messages"."id" desc limit $5
+
+Limit  (cost=65211.16..65218.49 rows=20 width=169) (actual time=72.926..75.184 rows=20 loops=1)
+  Buffers: shared hit=323 read=38298
+  ->  Gather Merge  (cost=65211.16..74238.69 rows=24620 width=169) (actual time=72.925..75.181 rows=20 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=323 read=38298
+        ->  Result  (cost=64211.13..67504.06 rows=12310 width=169) (actual time=70.619..70.695 rows=17 loops=3)
+              Buffers: shared hit=323 read=38298
+              ->  Sort  (cost=64211.13..64241.91 rows=12310 width=137) (actual time=70.315..70.318 rows=17 loops=3)
+                    Sort Key: messages.created_at DESC, messages.id DESC
+                    Sort Method: top-N heapsort  Memory: 35kB
+                    Buffers: shared hit=121 read=38276
+                    Worker 0:  Sort Method: top-N heapsort  Memory: 34kB
+                    Worker 1:  Sort Method: top-N heapsort  Memory: 34kB
+                    ->  Nested Loop Anti Join  (cost=803.92..63883.57 rows=12310 width=137) (actual time=8.740..69.129 rows=8892 loops=3)
+                          Join Filter: (h.message_id = messages.id)
+                          Buffers: shared hit=90 read=38271
+                          ->  Hash Join  (cost=803.92..63668.14 rows=12310 width=105) (actual time=8.729..64.985 rows=8892 loops=3)
+                                Hash Cond: (messages.conversation_id = cm.conversation_id)
+                                Buffers: shared hit=90 read=38271
+                                ->  Parallel Bitmap Heap Scan on messages  (cost=622.89..63389.15 rows=37265 width=105) (actual time=8.127..62.125 rows=28754 loops=3)
+                                      Recheck Cond: (search @@ '''need'''::tsquery)
+                                      Filter: ((deleted_at IS NULL) AND ((expire_at IS NULL) OR (expire_at > now())))
+                                      Heap Blocks: exact=14276
+                                      Buffers: shared hit=1 read=38245
+                                      ->  Bitmap Index Scan on messages_search_idx  (cost=0.00..600.53 rows=89436 width=0) (actual time=6.349..6.349 rows=86263 loops=1)
+                                            Index Cond: (search @@ '''need'''::tsquery)
+                                            Buffers: shared hit=1 read=21
+                                ->  Hash  (cost=168.53..168.53 rows=1000 width=16) (actual time=0.173..0.174 rows=1000 loops=3)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 55kB
+                                      Buffers: shared hit=31 read=16
+                                      ->  Bitmap Heap Scan on conversation_members cm  (cost=16.04..168.53 rows=1000 width=16) (actual time=0.034..0.110 rows=1000 loops=3)
+                                            Recheck Cond: ((user_id = '58310c70-4b9c-481e-bab1-5ec30dd2a415'::uuid) AND (left_at IS NULL))
+                                            Heap Blocks: exact=13
+                                            Buffers: shared hit=31 read=16
+                                            ->  Bitmap Index Scan on conversation_members_user_idx  (cost=0.00..15.79 rows=1000 width=0) (actual time=0.025..0.026 rows=1000 loops=3)
+                                                  Index Cond: (user_id = '58310c70-4b9c-481e-bab1-5ec30dd2a415'::uuid)
+                                                  Buffers: shared hit=4 read=4
+                          ->  Seq Scan on hidden_messages h  (cost=0.00..0.00 rows=1 width=16) (actual time=0.000..0.000 rows=0 loops=26676)
+                                Filter: (user_id = '58310c70-4b9c-481e-bab1-5ec30dd2a415'::uuid)
+Planning:
+  Buffers: shared hit=5 read=14
+Planning Time: 0.332 ms
+Execution Time: 75.251 ms

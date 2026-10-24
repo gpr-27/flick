@@ -1,0 +1,9 @@
+apiVersion: 1
+
+# Fixed UIDs because the dashboards refer to the datasource by UID.
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true

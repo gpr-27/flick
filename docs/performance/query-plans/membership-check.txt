@@ -1,0 +1,12 @@
+-- Membership check (requireMember)
+-- run: 2026-10-24T19:23:01.817Z (second execution, warm cache)
+-- parameters: ["31d44881-a178-4b0f-8a2a-08743c1dc75d","31bb8203-4bfc-4e2b-b287-afb3e965a97e"]
+
+select "role", "read_seq" from "conversation_members" where "conversation_id" = $1 and "user_id" = $2 and "left_at" is null
+
+Index Scan using conversation_members_pkey on conversation_members  (cost=0.29..8.30 rows=1 width=12) (actual time=0.005..0.005 rows=1 loops=1)
+  Index Cond: ((conversation_id = '31d44881-a178-4b0f-8a2a-08743c1dc75d'::uuid) AND (user_id = '31bb8203-4bfc-4e2b-b287-afb3e965a97e'::uuid))
+  Filter: (left_at IS NULL)
+  Buffers: shared hit=3
+Planning Time: 0.020 ms
+Execution Time: 0.010 ms

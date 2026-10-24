@@ -1,0 +1,44 @@
+-- Search: common word inside one chat
+-- run: 2026-10-24T19:23:02.399Z (second execution, warm cache)
+-- parameters: ["need","31bb8203-4bfc-4e2b-b287-afb3e965a97e","need","31bb8203-4bfc-4e2b-b287-afb3e965a97e","31d44881-a178-4b0f-8a2a-08743c1dc75d",20]
+
+select "messages"."id", "messages"."conversation_id", "messages"."seq", "messages"."sender_id", "messages"."body_text", "messages"."created_at", messages.created_at::text as "created_at_text", ts_headline('simple', coalesce(messages.body_text, ''), websearch_to_tsquery('simple', $1),
+        'StartSel=' || chr(1) || ', StopSel=' || chr(2) || ', MaxFragments=1, MaxWords=25, MinWords=8') as "snippet" from "messages" inner join "conversation_members" as "cm" on "cm"."conversation_id" = "messages"."conversation_id" where "cm"."user_id" = $2 and "cm"."left_at" is null and "messages"."deleted_at" is null and messages.search @@ websearch_to_tsquery('simple', $3) and (messages.expire_at IS NULL OR messages.expire_at > now())
+    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = messages.id AND h.user_id = $4) and "messages"."conversation_id" = $5 order by "messages"."created_at" desc, "messages"."id" desc limit $6
+
+Limit  (cost=1878.11..1883.46 rows=20 width=178) (actual time=5.492..5.575 rows=20 loops=1)
+  Buffers: shared hit=193
+  ->  Result  (cost=1878.11..1959.43 rows=304 width=178) (actual time=5.491..5.573 rows=20 loops=1)
+        Buffers: shared hit=193
+        ->  Sort  (cost=1878.11..1878.87 rows=304 width=146) (actual time=5.482..5.484 rows=20 loops=1)
+              Sort Key: messages.created_at DESC, messages.id DESC
+              Sort Method: top-N heapsort  Memory: 35kB
+              Buffers: shared hit=193
+              ->  Nested Loop Anti Join  (cost=711.57..1870.02 rows=304 width=146) (actual time=5.211..5.437 rows=328 loops=1)
+                    Join Filter: (h.message_id = messages.id)
+                    Buffers: shared hit=193
+                    ->  Nested Loop  (cost=711.57..1864.70 rows=304 width=114) (actual time=5.208..5.314 rows=328 loops=1)
+                          Buffers: shared hit=193
+                          ->  Index Scan using conversation_members_pkey on conversation_members cm  (cost=0.29..8.30 rows=1 width=16) (actual time=0.013..0.013 rows=1 loops=1)
+                                Index Cond: ((conversation_id = '31d44881-a178-4b0f-8a2a-08743c1dc75d'::uuid) AND (user_id = '31bb8203-4bfc-4e2b-b287-afb3e965a97e'::uuid))
+                                Filter: (left_at IS NULL)
+                                Buffers: shared hit=3
+                          ->  Bitmap Heap Scan on messages  (cost=711.29..1853.36 rows=304 width=114) (actual time=5.194..5.279 rows=328 loops=1)
+                                Recheck Cond: ((conversation_id = '31d44881-a178-4b0f-8a2a-08743c1dc75d'::uuid) AND (search @@ '''need'''::tsquery))
+                                Filter: ((deleted_at IS NULL) AND ((expire_at IS NULL) OR (expire_at > now())))
+                                Heap Blocks: exact=140
+                                Buffers: shared hit=190
+                                ->  BitmapAnd  (cost=711.29..711.29 rows=304 width=0) (actual time=5.185..5.186 rows=0 loops=1)
+                                      Buffers: shared hit=50
+                                      ->  Bitmap Index Scan on messages_conversation_seq_uq  (cost=0.00..147.43 rows=3600 width=0) (actual time=0.067..0.067 rows=3614 loops=1)
+                                            Index Cond: (conversation_id = '31d44881-a178-4b0f-8a2a-08743c1dc75d'::uuid)
+                                            Buffers: shared hit=22
+                                      ->  Bitmap Index Scan on messages_search_idx  (cost=0.00..563.46 rows=84529 width=0) (actual time=5.062..5.062 rows=86263 loops=1)
+                                            Index Cond: (search @@ '''need'''::tsquery)
+                                            Buffers: shared hit=28
+                    ->  Seq Scan on hidden_messages h  (cost=0.00..0.00 rows=1 width=16) (actual time=0.000..0.000 rows=0 loops=328)
+                          Filter: (user_id = '31bb8203-4bfc-4e2b-b287-afb3e965a97e'::uuid)
+Planning:
+  Buffers: shared hit=4
+Planning Time: 0.152 ms
+Execution Time: 5.612 ms

@@ -1,0 +1,648 @@
+{
+  "date": "2026-10-24T20:07:30.098Z",
+  "node": "v26.8.1",
+  "host": {
+    "cpus": 8,
+    "model": "Apple M3"
+  },
+  "postgres": "PostgreSQL 17.11 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+  "settings": {
+    "reps": 3,
+    "warmup": 200,
+    "minIterations": 2000,
+    "minSeconds": 8,
+    "maxSeconds": 30,
+    "poolMax": 20
+  },
+  "results": [
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 1,
+      "rep": 1,
+      "iterations": 3788,
+      "seconds": 8.001233,
+      "qps": 473.4270330585299,
+      "avg_ms": 2.1115303225976696,
+      "p50_ms": 2.030625,
+      "p95_ms": 2.644375,
+      "p99_ms": 4.155875,
+      "max_ms": 19.093875,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 22.1825,
+      "pg_cpu_max_pct": 23.96,
+      "pg_mem_max_mib": 221.7
+    },
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 1,
+      "rep": 2,
+      "iterations": 3579,
+      "seconds": 8.002225084,
+      "qps": 447.2506037297063,
+      "avg_ms": 2.234962881810561,
+      "p50_ms": 2.026042,
+      "p95_ms": 3.022542,
+      "p99_ms": 6.24225,
+      "max_ms": 77.844792,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 21.276666666666667,
+      "pg_cpu_max_pct": 22.92,
+      "pg_mem_max_mib": 221.9
+    },
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 1,
+      "rep": 3,
+      "iterations": 3801,
+      "seconds": 8.002238916,
+      "qps": 474.9920665827819,
+      "avg_ms": 2.104695504867144,
+      "p50_ms": 2.043791,
+      "p95_ms": 2.394167,
+      "p99_ms": 3.829958,
+      "max_ms": 46.326666,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 20.5175,
+      "pg_cpu_max_pct": 22.13,
+      "pg_mem_max_mib": 222
+    },
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 8,
+      "rep": 1,
+      "iterations": 5142,
+      "seconds": 8.011983667,
+      "qps": 641.7886273506803,
+      "avg_ms": 12.456194646052126,
+      "p50_ms": 9.416417,
+      "p95_ms": 31.380708,
+      "p99_ms": 49.878291,
+      "max_ms": 144.879875,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 7.9874371859296485,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 39.31,
+      "pg_cpu_max_pct": 40.69,
+      "pg_mem_max_mib": 240.1
+    },
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 8,
+      "rep": 2,
+      "iterations": 5430,
+      "seconds": 8.014456208,
+      "qps": 677.5256934562565,
+      "avg_ms": 11.797088978453068,
+      "p50_ms": 8.412416,
+      "p95_ms": 30.024167,
+      "p99_ms": 48.753208,
+      "max_ms": 122.242916,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 40.1675,
+      "pg_cpu_max_pct": 44.38,
+      "pg_mem_max_mib": 240.4
+    },
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 8,
+      "rep": 3,
+      "iterations": 4979,
+      "seconds": 8.011849209,
+      "qps": 621.4545319209091,
+      "avg_ms": 12.863860878288808,
+      "p50_ms": 8.874416,
+      "p95_ms": 33.06625,
+      "p99_ms": 56.01425,
+      "max_ms": 153.809583,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 40.410000000000004,
+      "pg_cpu_max_pct": 43.57,
+      "pg_mem_max_mib": 240.8
+    },
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 32,
+      "rep": 1,
+      "iterations": 4157,
+      "seconds": 8.053870209,
+      "qps": 516.1493657241529,
+      "avg_ms": 61.77941277146988,
+      "p50_ms": 49.828458,
+      "p95_ms": 139.224208,
+      "p99_ms": 204.992,
+      "max_ms": 366.310416,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 19.974811083123427,
+      "pool_busy_max": 20,
+      "pool_waiting_max": 12,
+      "pg_cpu_avg_pct": 49.85000000000001,
+      "pg_cpu_max_pct": 52.88,
+      "pg_mem_max_mib": 271.8
+    },
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 32,
+      "rep": 2,
+      "iterations": 4216,
+      "seconds": 8.051181875,
+      "qps": 523.6498274981523,
+      "avg_ms": 60.91901733752382,
+      "p50_ms": 47.410042,
+      "p95_ms": 142.230125,
+      "p99_ms": 226.195417,
+      "max_ms": 442.276291,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 19.93734335839599,
+      "pool_busy_max": 20,
+      "pool_waiting_max": 12,
+      "pg_cpu_avg_pct": 54.94499999999999,
+      "pg_cpu_max_pct": 65.71,
+      "pg_mem_max_mib": 272.3
+    },
+    {
+      "scenario": "b send: ONE hot conversation",
+      "concurrency": 32,
+      "rep": 3,
+      "iterations": 4177,
+      "seconds": 8.092482459,
+      "qps": 516.1580542389163,
+      "avg_ms": 61.576699657170266,
+      "p50_ms": 49.061583,
+      "p95_ms": 139.26075,
+      "p99_ms": 236.226292,
+      "max_ms": 414.454833,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 19.891959798994975,
+      "pool_busy_max": 20,
+      "pool_waiting_max": 12,
+      "pg_cpu_avg_pct": 51.322500000000005,
+      "pg_cpu_max_pct": 53.97,
+      "pg_mem_max_mib": 272.6
+    }
+  ],
+  "indexes": [
+    {
+      "table": "messages",
+      "index": "messages_conversation_seq_uq",
+      "scans": 0,
+      "bytes": 91357184
+    },
+    {
+      "table": "messages",
+      "index": "messages_pkey",
+      "scans": 0,
+      "bytes": 57737216
+    },
+    {
+      "table": "messages",
+      "index": "messages_search_idx",
+      "scans": 0,
+      "bytes": 52264960
+    },
+    {
+      "table": "outbox",
+      "index": "outbox_pkey",
+      "scans": 0,
+      "bytes": 36634624
+    },
+    {
+      "table": "outbox",
+      "index": "outbox_event_id_uq",
+      "scans": 0,
+      "bytes": 35454976
+    },
+    {
+      "table": "outbox",
+      "index": "outbox_published_at_idx",
+      "scans": 0,
+      "bytes": 5971968
+    },
+    {
+      "table": "conversation_members",
+      "index": "conversation_members_pkey",
+      "scans": 0,
+      "bytes": 737280
+    },
+    {
+      "table": "contacts",
+      "index": "contacts_pkey",
+      "scans": 0,
+      "bytes": 671744
+    },
+    {
+      "table": "device_cursors",
+      "index": "device_cursors_pkey",
+      "scans": 0,
+      "bytes": 630784
+    },
+    {
+      "table": "users",
+      "index": "users_display_name_trgm_idx",
+      "scans": 0,
+      "bytes": 499712
+    },
+    {
+      "table": "device_cursors",
+      "index": "device_cursors_conversation_idx",
+      "scans": 0,
+      "bytes": 253952
+    },
+    {
+      "table": "direct_pairs",
+      "index": "direct_pairs_pk",
+      "scans": 0,
+      "bytes": 188416
+    },
+    {
+      "table": "conversation_members",
+      "index": "conversation_members_user_idx",
+      "scans": 0,
+      "bytes": 180224
+    },
+    {
+      "table": "direct_pairs",
+      "index": "direct_pairs_conversation_id_key",
+      "scans": 0,
+      "bytes": 172032
+    },
+    {
+      "table": "users",
+      "index": "users_username_uq",
+      "scans": 0,
+      "bytes": 81920
+    },
+    {
+      "table": "users",
+      "index": "users_email_uq",
+      "scans": 0,
+      "bytes": 73728
+    },
+    {
+      "table": "user_settings",
+      "index": "user_settings_pkey",
+      "scans": 0,
+      "bytes": 57344
+    },
+    {
+      "table": "devices",
+      "index": "devices_user_active_idx",
+      "scans": 0,
+      "bytes": 57344
+    },
+    {
+      "table": "kysely_migration_lock",
+      "index": "kysely_migration_lock_pkey",
+      "scans": 0,
+      "bytes": 16384
+    },
+    {
+      "table": "users",
+      "index": "users_clerk_id_uq",
+      "scans": 0,
+      "bytes": 16384
+    },
+    {
+      "table": "kysely_migration",
+      "index": "kysely_migration_pkey",
+      "scans": 0,
+      "bytes": 16384
+    },
+    {
+      "table": "call_logs",
+      "index": "call_logs_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "users",
+      "index": "users_legacy_id_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "attachments",
+      "index": "attachments_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "attachments",
+      "index": "attachments_object_key_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "attachments",
+      "index": "attachments_pending_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "messages",
+      "index": "messages_expire_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "messages",
+      "index": "messages_attachment_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "reactions",
+      "index": "reactions_pk",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "poll_votes",
+      "index": "poll_votes_pk",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "pinned_messages",
+      "index": "pinned_messages_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "pinned_messages",
+      "index": "pinned_messages_conversation_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "starred_messages",
+      "index": "starred_messages_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "starred_messages",
+      "index": "starred_messages_message_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "message_events",
+      "index": "message_events_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "message_events",
+      "index": "message_events_message_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "hidden_messages",
+      "index": "hidden_messages_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "view_once_opens",
+      "index": "view_once_opens_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "call_links",
+      "index": "call_links_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "call_links",
+      "index": "call_links_token_hash_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "processed_events",
+      "index": "processed_events_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "processed_events",
+      "index": "processed_events_processed_at_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "audit_log",
+      "index": "audit_log_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "audit_log",
+      "index": "audit_log_user_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "blocks",
+      "index": "blocks_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "invite_links",
+      "index": "invite_links_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "invite_links",
+      "index": "invite_links_token_hash_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "join_requests",
+      "index": "join_requests_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "join_requests",
+      "index": "join_requests_pending_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "call_logs",
+      "index": "call_logs_conversation_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "push_subscriptions",
+      "index": "push_subscriptions_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "push_subscriptions",
+      "index": "push_subscriptions_endpoint_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "push_subscriptions",
+      "index": "push_subscriptions_user_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "reports",
+      "index": "reports_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "reports",
+      "index": "reports_open_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "outbox",
+      "index": "outbox_unpublished_idx",
+      "scans": 9,
+      "bytes": 9814016
+    },
+    {
+      "table": "messages",
+      "index": "messages_sender_device_client_id_uq",
+      "scans": 40712,
+      "bytes": 139214848
+    },
+    {
+      "table": "conversation_members",
+      "index": "conversation_members_active_idx",
+      "scans": 40712,
+      "bytes": 925696
+    },
+    {
+      "table": "users",
+      "index": "users_pkey",
+      "scans": 40712,
+      "bytes": 57344
+    },
+    {
+      "table": "devices",
+      "index": "devices_pkey",
+      "scans": 40712,
+      "bytes": 57344
+    },
+    {
+      "table": "conversations",
+      "index": "conversations_pkey",
+      "scans": 81424,
+      "bytes": 172032
+    }
+  ],
+  "statements": [
+    {
+      "query": "update \"conversations\" set \"last_seq\" = \"last_seq\" + $1, \"last_message_at\" = now() where \"id\" = $2 returning \"last_seq\", \"disappearing_seconds\", \"admin_only_sen",
+      "calls": 41069,
+      "total_ms": 637744,
+      "mean_ms": 15.529,
+      "rows": 41069
+    },
+    {
+      "query": "insert into \"messages\" (\"conversation_id\", \"seq\", \"sender_id\", \"sender_device_id\", \"client_message_id\", \"type\", \"body_text\", \"content\", \"attachment_id\", \"reply_",
+      "calls": 41069,
+      "total_ms": 5081,
+      "mean_ms": 0.124,
+      "rows": 41069
+    },
+    {
+      "query": "insert into \"outbox\" (\"event_id\", \"topic\", \"partition_key\", \"payload\") values ($1, $2, $3, $4)",
+      "calls": 41069,
+      "total_ms": 874,
+      "mean_ms": 0.021,
+      "rows": 41069
+    },
+    {
+      "query": "UPDATE outbox SET published_at = now() WHERE published_at IS NULL",
+      "calls": 9,
+      "total_ms": 345,
+      "mean_ms": 38.364,
+      "rows": 41805
+    },
+    {
+      "query": "SELECT $2 FROM ONLY \"public\".\"conversations\" x WHERE \"id\" OPERATOR(pg_catalog.=) $1 FOR KEY SHARE OF x",
+      "calls": 41069,
+      "total_ms": 328,
+      "mean_ms": 0.008,
+      "rows": 41069
+    },
+    {
+      "query": "select \"role\" from \"conversation_members\" where \"conversation_id\" = $1 and \"user_id\" = $2 and \"left_at\" is null",
+      "calls": 41069,
+      "total_ms": 289,
+      "mean_ms": 0.007,
+      "rows": 41069
+    },
+    {
+      "query": "SELECT 1 FROM ONLY \"public\".\"users\" x WHERE \"id\" OPERATOR(pg_catalog.=) $1 FOR KEY SHARE OF x",
+      "calls": 41069,
+      "total_ms": 215,
+      "mean_ms": 0.005,
+      "rows": 41069
+    },
+    {
+      "query": "SELECT 1 FROM ONLY \"public\".\"devices\" x WHERE \"id\" OPERATOR(pg_catalog.=) $1 FOR KEY SHARE OF x",
+      "calls": 41069,
+      "total_ms": 204,
+      "mean_ms": 0.005,
+      "rows": 41069
+    },
+    {
+      "query": "commit",
+      "calls": 41069,
+      "total_ms": 11,
+      "mean_ms": 0,
+      "rows": 0
+    },
+    {
+      "query": "begin",
+      "calls": 41069,
+      "total_ms": 9,
+      "mean_ms": 0,
+      "rows": 0
+    }
+  ]
+}

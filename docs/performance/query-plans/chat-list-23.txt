@@ -1,0 +1,31 @@
+-- Chat list for the seed user with the most chats (23)
+-- run: 2026-10-24T19:23:01.808Z (second execution, warm cache)
+-- parameters: ["2a420809-7b4b-4cc7-95d6-fa3a01869171",1000]
+
+select "c"."id", "c"."type", "c"."name", "c"."avatar_object_key", "c"."last_seq", "c"."last_message_at", "cm"."role", "cm"."read_seq", "cm"."muted_until", "cm"."archived", "cm"."pinned_at", "cm"."favourite", c.last_seq - cm.read_seq as "unread_count" from "conversation_members" as "cm" inner join "conversations" as "c" on "c"."id" = "cm"."conversation_id" where "cm"."user_id" = $1 and "cm"."left_at" is null order by COALESCE(c.last_message_at, c.created_at) desc limit $2
+
+Limit  (cost=153.70..153.76 rows=23 width=129) (actual time=0.275..0.277 rows=23 loops=1)
+  Buffers: shared hit=69
+  ->  Sort  (cost=153.70..153.76 rows=23 width=129) (actual time=0.275..0.276 rows=23 loops=1)
+        Sort Key: (COALESCE(c.last_message_at, c.created_at)) DESC
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=69
+        ->  Hash Join  (cost=66.69..153.18 rows=23 width=129) (actual time=0.025..0.269 rows=23 loops=1)
+              Hash Cond: (c.id = cm.conversation_id)
+              Buffers: shared hit=69
+              ->  Seq Scan on conversations c  (cost=0.00..78.02 rows=3202 width=91) (actual time=0.002..0.101 rows=3202 loops=1)
+                    Buffers: shared hit=46
+              ->  Hash  (cost=66.40..66.40 rows=23 width=46) (actual time=0.019..0.019 rows=23 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                    Buffers: shared hit=23
+                    ->  Bitmap Heap Scan on conversation_members cm  (cost=4.46..66.40 rows=23 width=46) (actual time=0.007..0.014 rows=23 loops=1)
+                          Recheck Cond: ((user_id = '2a420809-7b4b-4cc7-95d6-fa3a01869171'::uuid) AND (left_at IS NULL))
+                          Heap Blocks: exact=21
+                          Buffers: shared hit=23
+                          ->  Bitmap Index Scan on conversation_members_user_idx  (cost=0.00..4.46 rows=23 width=0) (actual time=0.004..0.004 rows=24 loops=1)
+                                Index Cond: (user_id = '2a420809-7b4b-4cc7-95d6-fa3a01869171'::uuid)
+                                Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=12
+Planning Time: 0.100 ms
+Execution Time: 0.308 ms

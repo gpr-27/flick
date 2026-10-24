@@ -1,0 +1,46 @@
+# Alert rules. Metric names are the ones fixed in the implementation plan.
+# Thresholds are starting points; tune them from measured baselines.
+# Check with: promtool check rules infra/prometheus/alerts.yml
+
+groups:
+  - name: chat
+    rules:
+      - alert: ApiDown
+        # `absent` also fires when every replica is gone (no target at all).
+        expr: up{job="api"} == 0 or absent(up{job="api"})
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: 'API instance {{ $labels.instance }} is down'
+
+      - alert: OutboxBacklog
+        expr: max(outbox_pending) > 1000
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: '{{ $value }} outbox events are waiting to be dispatched'
+
+      - alert: OutboxOldestAgeGrowing
+        # Old AND still getting older: the dispatcher is stuck.
+        expr: max(outbox_oldest_age_seconds) > 30 and deriv(max(outbox_oldest_age_seconds)[5m:30s]) > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Oldest undispatched outbox event is {{ $value | humanizeDuration }} old and growing'
+
+      - alert: High5xxRate
+        expr: |
+          sum(rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+            / sum(rate(http_request_duration_seconds_count[5m])) > 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: '{{ $value | humanizePercentage }} of API requests return 5xx'
+
+      - alert: DbPoolSaturation
+        # 18 of the default DATABASE_POOL_MAX=20. Change both together.
+        expr: max by (instance) (db_pool_in_use) >= 18
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'DB pool on {{ $labels.instance }} is nearly full ({{ $value }} of 20)'

@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.DS_Store
+.git
+.github
+.claude
+.env
+.env.*
+!.env.example
+render-upload.env
+interview
+*.log

@@ -1,0 +1,59 @@
+-- Receipts: recipientCursors for the largest group
+-- run: 2026-10-24T19:23:01.824Z (second execution, warm cache)
+-- parameters: ["fe6fae38-48c5-4d6c-ba8c-92d0af00a15c","00353d8e-dd71-4b70-8f61-ace02e4cb386"]
+
+
+    SELECT cm.user_id,
+           GREATEST(cm.read_seq, COALESCE(MAX(dc.delivered_seq), 0)) AS delivered_seq,
+           cm.read_seq
+    FROM conversation_members cm
+    LEFT JOIN devices d ON d.user_id = cm.user_id AND d.revoked_at IS NULL
+    LEFT JOIN device_cursors dc ON dc.device_id = d.id AND dc.conversation_id = cm.conversation_id
+    WHERE cm.conversation_id = $1 AND cm.left_at IS NULL AND cm.user_id <> $2
+    GROUP BY cm.user_id, cm.read_seq
+    ORDER BY cm.user_id
+  
+
+Sort  (cost=371.36..372.55 rows=474 width=32) (actual time=0.600..0.615 rows=600 loops=1)
+  Sort Key: cm.user_id
+  Sort Method: quicksort  Memory: 53kB
+  Buffers: shared hit=38
+  ->  HashAggregate  (cost=344.37..350.30 rows=474 width=32) (actual time=0.495..0.538 rows=600 loops=1)
+        Group Key: cm.user_id, cm.read_seq
+        Batches: 1  Memory Usage: 105kB
+        Buffers: shared hit=38
+        ->  Hash Left Join  (cost=313.56..339.85 rows=603 width=32) (actual time=0.233..0.423 rows=605 loops=1)
+              Hash Cond: (d.id = dc.device_id)
+              Buffers: shared hit=38
+              ->  Hash Right Join  (cost=179.46..204.16 rows=603 width=56) (actual time=0.137..0.273 rows=605 loops=1)
+                    Hash Cond: (d.user_id = cm.user_id)
+                    Buffers: shared hit=28
+                    ->  Seq Scan on devices d  (cost=0.00..22.05 rows=1005 width=32) (actual time=0.003..0.059 rows=1005 loops=1)
+                          Filter: (revoked_at IS NULL)
+                          Buffers: shared hit=12
+                    ->  Hash  (cost=171.96..171.96 rows=600 width=40) (actual time=0.131..0.131 rows=600 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 51kB
+                          Buffers: shared hit=16
+                          ->  Bitmap Heap Scan on conversation_members cm  (cost=24.94..171.96 rows=600 width=40) (actual time=0.018..0.083 rows=600 loops=1)
+                                Recheck Cond: (conversation_id = 'fe6fae38-48c5-4d6c-ba8c-92d0af00a15c'::uuid)
+                                Filter: ((left_at IS NULL) AND (user_id <> '00353d8e-dd71-4b70-8f61-ace02e4cb386'::uuid))
+                                Rows Removed by Filter: 1
+                                Heap Blocks: exact=9
+                                Buffers: shared hit=16
+                                ->  Bitmap Index Scan on conversation_members_pkey  (cost=0.00..24.79 rows=601 width=0) (actual time=0.015..0.015 rows=601 loops=1)
+                                      Index Cond: (conversation_id = 'fe6fae38-48c5-4d6c-ba8c-92d0af00a15c'::uuid)
+                                      Buffers: shared hit=7
+              ->  Hash  (cost=126.54..126.54 rows=605 width=40) (actual time=0.093..0.093 rows=605 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 51kB
+                    Buffers: shared hit=10
+                    ->  Bitmap Heap Scan on device_cursors dc  (cost=12.97..126.54 rows=605 width=40) (actual time=0.013..0.050 rows=605 loops=1)
+                          Recheck Cond: (conversation_id = 'fe6fae38-48c5-4d6c-ba8c-92d0af00a15c'::uuid)
+                          Heap Blocks: exact=8
+                          Buffers: shared hit=10
+                          ->  Bitmap Index Scan on device_cursors_conversation_idx  (cost=0.00..12.82 rows=605 width=0) (actual time=0.011..0.011 rows=605 loops=1)
+                                Index Cond: (conversation_id = 'fe6fae38-48c5-4d6c-ba8c-92d0af00a15c'::uuid)
+                                Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=10
+Planning Time: 0.099 ms
+Execution Time: 0.685 ms

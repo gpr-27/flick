@@ -1,0 +1,30 @@
+-- Read cursor update (advanceReadSeq)
+-- run: 2026-10-24T19:23:01.827Z (second execution, warm cache)
+-- parameters: [3614,"31d44881-a178-4b0f-8a2a-08743c1dc75d","31bb8203-4bfc-4e2b-b287-afb3e965a97e"]
+
+
+    UPDATE conversation_members AS m
+    SET read_seq = GREATEST(m.read_seq, LEAST($1::bigint, c.last_seq))
+    FROM conversations c
+    WHERE c.id = m.conversation_id
+      AND m.conversation_id = $2
+      AND m.user_id = $3
+      AND m.left_at IS NULL
+    RETURNING m.read_seq
+  
+
+Update on conversation_members m  (cost=0.57..16.62 rows=1 width=20) (actual time=0.077..0.078 rows=1 loops=1)
+  Buffers: shared hit=20 read=1 dirtied=1
+  ->  Nested Loop  (cost=0.57..16.62 rows=1 width=20) (actual time=0.009..0.010 rows=1 loops=1)
+        Buffers: shared hit=6
+        ->  Index Scan using conversation_members_pkey on conversation_members m  (cost=0.29..8.30 rows=1 width=30) (actual time=0.005..0.006 rows=1 loops=1)
+              Index Cond: ((conversation_id = '31d44881-a178-4b0f-8a2a-08743c1dc75d'::uuid) AND (user_id = '31bb8203-4bfc-4e2b-b287-afb3e965a97e'::uuid))
+              Filter: (left_at IS NULL)
+              Buffers: shared hit=3
+        ->  Index Scan using conversations_pkey on conversations c  (cost=0.28..8.30 rows=1 width=30) (actual time=0.003..0.004 rows=1 loops=1)
+              Index Cond: (id = '31d44881-a178-4b0f-8a2a-08743c1dc75d'::uuid)
+              Buffers: shared hit=3
+Planning Time: 0.025 ms
+Trigger for constraint conversation_members_conversation_id_fkey: time=0.079 calls=1
+Trigger for constraint conversation_members_user_id_fkey: time=0.049 calls=1
+Execution Time: 0.219 ms

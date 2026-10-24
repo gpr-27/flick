@@ -1,0 +1,124 @@
+# Render Blueprint for the Flick backend. The React app is NOT here: it goes to Vercel
+# (apps/web/vercel.json). Full steps: docs/operations/deployment.md.
+#
+#   Render Dashboard > New > Blueprint > pick this repo > fill the `sync: false` values > Apply.
+#
+# What this creates (free plans):
+#   flick-api     web service    Fastify API + Socket.IO + outbox dispatcher, and the worker jobs
+#                                (push notifications, expiring messages, cleanup), started together by
+#                                scripts/start-render.mjs because Render's free plan has no worker type
+#   flick-redis   Key Value      Redis for the Socket.IO adapter, presence, rate limits (data is disposable)
+#
+# The database is Supabase Postgres, created outside Render: paste its session-pooler string as DATABASE_URL.
+# Region: Singapore for both services. Render's private `connectionString` addresses only work inside a region.
+#
+# No secret value is stored in this file. Every `sync: false` entry is asked for in the dashboard.
+
+services:
+  - type: keyvalue
+    name: flick-redis
+    region: singapore
+    # Redis only holds data that can be lost (socket rooms, presence, rate-limit counters), so the
+    # free plan is enough for a demo. Move to `starter` if you see connection or memory limits.
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # private network only
+
+  - type: web
+    name: flick-api
+    runtime: node
+    region: singapore
+    # Free plan: it sleeps after 15 minutes without traffic, which drops every Socket.IO connection
+    # and makes the next request take ~50 seconds. For a service that never sleeps use `starter`,
+    # and then move the worker out into its own `worker` service (see docs/DEPLOYMENT.md).
+    plan: free
+    # The @chat/* packages are compiled first, in this order (each one may import the earlier ones).
+    # --include=dev is needed because Render sets NODE_ENV=production, which would skip TypeScript.
+    buildCommand: >-
+      npm ci --include=dev &&
+      npm run build -w @chat/shared -w @chat/contracts -w @chat/db -w @chat/uploads -w @chat/ai
+      -w @chat/link-preview -w @chat/api -w @chat/worker
+    # Migrations run first (they are safe to run twice; the free plan has no pre-deploy step). The free plan
+    # has no background workers, so this one service then runs the API and the worker jobs together.
+    startCommand: npm run migrate:prod -w @chat/db && node scripts/start-render.mjs
+    # Ready means Postgres and Redis answer. The API also reads Render's PORT variable.
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - apps/api/**
+        - apps/worker/**
+        - scripts/start-render.mjs
+        - packages/**
+        - packages/database/**
+        - package.json
+        - package-lock.json
+        - tsconfig.base.json
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      # Render's proxy sets X-Forwarded-For; without this every user shares one rate-limit key.
+      - key: TRUST_PROXY
+        value: "true"
+      # Supabase: Connect > Session pooler connection string, ending in ?sslmode=no-verify.
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flick-redis
+          property: connectionString
+      # The web app origin, e.g. https://flick-demo.vercel.app (no trailing slash, no path).
+      # It is the CORS allow-list and also Clerk's `authorizedParties`. Several origins: comma-separated.
+      - key: CORS_ORIGINS
+        sync: false
+      # Clerk dashboard > API keys > Secret key (sk_test_... for the demo).
+      - key: CLERK_SECRET_KEY
+        sync: false
+      # Object storage: AWS S3 (leave S3_ENDPOINT empty) or Cloudflare R2. See docs/DEPLOYMENT.md.
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_PUBLIC_URL
+        sync: false
+      # Optional features: leave a value empty to switch the feature off.
+      - key: GIPHY_API_KEY
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: TURN_SECRET
+        sync: false
+      - key: TURN_URLS
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY_1
+        sync: false
+      - key: GROQ_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_1
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      # E2E_FAKE_AUTH must never be set here: it is a test-only login and the API refuses to start with it.

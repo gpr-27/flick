@@ -1,0 +1,17 @@
+-- Outbox claim: 100 oldest unpublished rows, FOR UPDATE SKIP LOCKED (dispatcher)
+-- run: 2026-10-24T20:15:47.841Z (second execution, warm cache)
+-- parameters: [100]
+
+select * from "outbox" where "published_at" is null order by "id" limit $1 for update skip locked
+
+Limit  (cost=0.29..6.07 rows=100 width=167) (actual time=0.009..0.039 rows=100 loops=1)
+  Buffers: shared hit=205
+  ->  LockRows  (cost=0.29..578.29 rows=10000 width=167) (actual time=0.008..0.035 rows=100 loops=1)
+        Buffers: shared hit=205
+        ->  Index Scan using outbox_unpublished_idx on outbox  (cost=0.29..478.29 rows=10000 width=167) (actual time=0.008..0.018 rows=100 loops=1)
+              Filter: (published_at IS NULL)
+              Buffers: shared hit=5
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.021 ms
+Execution Time: 0.053 ms

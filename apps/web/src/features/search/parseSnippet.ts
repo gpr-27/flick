@@ -1,0 +1,32 @@
+// A search snippet from the server is escaped text where <mark>...</mark> is the only markup.
+// We never put it in the DOM as HTML: it is split on the mark tags and drawn as React text, so
+// even a snippet containing a raw "<img onerror=...>" shows up as harmless text.
+
+const ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&#x27;': "'",
+};
+
+/** Undo the server's HTML escaping so the text reads normally (React escapes it again). */
+export const decodeEntities = (text: string): string =>
+  text.replace(/&(amp|lt|gt|quot|#39|#x27);/g, (m) => ENTITIES[m] ?? m);
+
+export interface SnippetPart {
+  text: string;
+  marked: boolean;
+}
+
+export const parseSnippet = (snippet: string): SnippetPart[] => {
+  const parts: SnippetPart[] = [];
+  let marked = false;
+  for (const piece of snippet.split(/(<mark>|<\/mark>)/)) {
+    if (piece === '<mark>') marked = true;
+    else if (piece === '</mark>') marked = false;
+    else if (piece) parts.push({ text: decodeEntities(piece), marked });
+  }
+  return parts;
+};

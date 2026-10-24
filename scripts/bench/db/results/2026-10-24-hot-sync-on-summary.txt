@@ -1,0 +1,4 @@
+scenario | qps (median, min-max) | avg | p50 | p95 | p99 | max (ms, median of reps) | pool busy max/waiting max | pg cpu avg %
+b send: ONE hot conversation | c=1 | 360 (353-398) | 2.77 | 1.99 | 5.27 | 13.24 | 152.4 | 1/0 | 24
+b send: ONE hot conversation | c=8 | 534 (467-545) | 14.97 | 10.76 | 37.87 | 75.81 | 397.9 | 8/0 | 43
+b send: ONE hot conversation | c=32 | 561 (536-586) | 56.91 | 45.20 | 129.66 | 203.76 | 385.5 | 20/12 | 54

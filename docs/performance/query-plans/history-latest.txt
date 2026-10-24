@@ -1,0 +1,22 @@
+-- History: latest 50 messages of the busiest direct chat (keysetHistory, backward)
+-- run: 2026-10-24T19:23:01.797Z (second execution, warm cache)
+-- parameters: ["31d44881-a178-4b0f-8a2a-08743c1dc75d","31bb8203-4bfc-4e2b-b287-afb3e965a97e",51]
+
+select "id", "conversation_id", "seq", "sender_id", "sender_device_id", "client_message_id", "type", "body_text", "content", "attachment_id", "reply_to_id", "forwarded", "view_once", "viewed_at", "expire_at", "mentions", "is_legacy", "edited_at", "deleted_at", "created_at" from "messages" where "conversation_id" = $1 and (messages.expire_at IS NULL OR messages.expire_at > now())
+    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = messages.id AND h.user_id = $2) order by "seq" desc limit $3
+
+Limit  (cost=0.42..199.71 rows=51 width=283) (actual time=0.006..0.029 rows=51 loops=1)
+  Buffers: shared hit=9
+  ->  Nested Loop Anti Join  (cost=0.42..14067.44 rows=3600 width=283) (actual time=0.006..0.027 rows=51 loops=1)
+        Join Filter: (h.message_id = messages.id)
+        Buffers: shared hit=9
+        ->  Index Scan Backward using messages_conversation_seq_uq on messages  (cost=0.42..14022.44 rows=3600 width=283) (actual time=0.005..0.012 rows=51 loops=1)
+              Index Cond: (conversation_id = '31d44881-a178-4b0f-8a2a-08743c1dc75d'::uuid)
+              Filter: ((expire_at IS NULL) OR (expire_at > now()))
+              Buffers: shared hit=9
+        ->  Seq Scan on hidden_messages h  (cost=0.00..0.00 rows=1 width=16) (actual time=0.000..0.000 rows=0 loops=51)
+              Filter: (user_id = '31bb8203-4bfc-4e2b-b287-afb3e965a97e'::uuid)
+Planning:
+  Buffers: shared hit=3
+Planning Time: 0.050 ms
+Execution Time: 0.039 ms

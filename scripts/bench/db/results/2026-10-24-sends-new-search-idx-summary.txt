@@ -1,0 +1,4 @@
+scenario | qps (median, min-max) | avg | p50 | p95 | p99 | max (ms, median of reps) | pool busy max/waiting max | pg cpu avg %
+a send: distinct conversations | c=1 | 445 (437-529) | 2.25 | 1.89 | 3.65 | 5.98 | 31.0 | 1/0 | 26
+a send: distinct conversations | c=8 | 1471 (1041-1677) | 5.44 | 4.35 | 9.78 | 23.50 | 174.9 | 8/0 | 152
+a send: distinct conversations | c=32 | 1936 (1695-2153) | 16.52 | 13.50 | 30.13 | 62.58 | 243.5 | 20/12 | 230

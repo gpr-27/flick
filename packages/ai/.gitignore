@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# The workspace root lockfile is authoritative once npm workspaces exist.
+package-lock.json

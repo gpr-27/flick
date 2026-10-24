@@ -1,0 +1,907 @@
+{
+  "date": "2026-10-24T20:02:17.633Z",
+  "node": "v26.8.1",
+  "host": {
+    "cpus": 8,
+    "model": "Apple M3"
+  },
+  "postgres": "PostgreSQL 17.11 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+  "settings": {
+    "reps": 3,
+    "warmup": 200,
+    "minIterations": 2000,
+    "minSeconds": 8,
+    "maxSeconds": 30,
+    "poolMax": 20
+  },
+  "results": [
+    {
+      "scenario": "j1 search: common word \"need\", user in 23 chats",
+      "concurrency": 1,
+      "rep": 1,
+      "iterations": 2563,
+      "seconds": 8.001767583,
+      "qps": 320.3042294611471,
+      "avg_ms": 3.121317804135777,
+      "p50_ms": 2.851417,
+      "p95_ms": 4.513167,
+      "p99_ms": 6.456,
+      "max_ms": 15.121583,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 84.21000000000001,
+      "pg_cpu_max_pct": 85.9,
+      "pg_mem_max_mib": 218.6
+    },
+    {
+      "scenario": "j1 search: common word \"need\", user in 23 chats",
+      "concurrency": 1,
+      "rep": 2,
+      "iterations": 2262,
+      "seconds": 8.00182575,
+      "qps": 282.6854858717712,
+      "avg_ms": 3.536243793545535,
+      "p50_ms": 2.855333,
+      "p95_ms": 6.477458,
+      "p99_ms": 11.192042,
+      "max_ms": 57.934625,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 83.195,
+      "pg_cpu_max_pct": 84.94,
+      "pg_mem_max_mib": 218.3
+    },
+    {
+      "scenario": "j1 search: common word \"need\", user in 23 chats",
+      "concurrency": 1,
+      "rep": 3,
+      "iterations": 2423,
+      "seconds": 8.002287917,
+      "qps": 302.78840565741166,
+      "avg_ms": 3.3013515043334647,
+      "p50_ms": 2.906166,
+      "p95_ms": 4.951958,
+      "p99_ms": 7.442084,
+      "max_ms": 119.389791,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 84.77499999999999,
+      "pg_cpu_max_pct": 85.92,
+      "pg_mem_max_mib": 218.5
+    },
+    {
+      "scenario": "j1 search: common word \"need\", user in 23 chats",
+      "concurrency": 8,
+      "rep": 1,
+      "iterations": 10257,
+      "seconds": 8.003787375,
+      "qps": 1281.5183012029977,
+      "avg_ms": 6.238673589061129,
+      "p50_ms": 5.867667,
+      "p95_ms": 9.868125,
+      "p99_ms": 13.191166,
+      "max_ms": 37.394125,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 448.2825,
+      "pg_cpu_max_pct": 472.52,
+      "pg_mem_max_mib": 236.4
+    },
+    {
+      "scenario": "j1 search: common word \"need\", user in 23 chats",
+      "concurrency": 8,
+      "rep": 2,
+      "iterations": 8291,
+      "seconds": 8.009749291,
+      "qps": 1035.1135471014081,
+      "avg_ms": 7.722450020986615,
+      "p50_ms": 6.67575,
+      "p95_ms": 13.382708,
+      "p99_ms": 30.946625,
+      "max_ms": 108.065541,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 443.735,
+      "pg_cpu_max_pct": 469.68,
+      "pg_mem_max_mib": 236.3
+    },
+    {
+      "scenario": "j1 search: common word \"need\", user in 23 chats",
+      "concurrency": 8,
+      "rep": 3,
+      "iterations": 9222,
+      "seconds": 8.004614,
+      "qps": 1152.0855346678802,
+      "avg_ms": 6.940090376165704,
+      "p50_ms": 6.4055,
+      "p95_ms": 11.685083,
+      "p99_ms": 16.694583,
+      "max_ms": 44.891,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 464.8675,
+      "pg_cpu_max_pct": 487.88,
+      "pg_mem_max_mib": 236.3
+    },
+    {
+      "scenario": "j2 search: rare word \"hello\", user in 23 chats",
+      "concurrency": 1,
+      "rep": 1,
+      "iterations": 10491,
+      "seconds": 8.000163209,
+      "qps": 1311.348247020494,
+      "avg_ms": 0.7622611741492734,
+      "p50_ms": 0.746542,
+      "p95_ms": 0.846042,
+      "p99_ms": 1.137292,
+      "max_ms": 4.516,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 101.42249999999999,
+      "pg_cpu_max_pct": 236.02,
+      "pg_mem_max_mib": 235.1
+    },
+    {
+      "scenario": "j2 search: rare word \"hello\", user in 23 chats",
+      "concurrency": 1,
+      "rep": 2,
+      "iterations": 9596,
+      "seconds": 8.000761208,
+      "qps": 1199.3858772343951,
+      "avg_ms": 0.8333793060650249,
+      "p50_ms": 0.768,
+      "p95_ms": 1.112208,
+      "p99_ms": 1.981916,
+      "max_ms": 24.665917,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 56.885000000000005,
+      "pg_cpu_max_pct": 58.11,
+      "pg_mem_max_mib": 234.6
+    },
+    {
+      "scenario": "j2 search: rare word \"hello\", user in 23 chats",
+      "concurrency": 1,
+      "rep": 3,
+      "iterations": 8709,
+      "seconds": 8.000364875,
+      "qps": 1088.5753507586114,
+      "avg_ms": 0.9181795179699136,
+      "p50_ms": 0.768209,
+      "p95_ms": 1.51925,
+      "p99_ms": 3.076375,
+      "max_ms": 36.558666,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 57.0625,
+      "pg_cpu_max_pct": 58.57,
+      "pg_mem_max_mib": 216.1
+    },
+    {
+      "scenario": "j2 search: rare word \"hello\", user in 23 chats",
+      "concurrency": 8,
+      "rep": 1,
+      "iterations": 32566,
+      "seconds": 8.001918333,
+      "qps": 4069.774102254637,
+      "avg_ms": 1.964860839587285,
+      "p50_ms": 1.577459,
+      "p95_ms": 3.898833,
+      "p99_ms": 7.758417,
+      "max_ms": 87.646208,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 248.2975,
+      "pg_cpu_max_pct": 308.04,
+      "pg_mem_max_mib": 232.6
+    },
+    {
+      "scenario": "j2 search: rare word \"hello\", user in 23 chats",
+      "concurrency": 8,
+      "rep": 2,
+      "iterations": 28018,
+      "seconds": 8.001067333,
+      "qps": 3501.782803956813,
+      "avg_ms": 2.2836090626382965,
+      "p50_ms": 1.6905,
+      "p95_ms": 4.536792,
+      "p99_ms": 9.511833,
+      "max_ms": 302.482334,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 299.11,
+      "pg_cpu_max_pct": 324.22,
+      "pg_mem_max_mib": 233.2
+    },
+    {
+      "scenario": "j2 search: rare word \"hello\", user in 23 chats",
+      "concurrency": 8,
+      "rep": 3,
+      "iterations": 37935,
+      "seconds": 8.000980292,
+      "qps": 4741.294018425511,
+      "avg_ms": 1.6866076054039563,
+      "p50_ms": 1.519292,
+      "p95_ms": 2.804667,
+      "p99_ms": 4.256958,
+      "max_ms": 39.963959,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 306.8725,
+      "pg_cpu_max_pct": 330.2,
+      "pg_mem_max_mib": 233.1
+    },
+    {
+      "scenario": "j3 search: common word \"need\", user in 1,000 chats",
+      "concurrency": 1,
+      "rep": 1,
+      "iterations": 401,
+      "seconds": 30.04882975,
+      "qps": 13.344945654663972,
+      "avg_ms": 74.9329746433915,
+      "p50_ms": 70.248416,
+      "p95_ms": 97.321458,
+      "p99_ms": 118.278709,
+      "max_ms": 209.878542,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 267.212,
+      "pg_cpu_max_pct": 270.35,
+      "pg_mem_max_mib": 230.5
+    },
+    {
+      "scenario": "j3 search: common word \"need\", user in 1,000 chats",
+      "concurrency": 1,
+      "rep": 2,
+      "iterations": 353,
+      "seconds": 30.160114458,
+      "qps": 11.704199614082247,
+      "avg_ms": 85.43749186118978,
+      "p50_ms": 71.601834,
+      "p95_ms": 144.785709,
+      "p99_ms": 266.165166,
+      "max_ms": 345.695292,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 268.1,
+      "pg_cpu_max_pct": 275.65,
+      "pg_mem_max_mib": 230.1
+    },
+    {
+      "scenario": "j3 search: common word \"need\", user in 1,000 chats",
+      "concurrency": 1,
+      "rep": 3,
+      "iterations": 418,
+      "seconds": 30.063207,
+      "qps": 13.904038913745962,
+      "avg_ms": 71.91995196889945,
+      "p50_ms": 68.779042,
+      "p95_ms": 88.597625,
+      "p99_ms": 105.726833,
+      "max_ms": 126.374292,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 268.04600000000005,
+      "pg_cpu_max_pct": 270.87,
+      "pg_mem_max_mib": 230.4
+    },
+    {
+      "scenario": "j3 search: common word \"need\", user in 1,000 chats",
+      "concurrency": 8,
+      "rep": 1,
+      "iterations": 1228,
+      "seconds": 30.103363,
+      "qps": 40.79278451380997,
+      "avg_ms": 196.0666793118893,
+      "p50_ms": 187.132917,
+      "p95_ms": 260.209459,
+      "p99_ms": 342.2245,
+      "max_ms": 410.056792,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 532.956,
+      "pg_cpu_max_pct": 571.2,
+      "pg_mem_max_mib": 326.6
+    },
+    {
+      "scenario": "j3 search: common word \"need\", user in 1,000 chats",
+      "concurrency": 8,
+      "rep": 2,
+      "iterations": 1166,
+      "seconds": 30.018526958,
+      "qps": 38.84267877738946,
+      "avg_ms": 205.92734424013716,
+      "p50_ms": 190.880458,
+      "p95_ms": 301.645292,
+      "p99_ms": 410.028209,
+      "max_ms": 606.080541,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 7.999299229152068,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 526.1346666666666,
+      "pg_cpu_max_pct": 568.87,
+      "pg_mem_max_mib": 326.6
+    },
+    {
+      "scenario": "j3 search: common word \"need\", user in 1,000 chats",
+      "concurrency": 8,
+      "rep": 3,
+      "iterations": 1219,
+      "seconds": 30.206952041,
+      "qps": 40.35494870006901,
+      "avg_ms": 197.083807100082,
+      "p50_ms": 183.253375,
+      "p95_ms": 286.729042,
+      "p99_ms": 408.924417,
+      "max_ms": 541.228375,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 7.951949860724234,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 542.8033333333333,
+      "pg_cpu_max_pct": 590.73,
+      "pg_mem_max_mib": 326.8
+    },
+    {
+      "scenario": "j4 search: common word inside one chat",
+      "concurrency": 1,
+      "rep": 1,
+      "iterations": 7658,
+      "seconds": 8.000186459,
+      "qps": 957.2276895352796,
+      "avg_ms": 1.0441948588404293,
+      "p50_ms": 0.963834,
+      "p95_ms": 1.437209,
+      "p99_ms": 2.412208,
+      "max_ms": 5.418042,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 60.147499999999994,
+      "pg_cpu_max_pct": 61.97,
+      "pg_mem_max_mib": 235.4
+    },
+    {
+      "scenario": "j4 search: common word inside one chat",
+      "concurrency": 1,
+      "rep": 2,
+      "iterations": 8061,
+      "seconds": 8.000829208,
+      "qps": 1007.5205694854521,
+      "avg_ms": 0.9921315423644688,
+      "p50_ms": 0.94125,
+      "p95_ms": 1.18475,
+      "p99_ms": 2.057875,
+      "max_ms": 6.763708,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 62.684999999999995,
+      "pg_cpu_max_pct": 64.16,
+      "pg_mem_max_mib": 216.3
+    },
+    {
+      "scenario": "j4 search: common word inside one chat",
+      "concurrency": 1,
+      "rep": 3,
+      "iterations": 8346,
+      "seconds": 8.000385917,
+      "qps": 1043.1996764388086,
+      "avg_ms": 0.9582263377665983,
+      "p50_ms": 0.932,
+      "p95_ms": 1.111333,
+      "p99_ms": 1.483667,
+      "max_ms": 4.389167,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 1,
+      "pool_busy_max": 1,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 62.6275,
+      "pg_cpu_max_pct": 63.67,
+      "pg_mem_max_mib": 216.1
+    },
+    {
+      "scenario": "j4 search: common word inside one chat",
+      "concurrency": 8,
+      "rep": 1,
+      "iterations": 25486,
+      "seconds": 8.003006958,
+      "qps": 3184.553022851439,
+      "avg_ms": 2.5107084784587435,
+      "p50_ms": 2.02525,
+      "p95_ms": 5.065458,
+      "p99_ms": 9.161458,
+      "max_ms": 61.725917,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 304.805,
+      "pg_cpu_max_pct": 344.88,
+      "pg_mem_max_mib": 232.2
+    },
+    {
+      "scenario": "j4 search: common word inside one chat",
+      "concurrency": 8,
+      "rep": 2,
+      "iterations": 24148,
+      "seconds": 8.001508959,
+      "qps": 3017.9307582776146,
+      "avg_ms": 2.6500511014162824,
+      "p50_ms": 2.189959,
+      "p95_ms": 4.914375,
+      "p99_ms": 8.377875,
+      "max_ms": 175.787292,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 324.0175,
+      "pg_cpu_max_pct": 341.26,
+      "pg_mem_max_mib": 232.8
+    },
+    {
+      "scenario": "j4 search: common word inside one chat",
+      "concurrency": 8,
+      "rep": 3,
+      "iterations": 26850,
+      "seconds": 8.001529792,
+      "qps": 3355.608327153249,
+      "avg_ms": 2.382812549571701,
+      "p50_ms": 2.082167,
+      "p95_ms": 4.048125,
+      "p99_ms": 7.112666,
+      "max_ms": 78.345083,
+      "errors": 0,
+      "first_error": null,
+      "pool_busy_avg": 8,
+      "pool_busy_max": 8,
+      "pool_waiting_max": 0,
+      "pg_cpu_avg_pct": 332.1675,
+      "pg_cpu_max_pct": 338.38,
+      "pg_mem_max_mib": 232.4
+    }
+  ],
+  "indexes": [
+    {
+      "table": "messages",
+      "index": "messages_sender_device_client_id_uq",
+      "scans": 0,
+      "bytes": 122028032
+    },
+    {
+      "table": "messages",
+      "index": "messages_pkey",
+      "scans": 0,
+      "bytes": 48160768
+    },
+    {
+      "table": "outbox",
+      "index": "outbox_event_id_uq",
+      "scans": 0,
+      "bytes": 32137216
+    },
+    {
+      "table": "outbox",
+      "index": "outbox_pkey",
+      "scans": 0,
+      "bytes": 28606464
+    },
+    {
+      "table": "outbox",
+      "index": "outbox_unpublished_idx",
+      "scans": 0,
+      "bytes": 9814016
+    },
+    {
+      "table": "outbox",
+      "index": "outbox_published_at_idx",
+      "scans": 0,
+      "bytes": 4423680
+    },
+    {
+      "table": "contacts",
+      "index": "contacts_pkey",
+      "scans": 0,
+      "bytes": 671744
+    },
+    {
+      "table": "device_cursors",
+      "index": "device_cursors_pkey",
+      "scans": 0,
+      "bytes": 630784
+    },
+    {
+      "table": "users",
+      "index": "users_display_name_trgm_idx",
+      "scans": 0,
+      "bytes": 499712
+    },
+    {
+      "table": "device_cursors",
+      "index": "device_cursors_conversation_idx",
+      "scans": 0,
+      "bytes": 253952
+    },
+    {
+      "table": "direct_pairs",
+      "index": "direct_pairs_pk",
+      "scans": 0,
+      "bytes": 188416
+    },
+    {
+      "table": "conversations",
+      "index": "conversations_pkey",
+      "scans": 0,
+      "bytes": 172032
+    },
+    {
+      "table": "direct_pairs",
+      "index": "direct_pairs_conversation_id_key",
+      "scans": 0,
+      "bytes": 172032
+    },
+    {
+      "table": "users",
+      "index": "users_username_uq",
+      "scans": 0,
+      "bytes": 81920
+    },
+    {
+      "table": "users",
+      "index": "users_email_uq",
+      "scans": 0,
+      "bytes": 73728
+    },
+    {
+      "table": "user_settings",
+      "index": "user_settings_pkey",
+      "scans": 0,
+      "bytes": 57344
+    },
+    {
+      "table": "devices",
+      "index": "devices_pkey",
+      "scans": 0,
+      "bytes": 57344
+    },
+    {
+      "table": "devices",
+      "index": "devices_user_active_idx",
+      "scans": 0,
+      "bytes": 57344
+    },
+    {
+      "table": "users",
+      "index": "users_pkey",
+      "scans": 0,
+      "bytes": 57344
+    },
+    {
+      "table": "kysely_migration_lock",
+      "index": "kysely_migration_lock_pkey",
+      "scans": 0,
+      "bytes": 16384
+    },
+    {
+      "table": "kysely_migration",
+      "index": "kysely_migration_pkey",
+      "scans": 0,
+      "bytes": 16384
+    },
+    {
+      "table": "users",
+      "index": "users_clerk_id_uq",
+      "scans": 0,
+      "bytes": 16384
+    },
+    {
+      "table": "call_links",
+      "index": "call_links_token_hash_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "users",
+      "index": "users_legacy_id_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "attachments",
+      "index": "attachments_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "attachments",
+      "index": "attachments_object_key_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "attachments",
+      "index": "attachments_pending_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "messages",
+      "index": "messages_expire_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "messages",
+      "index": "messages_attachment_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "reactions",
+      "index": "reactions_pk",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "poll_votes",
+      "index": "poll_votes_pk",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "pinned_messages",
+      "index": "pinned_messages_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "pinned_messages",
+      "index": "pinned_messages_conversation_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "starred_messages",
+      "index": "starred_messages_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "starred_messages",
+      "index": "starred_messages_message_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "message_events",
+      "index": "message_events_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "message_events",
+      "index": "message_events_message_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "hidden_messages",
+      "index": "hidden_messages_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "view_once_opens",
+      "index": "view_once_opens_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "call_links",
+      "index": "call_links_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "processed_events",
+      "index": "processed_events_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "processed_events",
+      "index": "processed_events_processed_at_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "audit_log",
+      "index": "audit_log_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "audit_log",
+      "index": "audit_log_user_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "blocks",
+      "index": "blocks_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "invite_links",
+      "index": "invite_links_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "invite_links",
+      "index": "invite_links_token_hash_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "join_requests",
+      "index": "join_requests_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "join_requests",
+      "index": "join_requests_pending_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "call_logs",
+      "index": "call_logs_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "call_logs",
+      "index": "call_logs_conversation_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "push_subscriptions",
+      "index": "push_subscriptions_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "push_subscriptions",
+      "index": "push_subscriptions_endpoint_uq",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "push_subscriptions",
+      "index": "push_subscriptions_user_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "reports",
+      "index": "reports_pkey",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "reports",
+      "index": "reports_open_idx",
+      "scans": 0,
+      "bytes": 8192
+    },
+    {
+      "table": "conversation_members",
+      "index": "conversation_members_active_idx",
+      "scans": 100914,
+      "bytes": 925696
+    },
+    {
+      "table": "conversation_members",
+      "index": "conversation_members_user_idx",
+      "scans": 177983,
+      "bytes": 180224
+    },
+    {
+      "table": "messages",
+      "index": "messages_conversation_seq_uq",
+      "scans": 341436,
+      "bytes": 79863808
+    },
+    {
+      "table": "conversation_members",
+      "index": "conversation_members_pkey",
+      "scans": 341436,
+      "bytes": 737280
+    },
+    {
+      "table": "messages",
+      "index": "messages_search_idx",
+      "scans": 3895758,
+      "bytes": 45727744
+    }
+  ],
+  "statements": [
+    {
+      "query": "select \"messages\".\"id\", \"messages\".\"conversation_id\", \"messages\".\"seq\", \"messages\".\"sender_id\", \"messages\".\"body_text\", \"messages\".\"created_at\", messages.create",
+      "calls": 170718,
+      "total_ms": 1130287,
+      "mean_ms": 6.621,
+      "rows": 1486635
+    },
+    {
+      "query": "select \"messages\".\"id\", \"messages\".\"conversation_id\", \"messages\".\"seq\", \"messages\".\"sender_id\", \"messages\".\"body_text\", \"messages\".\"created_at\", messages.create",
+      "calls": 101749,
+      "total_ms": 57223,
+      "mean_ms": 0.562,
+      "rows": 2034980
+    }
+  ]
+}

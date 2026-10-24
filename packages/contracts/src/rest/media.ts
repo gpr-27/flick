@@ -1,0 +1,42 @@
+import { z } from 'zod';
+import { HttpUrl, Id, IsoDateTime, MimeType } from '../common.js';
+import { LIMITS } from '../limits.js';
+
+// Files go straight to object storage: the client gets a presigned POST, uploads,
+// then calls "complete" so the server can check size and sniff the real type.
+// Downloads use a short-lived presigned GET, issued only to conversation members.
+
+export const UploadPurpose = z.enum(['message', 'avatar', 'group_avatar']);
+
+export const PresignUploadRequest = z
+  .object({
+    purpose: UploadPurpose,
+    mime: MimeType,
+    size: z.number().int().min(1).max(LIMITS.MAX_UPLOAD_BYTES),
+    file_name: z.string().min(1).max(255).optional(),
+  })
+  .refine((v) => v.purpose === 'message' || v.size <= LIMITS.MAX_AVATAR_BYTES, {
+    path: ['size'],
+    message: 'avatar too large',
+  });
+
+export const PresignUploadResponse = z.object({
+  attachment_id: Id,
+  url: HttpUrl,
+  /** Form fields to send with the file (they carry the size limit policy). */
+  fields: z.record(z.string(), z.string()),
+  expires_at: IsoDateTime,
+});
+
+export const AttachmentParams = z.object({ attachment_id: Id });
+
+export const Attachment = z.object({
+  id: Id,
+  mime: MimeType, // sniffed from the bytes, not the declared type
+  size: z.number().int().min(0),
+  file_name: z.string().nullable(),
+  status: z.enum(['pending', 'ready', 'failed']),
+  created_at: IsoDateTime,
+});
+
+export const DownloadUrl = z.object({ url: HttpUrl, expires_at: IsoDateTime });

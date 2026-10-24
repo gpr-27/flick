@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" data-theme="pastel-glass">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- viewport-fit=cover → enables env(safe-area-inset-*) on notched devices.
+         interactive-widget=resizes-content → the on-screen keyboard resizes the
+         layout so the message input stays visible above it. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="theme-color" content="#F4F3FA" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Apply the saved (or OS-preferred) theme before first paint to avoid a flash.
+         Kept in sync with src/features/settings/useThemeStore.ts. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('chat-theme');
+          var mode =
+            saved === 'light' || saved === 'dark'
+              ? saved
+              : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          var theme = mode === 'dark' ? 'pastel-night' : 'pastel-glass';
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.style.colorScheme = mode;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', mode === 'dark' ? '#14111F' : '#F4F3FA');
+        } catch (e) {}
+      })();
+    </script>
+
+    <!-- Soft Pastel Glass type: Quicksand (rounded display) + Nunito (rounded body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>Flick — Realtime Messaging</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

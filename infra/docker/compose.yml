@@ -1,0 +1,238 @@
+# Local development stack.
+#
+#   docker compose -f infra/docker/compose.yml --env-file .env up -d
+#
+# Host ports can be changed in .env (see .env.example). Inside the compose
+# network every service uses its normal port.
+
+name: chat
+
+x-app-env: &app-env
+  NODE_ENV: development
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgres://chat:${POSTGRES_PASSWORD:-chat}@postgres:5432/chat
+  DATABASE_POOL_MAX: 20
+  REDIS_URL: redis://redis:6379
+  S3_ENDPOINT: http://minio:9000
+  # Browsers use presigned URLs, so those must point at the host port.
+  S3_PUBLIC_ENDPOINT: http://localhost:${MINIO_PORT:-9000}
+  S3_REGION: us-east-1
+  S3_BUCKET: chat-media
+  S3_ACCESS_KEY_ID: chat-app
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-chat-app-dev-secret}
+  S3_FORCE_PATH_STYLE: 'true'
+  TURN_SECRET: ${TURN_SECRET:-dev-turn-secret}
+  TURN_URLS: turn:localhost:${TURN_PORT:-3478}?transport=udp,turn:localhost:${TURN_PORT:-3478}?transport=tcp
+  CORS_ORIGINS: http://localhost:${WEB_PORT:-5173}
+
+# The apps start only after the data stores are healthy and the bucket exists, so they never boot against a half-ready dependency.
+x-app-depends: &app-depends
+  postgres: { condition: service_healthy }
+  redis: { condition: service_healthy }
+  minio-init: { condition: service_completed_successfully }
+
+x-app-healthcheck: &app-healthcheck # Node 22 has fetch built in, so the app images need no curl.
+  test:
+    [
+      'CMD',
+      'node',
+      '-e',
+      "fetch('http://127.0.0.1:'+process.env.PORT+'/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+    ]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+services:
+  # ── Data stores ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    # Docker's default 64 MB /dev/shm made parallel search queries fail in the benchmark.
+    shm_size: 256mb
+    # pg_stat_statements is loaded for EXPLAIN / benchmark work.
+    command:
+      [
+        'postgres',
+        '-c',
+        'shared_preload_libraries=pg_stat_statements',
+        '-c',
+        'pg_stat_statements.track=all',
+      ]
+    environment:
+      POSTGRES_USER: chat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chat}
+      POSTGRES_DB: chat
+    ports: ['${POSTGRES_PORT:-5432}:5432']
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ../postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1: during first-time init Postgres listens on the socket
+      # only, so this stays unhealthy until the real server is up.
+      test: ['CMD', 'pg_isready', '-h', '127.0.0.1', '-U', 'chat', '-d', 'chat']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    # Redis only holds ephemeral state (presence, routing, rate limits), so
+    # persistence is off on purpose.
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports: ['${REDIS_PORT:-6379}:6379']
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    # Upstream MinIO stopped publishing images; pgsty/minio is a maintained
+    # community build of the same server.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin-dev}
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+      # MinIO applies CORS server-wide (it has no per-bucket CORS).
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:${WEB_PORT:-5173}
+    ports:
+      - '${MINIO_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
+    entrypoint: ['/bin/sh', '/init/init-bucket.sh']
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin-dev}
+      S3_BUCKET: chat-media
+      S3_ACCESS_KEY_ID: chat-app
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-chat-app-dev-secret}
+    volumes:
+      - ../minio/init-bucket.sh:/init/init-bucket.sh:ro
+    depends_on:
+      minio: { condition: service_healthy }
+
+  coturn:
+    image: coturn/coturn:4.6.3
+    # TURN REST credentials: the api signs short-lived username/password pairs
+    # with TURN_SECRET and coturn checks them with the same secret.
+    command:
+      - -n
+      - --log-file=stdout
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET:-dev-turn-secret}
+      - --realm=chat.local
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --external-ip=127.0.0.1
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+    ports:
+      - '${TURN_PORT:-3478}:3478/udp'
+      - '${TURN_PORT:-3478}:3478/tcp'
+      - '49160-49200:49160-49200/udp'
+    healthcheck:
+      test: ['CMD', 'turnutils_stunclient', '127.0.0.1']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # ── Observability ────────────────────────────────────────────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    environment:
+      DATA_SOURCE_URI: postgres:5432/chat?sslmode=disable
+      DATA_SOURCE_USER: chat
+      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD:-chat}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.69.0
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis: { condition: service_healthy }
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports: ['${PROMETHEUS_PORT:-9090}:9090']
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost:9090/-/ready']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ['${GRAFANA_PORT:-3001}:3000']
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost:3000/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    depends_on:
+      prometheus: { condition: service_healthy }
+
+  # ── Applications (each app owns its Dockerfile) ──────────────────────────
+  api:
+    build: { context: ../.., dockerfile: apps/api/Dockerfile }
+    env_file: [{ path: ../../.env, required: false }]
+    environment:
+      <<: *app-env
+      PORT: '3000'
+      API_PORT: '3000' # the api reads API_PORT; PORT is only used by the healthcheck
+    ports: ['${API_PORT:-3000}:3000']
+    healthcheck: *app-healthcheck
+    depends_on: *app-depends
+
+  worker:
+    build: { context: ../.., dockerfile: apps/worker/Dockerfile }
+    env_file: [{ path: ../../.env, required: false }]
+    environment:
+      <<: *app-env
+      PORT: '3002'
+      WORKER_METRICS_PORT: '3002' # the worker reads this; PORT is only used by the healthcheck
+    healthcheck: *app-healthcheck
+    depends_on: *app-depends
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:${API_PORT:-3000}/api
+    ports: ['${WEB_PORT:-5173}:8080']
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pg-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:

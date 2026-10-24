@@ -1,0 +1,45 @@
+{
+  "name": "@chat/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PostgreSQL schema, migrations, seeds and typed query helpers for the chat platform",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "@chat/source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "db:reset": "tsx src/seed.ts --reset",
+    "migrate": "tsx src/migrate.ts up",
+    "seed": "tsx src/seed.ts",
+    "migrate:prod": "node dist/src/migrate.js up",
+    "seed:prod": "node dist/src/seed.js",
+    "migrate:down": "tsx src/migrate.ts down",
+    "migrate:status": "tsx src/migrate.ts status"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.6.0",
+    "kysely": "^0.29.7",
+    "pg": "^8.23.1",
+    "pg-copy-streams": "^7.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/pg-copy-streams": "^1.2.5"
+  }
+}

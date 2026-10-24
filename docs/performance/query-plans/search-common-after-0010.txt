@@ -1,0 +1,38 @@
+-- Search: common word "need" over the chats of the seed user with the most chats (23)
+-- run: 2026-10-24T20:15:36.970Z (second execution, warm cache)
+-- parameters: ["need","2a420809-7b4b-4cc7-95d6-fa3a01869171","need","2a420809-7b4b-4cc7-95d6-fa3a01869171",20]
+
+select "messages"."id", "messages"."conversation_id", "messages"."seq", "messages"."sender_id", "messages"."body_text", "messages"."created_at", messages.created_at::text as "created_at_text", ts_headline('simple', coalesce(messages.body_text, ''), websearch_to_tsquery('simple', $1),
+        'StartSel=' || chr(1) || ', StopSel=' || chr(2) || ', MaxFragments=1, MaxWords=25, MinWords=8') as "snippet" from "messages" inner join "conversation_members" as "cm" on "cm"."conversation_id" = "messages"."conversation_id" where "cm"."user_id" = $2 and "cm"."left_at" is null and "messages"."deleted_at" is null and messages.search @@ websearch_to_tsquery('simple', $3) and (messages.expire_at IS NULL OR messages.expire_at > now())
+    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = messages.id AND h.user_id = $4) order by "messages"."created_at" desc, "messages"."id" desc limit $5
+
+Limit  (cost=3644.66..3650.01 rows=20 width=169) (actual time=2.430..2.541 rows=20 loops=1)
+  Buffers: shared hit=870
+  ->  Result  (cost=3644.66..3826.56 rows=680 width=169) (actual time=2.430..2.538 rows=20 loops=1)
+        Buffers: shared hit=870
+        ->  Sort  (cost=3644.66..3646.36 rows=680 width=137) (actual time=2.420..2.423 rows=20 loops=1)
+              Sort Key: messages.created_at DESC, messages.id DESC
+              Sort Method: top-N heapsort  Memory: 35kB
+              Buffers: shared hit=870
+              ->  Nested Loop Anti Join  (cost=38.50..3626.56 rows=680 width=137) (actual time=0.263..2.306 rows=1102 loops=1)
+                    Join Filter: (h.message_id = messages.id)
+                    Buffers: shared hit=870
+                    ->  Nested Loop  (cost=38.50..3614.66 rows=680 width=105) (actual time=0.262..1.903 rows=1102 loops=1)
+                          Buffers: shared hit=870
+                          ->  Index Scan using conversation_members_user_idx on conversation_members cm  (cost=0.29..91.99 rows=23 width=16) (actual time=0.004..0.012 rows=23 loops=1)
+                                Index Cond: (user_id = '2a420809-7b4b-4cc7-95d6-fa3a01869171'::uuid)
+                                Buffers: shared hit=22
+                          ->  Bitmap Heap Scan on messages  (cost=38.21..152.87 rows=29 width=105) (actual time=0.068..0.078 rows=48 loops=23)
+                                Recheck Cond: ((cm.conversation_id = conversation_id) AND (search @@ '''need'''::tsquery))
+                                Filter: ((deleted_at IS NULL) AND ((expire_at IS NULL) OR (expire_at > now())))
+                                Heap Blocks: exact=488
+                                Buffers: shared hit=848
+                                ->  Bitmap Index Scan on messages_search_idx  (cost=0.00..38.21 rows=29 width=0) (actual time=0.065..0.065 rows=48 loops=23)
+                                      Index Cond: ((conversation_id = cm.conversation_id) AND (search @@ '''need'''::tsquery))
+                                      Buffers: shared hit=360
+                    ->  Seq Scan on hidden_messages h  (cost=0.00..0.00 rows=1 width=16) (actual time=0.000..0.000 rows=0 loops=1102)
+                          Filter: (user_id = '2a420809-7b4b-4cc7-95d6-fa3a01869171'::uuid)
+Planning:
+  Buffers: shared hit=19
+Planning Time: 0.206 ms
+Execution Time: 2.578 ms

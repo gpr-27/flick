@@ -1,0 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude Code agent tooling (local, not part of the app)
+.claude/
+
+# Environment — never commit real secrets; the template is tracked.
+.env
+.env.*
+!.env.example
+# Local Render deploy secrets (generated for the dashboard "Add from .env" flow).
+render-upload.env
+
+# Personal interview-prep notes (local only, never pushed)
+interview/
+
+# Test and tool output
+coverage
+*.tsbuildinfo
+
+# Browser test output
+tests/e2e/.logs
+tests/e2e/.results
+tests/e2e/.report
+tests/e2e/.web-dist
+
+# Private local files (keys, archives): never committed
+.local/

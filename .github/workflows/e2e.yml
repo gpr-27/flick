@@ -1,0 +1,74 @@
+name: E2E
+
+# Browser tests: real Chromium against the API, worker and web app, with a fake login.
+# Not part of the default CI job because it is slower; it runs on pull requests and on main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: chat
+          POSTGRES_PASSWORD: chat
+          POSTGRES_DB: chat_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U chat" --health-interval 2s --health-timeout 5s --health-retries 30
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      # tests/e2e/stack.mjs uses these services instead of starting docker containers of its own.
+      DATABASE_URL: postgres://chat:chat@localhost:5432/chat_e2e
+      REDIS_URL: redis://localhost:6379
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: chat-e2e
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # MinIO needs start-up arguments, which GitHub service containers cannot pass.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            pgsty/minio:RELEASE.2026-08-04T00-00-00Z server /data
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # A normal build (no VITE_E2E_FAKE_AUTH) must not contain the fake login.
+      - name: Check the production bundle has no fake login
+        run: |
+          VITE_APP_ENV=production VITE_API_URL=https://api.example.com VITE_CLERK_PUBLISHABLE_KEY=pk_test_x \
+            npx vite build --outDir "$RUNNER_TEMP/web-prod" --emptyOutDir
+          ! grep -rq "flick.e2e_user" "$RUNNER_TEMP/web-prod"
+        working-directory: apps/web
+      - run: npm run e2e
+      - name: Upload report and logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            tests/e2e/.report
+            tests/e2e/.results
+            tests/e2e/.logs
+          retention-days: 7
