@@ -37,13 +37,14 @@ export const SuggestReplies = ({
   };
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2">
+    // One line on phones: the chips scroll sideways instead of wrapping into more rows.
+    <div className="scroll-slim mb-2 flex items-center gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto sm:flex-wrap">
       <button
         type="button"
         onClick={load}
         disabled={enabled !== true || state.status === 'loading'}
         title={enabled === false ? 'AI is not set up on this server' : 'Suggest 3 replies'}
-        className="btn btn-xs btn-ghost gap-1 text-base-content/70"
+        className="btn btn-xs btn-ghost shrink-0 gap-1 text-base-content/70 max-sm:min-h-11"
       >
         {state.status === 'loading' ? (
           <Spinner size="xs" label="Getting suggestions" />
@@ -67,7 +68,7 @@ export const SuggestReplies = ({
               onPick(reply);
               setState({ status: 'idle' });
             }}
-            className="chip cursor-pointer hover:bg-primary/15"
+            className="chip shrink-0 cursor-pointer whitespace-nowrap hover:bg-primary/15 max-sm:min-h-11"
           >
             {reply}
           </button>

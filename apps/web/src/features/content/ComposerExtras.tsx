@@ -1,6 +1,7 @@
 // Composer buttons for the content types that are not plain text: GIFs and stickers, polls and
-// voice notes. Each one hands a ready message content to `onSend`.
-import { useState } from 'react';
+// voice notes. Each one hands a ready message content to `onSend`. The GIF and poll buttons are
+// hidden on phones (the composer's "+" menu opens them through the controlled props); the mic
+// stays next to Send.
 import { BarChart3, Sticker } from 'lucide-react';
 import type { MessageContent } from '@chat/contracts';
 import { cn } from '@/components/ui';
@@ -8,25 +9,33 @@ import { GifPicker } from './GifPicker';
 import { PollComposer } from './polls/PollComposer';
 import { VoiceComposer } from './voice/VoiceComposer';
 
+export interface ComposerExtrasProps {
+  disabled: boolean;
+  onSend: (content: MessageContent) => void;
+  gifs: boolean;
+  onGifsChange: (open: boolean) => void;
+  poll: boolean;
+  onPollChange: (open: boolean) => void;
+}
+
 export const ComposerExtras = ({
   disabled,
   onSend,
-}: {
-  disabled: boolean;
-  onSend: (content: MessageContent) => void;
-}) => {
-  const [gifs, setGifs] = useState(false);
-  const [poll, setPoll] = useState(false);
+  gifs,
+  onGifsChange,
+  poll,
+  onPollChange,
+}: ComposerExtrasProps) => {
   return (
     <>
       <button
         type="button"
         onClick={() => {
-          setGifs((v) => !v);
+          onGifsChange(!gifs);
         }}
         disabled={disabled}
         className={cn(
-          'btn btn-circle btn-ghost btn-sm',
+          'btn btn-circle btn-ghost btn-sm max-sm:hidden',
           gifs ? 'text-primary' : 'text-base-content/60',
         )}
         aria-label="GIFs and stickers"
@@ -38,10 +47,10 @@ export const ComposerExtras = ({
       <button
         type="button"
         onClick={() => {
-          setPoll(true);
+          onPollChange(true);
         }}
         disabled={disabled}
-        className="btn btn-circle btn-ghost btn-sm text-base-content/60"
+        className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
         aria-label="Create poll"
       >
         <BarChart3 className="size-5" aria-hidden="true" />
@@ -50,21 +59,21 @@ export const ComposerExtras = ({
       {gifs && (
         <GifPicker
           onPick={(content) => {
-            setGifs(false);
+            onGifsChange(false);
             onSend(content);
           }}
           onClose={() => {
-            setGifs(false);
+            onGifsChange(false);
           }}
         />
       )}
       <PollComposer
         open={poll}
         onClose={() => {
-          setPoll(false);
+          onPollChange(false);
         }}
         onCreate={(content) => {
-          setPoll(false);
+          onPollChange(false);
           onSend(content);
         }}
       />

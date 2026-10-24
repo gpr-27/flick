@@ -8,6 +8,7 @@ export { formatCount } from './format';
 export { Input } from './Input';
 export { Modal } from './Modal';
 export { notify } from './notify';
+export { PopoverMenu, type PopoverMenuItem } from './PopoverMenu';
 export { Spinner } from './Spinner';
 export { AppToaster } from './Toast';
 export { useFocusTrap } from './useFocusTrap';

@@ -79,7 +79,7 @@ export const VoiceComposer = ({
           void start();
         }}
         disabled={disabled || active}
-        className="btn btn-circle btn-ghost btn-sm text-base-content/60"
+        className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:order-1 max-sm:min-h-11 max-sm:min-w-11"
         aria-label="Record voice message"
       >
         <Mic className="size-5" aria-hidden="true" />
