@@ -82,6 +82,13 @@ export default defineConfig(({ mode }) => {
       env: testEnv,
       restoreMocks: true,
       css: false,
+      // `npx vitest run --coverage`: every source file is counted, even one no test imports.
+      coverage: {
+        provider: 'v8',
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.d.ts'],
+        reporter: ['text-summary', 'json-summary', 'html'],
+      },
     },
   };
 });

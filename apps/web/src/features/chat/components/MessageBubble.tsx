@@ -226,7 +226,7 @@ const MessageBubbleImpl = ({
                 },
               })
             )}
-            {message.viewed && <p className="mt-1 text-xs italic opacity-70">Opened</p>}
+            {message.viewed && !deleted && <p className="mt-1 text-xs italic opacity-70">Opened</p>}
             {isBot && message.content?.type === 'text' && message.content.ai_model && (
               <ModelTag
                 label={modelLabel(message.content.ai_provider ?? '', message.content.ai_model)}
