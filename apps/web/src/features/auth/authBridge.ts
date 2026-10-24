@@ -20,6 +20,16 @@ export const getDeviceId = (): string => {
   }
 };
 
+/** Forget this browser's device id so the next sign-in registers a new one (see signOutOfClerk). */
+export const resetDeviceId = (): void => {
+  memoryDeviceId = null;
+  try {
+    localStorage.removeItem(DEVICE_KEY);
+  } catch {
+    // Storage blocked: nothing was saved, so there is nothing to forget.
+  }
+};
+
 export interface ClerkBridge {
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
@@ -35,7 +45,9 @@ export const setClerkBridge = (next: ClerkBridge | null): void => {
 export const getSessionToken = async (): Promise<string | null> =>
   (await bridge?.getToken()) ?? null;
 
-/** Sign out through Clerk. */
+/** Sign out through Clerk. The server ties a device id to one account, so the next account to sign in
+ * on this browser must not reuse it. */
 export const signOutOfClerk = async (): Promise<void> => {
+  resetDeviceId();
   await bridge?.signOut();
 };

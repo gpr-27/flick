@@ -3,7 +3,8 @@
 import { create } from 'zustand';
 import { ENDPOINTS, type Me as MeSchema } from '@chat/contracts';
 import type { z } from 'zod';
-import { getErrorMessage } from '@/lib/api';
+import { ApiError, getErrorMessage } from '@/lib/api';
+import { resetDeviceId } from './authBridge';
 import { getApi } from '@/lib/services';
 
 export type Me = z.infer<typeof MeSchema>;
@@ -26,8 +27,23 @@ export const useSessionStore = create<SessionState>()((set) => ({
 
   load: async () => {
     set({ status: 'booting', error: null });
+    const fetchMe = () => getApi().call(ENDPOINTS.users.me);
     try {
-      const user = await getApi().call(ENDPOINTS.users.me);
+      let user: Me;
+      try {
+        user = await fetchMe();
+      } catch (error) {
+        // This browser's device id was registered by another account (someone else signed in here
+        // before). The server refuses it on purpose, so take a new device id and try once more.
+        if (!(
+          error instanceof ApiError &&
+          error.status === 403 &&
+          /device id/i.test(error.message)
+        ))
+          throw error;
+        resetDeviceId();
+        user = await fetchMe();
+      }
       set({ status: 'authenticated', user });
     } catch (error) {
       set({ status: 'booting', error: getErrorMessage(error, "Can't reach the server.") });

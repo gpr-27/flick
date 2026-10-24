@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiClient } from '@/lib/api';
-import { getDeviceId, setClerkBridge, signOutOfClerk } from './authBridge';
+import { getDeviceId, resetDeviceId, setClerkBridge, signOutOfClerk } from './authBridge';
 import { SignInPage } from './components/SignInPage';
 import { getSocketAuth } from './socketAuth';
 
@@ -27,6 +27,17 @@ describe('signed-out view', () => {
     clerk.signedIn = false;
     render(<SignInPage />);
     expect(screen.getByText('clerk-sign-in')).toBeInTheDocument();
+  });
+});
+
+describe('device id reset', () => {
+  it('gives the next account on this browser a new device id', async () => {
+    const first = getDeviceId();
+    await signOutOfClerk();
+    const second = getDeviceId();
+    expect(second).not.toBe(first);
+    resetDeviceId();
+    expect(getDeviceId()).not.toBe(second);
   });
 });
 
