@@ -2,7 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { ArrowLeft, Info, Phone, Sparkles, Timer, Users, Video, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, type PopoverMenuItem } from '@/components/ui';
+import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
 import { FlickPanel } from '@/features/ai/FlickPanel';
+import { isFlickChat } from '@/features/ai/isFlickBot';
 import { ChatOptionsMenu } from '../../organise/ChatOptionsMenu';
 import { SearchPanel } from '../../search/SearchPanel';
 import { useCallStore } from '@/features/calls/useCallStore';
@@ -28,6 +30,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
 
   const title = conversationTitle(conversation);
   const isGroup = conversation.type === 'group';
+  const isBot = isFlickChat(conversation);
   const busy = Object.values(activity ?? {})[0];
   const subtitle = busy
     ? busy === 'typing'
@@ -37,7 +40,9 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
         : 'sending a file…'
     : isGroup
       ? `${conversation.member_count} members`
-      : presenceLabel(presence);
+      : isBot
+        ? 'Ask me anything'
+        : presenceLabel(presence);
 
   const close = (): void => {
     select(null);
@@ -103,16 +108,23 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           <ArrowLeft className="size-5" aria-hidden="true" />
         </button>
 
-        <Avatar
-          src={conversationAvatar(conversation)}
-          name=""
-          size="sm"
-          online={Boolean(presence?.online)}
-          imgClassName="ring-2 ring-primary/20 shadow-sm"
-        />
+        {isBot ? (
+          <FlickAvatar size="sm" />
+        ) : (
+          <Avatar
+            src={conversationAvatar(conversation)}
+            name=""
+            size="sm"
+            online={Boolean(presence?.online)}
+            imgClassName="ring-2 ring-primary/20 shadow-sm"
+          />
+        )}
 
         <div className="min-w-0">
-          <h2 className="truncate font-display text-base font-bold tracking-tight">{title}</h2>
+          <h2 className="flex items-center gap-1.5 font-display text-base font-bold tracking-tight">
+            <span className="truncate">{title}</span>
+            {isBot && <FlickBadge />}
+          </h2>
           <p
             className={`truncate text-sm ${busy ? 'font-medium text-primary' : 'text-base-content/60'}`}
           >

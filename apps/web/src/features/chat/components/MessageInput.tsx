@@ -34,6 +34,7 @@ import { MENTION_LIST_ID, mentionOptionId, useMentionAutocomplete } from '../../
 import { useDraftStore } from '../../organise/drafts';
 import { previewContent } from '../content/registry';
 import { conversationTitle } from '../conversationView';
+import { isFlickBot } from '@/features/ai/isFlickBot';
 import { sendMessage } from '../outbox/useOutboxStore';
 import { uploadAttachment } from '../upload';
 import { useChatStore } from '../useChatStore';
@@ -433,6 +434,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     replyingTo?.sender_user_id === myId
       ? 'yourself'
       : (users[replyingTo?.sender_user_id ?? '']?.display_name ?? title);
+  const replyingToBot = replyingTo ? isFlickBot(replyingTo.sender_user_id, null) : false;
   const composeLabel = editing
     ? 'Editing message'
     : replyingTo
@@ -456,6 +458,9 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
               <p className="truncate text-xs text-base-content/60">
                 {previewContent(replyingTo.content)}
               </p>
+            )}
+            {replyingToBot && conversation.type === 'group' && (
+              <p className="text-xs font-medium text-primary/80">Flick will answer your reply</p>
             )}
           </div>
           <button

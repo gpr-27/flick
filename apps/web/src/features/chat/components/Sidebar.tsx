@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, Badge, EmptyState, ErrorState, Input, cn, formatCount } from '@/components/ui';
+import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
+import { isFlickChat } from '@/features/ai/isFlickBot';
 import { formatRelativeTime } from '@/lib/time';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CHAT_TABS, visibleChats, type ChatTab, type ChatView } from '../../organise/chatFilters';
@@ -52,6 +54,7 @@ const ConversationRow = ({
   // A locked chat shows no message text until its passcode is entered in this tab.
   const hidden = useIsHidden(c.id, c.prefs.locked);
   const muted = isMuted(c.prefs);
+  const bot = isFlickChat(c);
   return (
     <li
       role="option"
@@ -67,12 +70,22 @@ const ConversationRow = ({
         isActive ? 'bg-primary/12 ring-1 ring-primary/30' : 'hover:bg-base-content/5',
       )}
     >
-      <Avatar src={conversationAvatar(c)} name="" size="md" online={isOnline} />
+      {bot ? (
+        <FlickAvatar size="md" />
+      ) : (
+        <Avatar src={conversationAvatar(c)} name="" size="md" online={isOnline} />
+      )}
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className={cn('truncate', unread > 0 ? 'font-bold' : 'font-semibold')}>
-            {conversationTitle(c)}
+          <span
+            className={cn(
+              'flex min-w-0 items-center gap-1.5',
+              unread > 0 ? 'font-bold' : 'font-semibold',
+            )}
+          >
+            <span className="truncate">{conversationTitle(c)}</span>
+            {bot && <FlickBadge />}
           </span>
           {last && (
             <span className="shrink-0 text-[11px] font-medium text-base-content/60">
@@ -110,7 +123,7 @@ const ConversationRow = ({
 
           <span className="flex shrink-0 items-center gap-1.5 text-base-content/50">
             {muted && <BellOff className="size-3.5" aria-label="Muted" role="img" />}
-            {c.prefs.pinned && <Pin className="size-3.5" aria-label="Pinned" role="img" />}
+            {(c.prefs.pinned || bot) && <Pin className="size-3.5" aria-label="Pinned" role="img" />}
             {c.prefs.favorite && <Star className="size-3.5" aria-label="Favourite" role="img" />}
             {unread > 0 && (
               <Badge variant="count" label={`${unread} unread`}>

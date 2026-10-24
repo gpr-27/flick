@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, Button, Modal, Spinner } from '@/components/ui';
+import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
+import { isFlickBot } from '@/features/ai/isFlickBot';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CallLinkSection } from '@/features/groupcall/components/CallLinkSection';
 import { useChatStore, type Member } from '../useChatStore';
@@ -93,10 +95,14 @@ export const GroupInfoModal = ({
               const editable = canManage && !isMe && m.role !== 'owner';
               return (
                 <li key={m.user.id} className="flex items-center gap-3 rounded-xl p-2">
-                  <Avatar src={m.user.avatar_url} name="" size="xs" />
+                  {isFlickBot(m.user.id, m.user) ? (
+                    <FlickAvatar size="xs" />
+                  ) : (
+                    <Avatar src={m.user.avatar_url} name="" size="xs" />
+                  )}
                   <span className="min-w-0 flex-1 truncate font-semibold">
                     {m.user.display_name}
-                    {isMe ? ' (you)' : ''}
+                    {isMe ? ' (you)' : ''} {isFlickBot(m.user.id, m.user) && <FlickBadge />}
                   </span>
                   {editable ? (
                     <>

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import type { MessageRecord, UserSummary } from '@chat/contracts';
 import { Avatar, cn, notify } from '@/components/ui';
-import { FlickBadge } from '@/features/ai/FlickBadge';
+import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
 import { isFlickBot } from '@/features/ai/isFlickBot';
 import { ModelTag } from '@/features/ai/ModelTag';
 import { modelLabel } from '@/features/ai/modelLabel';
@@ -153,14 +153,17 @@ const MessageBubbleImpl = ({
         aria-label={`${author} at ${time}`}
         role="article"
       >
-        {!isMine && (
-          <Avatar
-            src={sender?.avatar_url}
-            name=""
-            size="xs"
-            imgClassName="ring-2 ring-primary/15 shadow-sm"
-          />
-        )}
+        {!isMine &&
+          (isBot ? (
+            <FlickAvatar size="xs" />
+          ) : (
+            <Avatar
+              src={sender?.avatar_url}
+              name=""
+              size="xs"
+              imgClassName="ring-2 ring-primary/15 shadow-sm"
+            />
+          ))}
 
         <div
           className={cn(

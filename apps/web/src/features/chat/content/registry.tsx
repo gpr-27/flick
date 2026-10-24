@@ -13,6 +13,7 @@ import { firstUrl } from '@/features/content/urls';
 import { PollView } from '@/features/content/polls/PollView';
 import { ViewOnce } from '@/features/content/ViewOnce';
 import { VoicePlayer } from '@/features/content/voice/VoicePlayer';
+import { RichText } from '@/features/content/richText/RichText';
 import { MentionText } from '../../organise/MentionViews';
 import { useChatStore, userName } from '../useChatStore';
 import { getAttachmentUrl, useAttachmentUrl } from './attachments';
@@ -51,9 +52,10 @@ const TextView = ({ content }: { content: Of<'text'> }) => {
   const url = firstUrl(content.text);
   return (
     <>
-      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-        <MentionText text={content.text} known={known} />
-      </p>
+      <RichText
+        text={content.text}
+        renderText={(part) => <MentionText text={part} known={known} />}
+      />
       {url && <LinkPreviewCard url={url} />}
     </>
   );

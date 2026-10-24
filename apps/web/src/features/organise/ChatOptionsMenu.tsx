@@ -3,6 +3,7 @@ import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MoreVertical, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Modal, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
+import { isFlickChat } from '@/features/ai/isFlickBot';
 import { useChatStore } from '../chat/useChatStore';
 import { LockModal } from './ChatLock';
 import { useLockStore } from './lock';
@@ -222,18 +223,22 @@ export const ChatOptionsMenu = ({
                 <hr className="my-1 border-base-content/10" />
               </div>
             )}
-            <Item onClick={act(() => void updatePrefs(id, { pinned: !prefs.pinned }))}>
-              {prefs.pinned ? 'Unpin chat' : 'Pin chat'}
-            </Item>
-            <Item
-              onClick={act(() => {
-                void updatePrefs(id, { archived: !prefs.archived }).then((ok) => {
-                  if (ok && !prefs.archived) select(null);
-                });
-              })}
-            >
-              {prefs.archived ? 'Unarchive chat' : 'Archive chat'}
-            </Item>
+            {!isFlickChat(conversation) && (
+              <Item onClick={act(() => void updatePrefs(id, { pinned: !prefs.pinned }))}>
+                {prefs.pinned ? 'Unpin chat' : 'Pin chat'}
+              </Item>
+            )}
+            {!isFlickChat(conversation) && (
+              <Item
+                onClick={act(() => {
+                  void updatePrefs(id, { archived: !prefs.archived }).then((ok) => {
+                    if (ok && !prefs.archived) select(null);
+                  });
+                })}
+              >
+                {prefs.archived ? 'Unarchive chat' : 'Archive chat'}
+              </Item>
+            )}
             <Item onClick={act(() => void updatePrefs(id, { favorite: !prefs.favorite }))}>
               {prefs.favorite ? 'Remove from favourites' : 'Add to favourites'}
             </Item>

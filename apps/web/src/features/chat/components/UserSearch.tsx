@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
 import { ENDPOINTS, type UserSummary } from '@chat/contracts';
 import { Avatar, Input, Spinner } from '@/components/ui';
+import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
+import { isFlickBot } from '@/features/ai/isFlickBot';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
@@ -82,9 +84,16 @@ export const UserSearch = ({
                 aria-label={actionLabel(user)}
                 className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-base-content/5"
               >
-                <Avatar src={user.avatar_url} name="" size="xs" />
+                {isFlickBot(user.id, user) ? (
+                  <FlickAvatar size="xs" />
+                ) : (
+                  <Avatar src={user.avatar_url} name="" size="xs" />
+                )}
                 <span className="min-w-0">
-                  <span className="block truncate font-semibold">{user.display_name}</span>
+                  <span className="flex items-center gap-1.5 font-semibold">
+                    <span className="truncate">{user.display_name}</span>
+                    {isFlickBot(user.id, user) && <FlickBadge />}
+                  </span>
                   <span className="block truncate text-xs text-base-content/60">
                     @{user.username}
                   </span>

@@ -6,10 +6,14 @@ import { ErrorState, Modal } from '@/components/ui';
 import { isNewDay } from '@/lib/time';
 import { useConnectionState } from '@/lib/realtime';
 import { useSessionStore } from '@/features/auth/useSessionStore';
+import { FlickThinking } from '@/features/ai/FlickThinking';
+import { FlickWelcome } from '@/features/ai/FlickWelcome';
+import { useFlickThinking } from '@/features/ai/useFlickThinking';
+import { isFlickChat } from '@/features/ai/isFlickBot';
 import { GroupCallBanner } from '@/features/groupcall/components/GroupCallBanner';
 import { useAttachmentUrl } from '../content/attachments';
 import { conversationAvatar, conversationTitle } from '../conversationView';
-import { useOutboxStore } from '../outbox/useOutboxStore';
+import { sendMessage, useOutboxStore } from '../outbox/useOutboxStore';
 import { useUnexpired } from '@/features/content/disappearing';
 import { previewContent, type ContentContext } from '../content/registry';
 import { LockScreen } from '../../organise/ChatLock';
@@ -146,6 +150,12 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   const messages = thread?.messages;
   const allRows = useMemo(() => buildRows(messages ?? [], outbox, id), [messages, outbox, id]);
   const rows = useUnexpired(allRows);
+  const isBot = isFlickChat(conversation);
+  const thinking = useFlickThinking(
+    rows.map((r) => r.message),
+    myId,
+    conversation,
+  );
   const bySeqId = useMemo(
     () => new Map((messages ?? []).map((m) => [m.message_id, m])),
     [messages],
@@ -236,6 +246,8 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
           : `${title} is ${activityLabel(firstOther[1])}`
       }
     />
+  ) : thinking ? (
+    <FlickThinking />
   ) : null;
 
   let body;
@@ -254,7 +266,15 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
       </div>
     );
   } else if (rows.length === 0 && !activityRow) {
-    body = <EmptyThread title={title} />;
+    body = isBot ? (
+      <FlickWelcome
+        onPick={(prompt) => {
+          sendMessage(myId, id, { type: 'text', text: prompt });
+        }}
+      />
+    ) : (
+      <EmptyThread title={title} />
+    );
   } else {
     body = (
       <VirtualMessageList
@@ -282,7 +302,11 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
               myId={myId}
               sender={sender}
               isGroup={isGroup}
-              status={rowStatus(row, receipts, Math.max(1, conversation.member_count - 1))}
+              status={
+                isBot && !row.local
+                  ? 'read' // the assistant always "reads" what you send
+                  : rowStatus(row, receipts, Math.max(1, conversation.member_count - 1))
+              }
               quoted={quoted}
               quotedName={
                 quoted?.sender_user_id === myId
