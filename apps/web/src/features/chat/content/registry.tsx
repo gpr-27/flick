@@ -4,9 +4,9 @@
 // other file changes. A type with no entry falls back to a plain "unsupported" line, so a newer
 // server never breaks an older client.
 import { File as FileIcon, ImageOff, Phone, PhoneMissed, Video } from 'lucide-react';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { ContentType, MessageContent } from '@chat/contracts';
-import { Spinner } from '@/components/ui';
+import { ReloadButton, Spinner } from '@/components/ui';
 import { RemoteImage, VideoView } from '@/features/content/MediaViews';
 import { LinkPreviewCard } from '@/features/content/LinkPreviewCard';
 import { firstUrl } from '@/features/content/urls';
@@ -15,7 +15,7 @@ import { ViewOnce } from '@/features/content/ViewOnce';
 import { VoicePlayer } from '@/features/content/voice/VoicePlayer';
 import { MentionText } from '../../organise/MentionViews';
 import { useChatStore, userName } from '../useChatStore';
-import { getAttachmentUrl, useAttachmentUrl } from './attachments';
+import { getAttachmentUrl, refreshAttachmentUrl, useAttachmentUrl } from './attachments';
 
 export interface ContentContext {
   /** Open an image attachment in the lightbox. */
@@ -67,7 +67,7 @@ const text: ContentRenderer<'text'> = {
 // ── image ─────────────────────────────────────────────────────────────────
 
 const ImageView = ({ content, context }: { content: Of<'image'>; context: ContentContext }) => {
-  const { url, failed } = useAttachmentUrl(content.attachment_id);
+  const { url, failed, fail, reload } = useAttachmentUrl(content.attachment_id);
   const box = { aspectRatio: `${content.width} / ${content.height}` };
   return (
     <div>
@@ -84,6 +84,7 @@ const ImageView = ({ content, context }: { content: Of<'image'>; context: Conten
             src={url}
             alt={content.caption ?? 'Image'}
             loading="lazy"
+            onError={fail}
             width={content.width}
             height={content.height}
             style={box}
@@ -96,7 +97,10 @@ const ImageView = ({ content, context }: { content: Of<'image'>; context: Conten
           className="grid max-h-80 w-56 place-items-center rounded-xl bg-base-content/10 text-base-content/50"
         >
           {failed ? (
-            <ImageOff className="size-6" aria-label="Image unavailable" />
+            <div className="flex flex-col items-center gap-1">
+              <ImageOff className="size-6" aria-label="Image unavailable" />
+              <ReloadButton onClick={reload} label="Reload image" />
+            </div>
           ) : (
             <Spinner size="sm" label="Loading image" />
           )}
@@ -118,31 +122,47 @@ const image: ContentRenderer<'image'> = {
 
 // ── file ──────────────────────────────────────────────────────────────────
 
-const FileView = ({ content }: { content: Of<'file'> }) => (
-  <div>
-    <button
-      type="button"
-      onClick={() => {
-        void getAttachmentUrl(content.attachment_id).then((url) =>
-          window.open(url, '_blank', 'noopener'),
-        );
-      }}
-      className="flex items-center gap-2 rounded-xl bg-black/10 px-3 py-2 text-left"
-      aria-label={`Download ${content.file_name}`}
-    >
-      <FileIcon className="size-5 shrink-0" aria-hidden="true" />
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold">{content.file_name}</span>
-        <span className="block text-xs opacity-70">{formatBytes(content.size)}</span>
-      </span>
-    </button>
-    {content.caption && (
-      <p className="mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-        {content.caption}
-      </p>
-    )}
-  </div>
-);
+const FileView = ({ content }: { content: Of<'file'> }) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => {
+          // After a failure always ask for a fresh signed link instead of the cached one.
+          const load = failed ? refreshAttachmentUrl : getAttachmentUrl;
+          void load(content.attachment_id).then(
+            (url) => {
+              setFailed(false);
+              window.open(url, '_blank', 'noopener');
+            },
+            () => {
+              setFailed(true);
+            },
+          );
+        }}
+        className="flex items-center gap-2 rounded-xl bg-black/10 px-3 py-2 text-left"
+        aria-label={`Download ${content.file_name}`}
+      >
+        <FileIcon className="size-5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold">{content.file_name}</span>
+          <span className="block text-xs opacity-70">{formatBytes(content.size)}</span>
+        </span>
+      </button>
+      {failed && (
+        <p role="alert" className="mt-1 text-xs">
+          Couldn&apos;t get this file. Tap the file to try again with a fresh link.
+        </p>
+      )}
+      {content.caption && (
+        <p className="mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+          {content.caption}
+        </p>
+      )}
+    </div>
+  );
+};
 
 const file: ContentRenderer<'file'> = {
   render: (c) => <FileView content={c} />,

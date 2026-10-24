@@ -1,5 +1,5 @@
 import { ImageOff } from 'lucide-react';
-import { Spinner } from '@/components/ui';
+import { ReloadButton, Spinner } from '@/components/ui';
 import { useAttachmentUrl } from '@/features/chat/content/attachments';
 
 const Caption = ({ text }: { text?: string | undefined }) =>
@@ -18,7 +18,7 @@ export const VideoView = ({
   height: number;
   caption?: string | undefined;
 }) => {
-  const { url, failed } = useAttachmentUrl(attachmentId);
+  const { url, failed, fail, reload } = useAttachmentUrl(attachmentId);
   return (
     <div>
       {url ? (
@@ -27,6 +27,7 @@ export const VideoView = ({
           controls
           preload="metadata"
           playsInline
+          onError={fail}
           aria-label={caption ?? 'Video'}
           style={{ aspectRatio: `${width} / ${height}` }}
           className="block max-h-80 w-auto max-w-[18rem] rounded-xl bg-black"
@@ -37,7 +38,10 @@ export const VideoView = ({
           className="grid max-h-80 w-56 place-items-center rounded-xl bg-base-content/10 text-base-content/50"
         >
           {failed ? (
-            <ImageOff className="size-6" aria-label="Video unavailable" />
+            <div className="flex flex-col items-center gap-1">
+              <ImageOff className="size-6" aria-label="Video unavailable" />
+              <ReloadButton onClick={reload} label="Reload video" />
+            </div>
           ) : (
             <Spinner size="sm" label="Loading video" />
           )}

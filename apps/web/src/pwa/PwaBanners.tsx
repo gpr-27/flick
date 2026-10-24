@@ -10,7 +10,7 @@ export const UpdateBanner = () => {
   return (
     <div
       role="status"
-      className="glass-card fixed inset-x-4 bottom-4 z-[65] mx-auto flex max-w-sm items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold shadow-lg"
+      className="glass-card fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[65] mx-auto flex max-w-sm items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold shadow-lg"
     >
       <span className="flex items-center gap-2">
         <RefreshCw className="size-4" aria-hidden="true" />A new version of Flick is available.
@@ -46,7 +46,7 @@ export const OfflineNotice = () => {
   return (
     <div
       role="status"
-      className="glass-card fixed inset-x-4 top-2 z-[65] mx-auto flex max-w-sm items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-error shadow-lg"
+      className="glass-card fixed inset-x-4 top-[max(0.5rem,env(safe-area-inset-top))] z-[65] mx-auto flex max-w-sm items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-error shadow-lg"
     >
       <WifiOff className="size-4" aria-hidden="true" />
       You are offline. Flick will reconnect when you are back.

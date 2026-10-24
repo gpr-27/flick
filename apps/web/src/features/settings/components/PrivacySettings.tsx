@@ -22,6 +22,7 @@ const AUDIENCE_FIELDS = [
 export const PrivacySettings = () => {
   const [settings, setSettings] = useState<Privacy | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +39,12 @@ export const PrivacySettings = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
+
+  const retry = (): void => {
+    setError(null);
+    setAttempt((n) => n + 1);
+  };
 
   /** Save one change; show it at once and put the old value back if the server refuses. */
   const change = async (patch: Partial<Privacy>): Promise<void> => {
@@ -58,12 +64,22 @@ export const PrivacySettings = () => {
       <h2 id="privacy-title" className="font-display text-lg font-bold">
         Privacy
       </h2>
-      {error && (
-        <p role="alert" className="mt-3 text-sm text-error">
-          {error}
-        </p>
+      {error && !settings && (
+        <div role="alert" className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-error">{error}</p>
+          <button type="button" className="btn btn-outline btn-sm" onClick={retry}>
+            Retry
+          </button>
+        </div>
       )}
-      {!settings && !error && <p className="mt-3 text-sm text-base-content/60">Loading...</p>}
+      {!settings && !error && (
+        <div className="mt-4 space-y-4" role="status" aria-busy="true">
+          <span className="sr-only">Loading your privacy settings</span>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="skeleton h-8 w-full rounded-lg" aria-hidden="true" />
+          ))}
+        </div>
+      )}
       {settings && (
         <div className="mt-4 space-y-4">
           {AUDIENCE_FIELDS.map(({ key, label }) => (
