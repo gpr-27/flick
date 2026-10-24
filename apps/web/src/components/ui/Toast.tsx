@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 export const AppToaster = () => (
   <Toaster
     position="top-center"
+    containerStyle={{ top: 'calc(env(safe-area-inset-top) + 16px)' }}
     toastOptions={{
       duration: 3000,
       ariaProps: { role: 'status', 'aria-live': 'polite' },

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Pause, Play } from 'lucide-react';
-import { Spinner } from '@/components/ui';
+import { ReloadButton, Spinner } from '@/components/ui';
 import { useAttachmentUrl } from '@/features/chat/content/attachments';
 import { formatClock } from '../format';
 
@@ -44,7 +44,7 @@ export const VoicePlayer = ({
   durationMs: number;
   waveform: readonly number[];
 }) => {
-  const { url, failed } = useAttachmentUrl(attachmentId);
+  const { url, failed, fail, reload } = useAttachmentUrl(attachmentId);
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -63,7 +63,13 @@ export const VoicePlayer = ({
     if (audio.current) audio.current.playbackRate = next;
   };
 
-  if (failed) return <p className="text-sm italic opacity-70">Voice message unavailable</p>;
+  if (failed)
+    return (
+      <div className="flex items-center gap-2">
+        <p className="text-sm italic opacity-70">Voice message unavailable</p>
+        <ReloadButton onClick={reload} label="Reload voice message" />
+      </div>
+    );
 
   return (
     // min-w-0 lets the waveform shrink, so the time and speed always keep their room on the right.
@@ -101,6 +107,7 @@ export const VoicePlayer = ({
           ref={audio}
           src={url}
           preload="metadata"
+          onError={fail}
           onPlay={(e) => {
             e.currentTarget.playbackRate = speed;
             setPlaying(true);

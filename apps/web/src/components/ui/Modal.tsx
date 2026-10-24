@@ -48,7 +48,7 @@ export const Modal = ({
   return createPortal(
     <div
       className={cn(
-        'fixed inset-0 z-[60] flex items-center justify-center bg-base-content/40 backdrop-blur-sm animate-fade-in-up',
+        'fixed inset-0 z-[60] flex items-center justify-center pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] bg-base-content/40 backdrop-blur-sm animate-fade-in-up',
         overlayClassName,
       )}
       onClick={onBackdrop}

@@ -1,5 +1,5 @@
 // Attachments are private: a short-lived presigned URL is requested from the API when needed.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ENDPOINTS } from '@chat/contracts';
 import { getApi } from '@/lib/services';
 
@@ -26,16 +26,33 @@ export const getAttachmentUrl = (attachmentId: string): Promise<string> => {
   return request;
 };
 
+/** Forget the cached link and ask for a fresh one (the old signed link expired or failed). */
+export const refreshAttachmentUrl = (attachmentId: string): Promise<string> => {
+  cache.delete(attachmentId);
+  return getAttachmentUrl(attachmentId);
+};
+
+export interface AttachmentUrl {
+  url: string | null;
+  failed: boolean;
+  /** Call from the element's onError: the signed link no longer works, show the error state. */
+  fail: () => void;
+  /** Fetch a fresh signed link (the "Reload" button). */
+  reload: () => void;
+}
+
 /** The download URL of an attachment, or null while loading / if it failed. */
-export const useAttachmentUrl = (attachmentId: string): { url: string | null; failed: boolean } => {
+export const useAttachmentUrl = (attachmentId: string): AttachmentUrl => {
   const [state, setState] = useState<{ id: string; url: string | null; failed: boolean }>({
     id: attachmentId,
     url: null,
     failed: false,
   });
+  const [tries, setTries] = useState(0);
   useEffect(() => {
     let alive = true;
-    getAttachmentUrl(attachmentId)
+    // The first load may use the cache; a reload (tries > 0) always asks for a new link.
+    (tries > 0 ? refreshAttachmentUrl(attachmentId) : getAttachmentUrl(attachmentId))
       .then((url) => {
         if (alive) setState({ id: attachmentId, url, failed: false });
       })
@@ -45,6 +62,14 @@ export const useAttachmentUrl = (attachmentId: string): { url: string | null; fa
     return () => {
       alive = false;
     };
+  }, [attachmentId, tries]);
+  const fail = useCallback((): void => {
+    setState({ id: attachmentId, url: null, failed: true });
   }, [attachmentId]);
-  return state.id === attachmentId ? state : { url: null, failed: false };
+  const reload = useCallback((): void => {
+    setState({ id: attachmentId, url: null, failed: false });
+    setTries((n) => n + 1);
+  }, [attachmentId]);
+  const current = state.id === attachmentId ? state : { url: null, failed: false };
+  return { ...current, fail, reload };
 };

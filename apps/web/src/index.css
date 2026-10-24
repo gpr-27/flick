@@ -19,7 +19,9 @@
 
   --page-bg: #f4f3fa;
   --body-color: #2e2a45;
-  --text-muted: rgba(46, 42, 69, 0.55);
+  --text-muted: rgba(46, 42, 69, 0.72);
+  /* Meta text (timestamps, previews). Checked against WCAG AA in theme-contrast.test.ts. */
+  --text-meta: rgba(46, 42, 69, 0.72);
 
   /* Atmospheric app backdrop */
   --app-bg:
@@ -76,7 +78,8 @@
 
   --page-bg: #14111f;
   --body-color: #ece9f7;
-  --text-muted: rgba(236, 233, 247, 0.55);
+  --text-muted: rgba(236, 233, 247, 0.7);
+  --text-meta: rgba(236, 233, 247, 0.7);
 
   --app-bg:
     radial-gradient(1200px 800px at 110% -10%, rgba(124, 108, 240, 0.2) 0%, transparent 55%),
@@ -311,6 +314,13 @@
     color: var(--text-muted);
   }
 
+  /* Secondary text used /50 and /60 opacity, which fell under WCAG AA 4.5:1 in the light theme.
+     Both now resolve to one checked token. The extra selector weight beats the Tailwind class. */
+  html .text-base-content\/60,
+  html .text-base-content\/50 {
+    color: var(--text-meta);
+  }
+
   /* Dynamic viewport height with a 100vh fallback for older browsers. On mobile,
      plain 100vh ignores the dynamic browser chrome (URL bar), which pushes a
      bottom bar like the message input off-screen; dvh tracks the visible area. */
@@ -331,5 +341,50 @@
   textarea,
   select {
     font-size: 16px;
+  }
+}
+
+/* Touch devices: every small daisyUI button gets an invisible 44x44 hit area (WCAG 2.5.5, Apple HIG).
+   The visual size and the layout stay the same; neighbours keep their own centre. */
+@media (pointer: coarse) {
+  :where(.btn-sm, .btn-xs, .tap-target):not(.absolute, .fixed, .sticky) {
+    position: relative;
+  }
+  .btn-sm::after,
+  .btn-xs::after,
+  .tap-target::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 2.75rem);
+    height: max(100%, 2.75rem);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Respect the OS "reduce motion" setting: no drifting blobs, bouncing, fades or slides.
+   Opacity/colour changes stay instant, so state is still shown. Spinners (animate-spin) and
+   skeleton shimmer are the loading signal, so they slow down instead of vanishing. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-spin,
+  .loading,
+  .skeleton {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .animate-bounce,
+  .animate-pulse,
+  .blobs::before,
+  .blobs::after {
+    animation: none !important;
   }
 }

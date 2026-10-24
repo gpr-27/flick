@@ -492,7 +492,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
             <button
               type="button"
               onClick={removeAttachment}
-              className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-base-300 shadow ring-1 ring-base-content/10 transition-colors hover:bg-error hover:text-error-content"
+              className="tap-target absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-base-300 shadow ring-1 ring-base-content/10 transition-colors hover:bg-error hover:text-error-content"
               aria-label="Remove attachment"
             >
               <X className="size-3.5" aria-hidden="true" />

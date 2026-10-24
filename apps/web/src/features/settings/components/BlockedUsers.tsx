@@ -14,6 +14,7 @@ export const BlockedUsers = () => {
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reporting, setReporting] = useState<ReportTarget | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   const fetchPage = (after?: string) =>
     getApi().call(ENDPOINTS.moderation.blocks, { query: after ? { cursor: after } : {} });
@@ -33,7 +34,12 @@ export const BlockedUsers = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
+
+  const retry = (): void => {
+    setError(null);
+    setAttempt((n) => n + 1);
+  };
 
   const showMore = async (after: string): Promise<void> => {
     try {
@@ -60,9 +66,22 @@ export const BlockedUsers = () => {
         Blocked users
       </h2>
       {error && (
-        <p role="alert" className="mt-3 text-sm text-error">
-          {error}
-        </p>
+        <div role="alert" className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-error">{error}</p>
+          {!items && (
+            <button type="button" className="btn btn-outline btn-sm" onClick={retry}>
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+      {!items && !error && (
+        <div className="mt-3 space-y-3" role="status" aria-busy="true">
+          <span className="sr-only">Loading blocked users</span>
+          {[0, 1].map((i) => (
+            <div key={i} className="skeleton h-12 w-full rounded-xl" aria-hidden="true" />
+          ))}
+        </div>
       )}
       {items?.length === 0 && (
         <p className="mt-3 text-sm text-base-content/60">You have not blocked anyone.</p>

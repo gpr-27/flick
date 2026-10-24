@@ -312,7 +312,7 @@ const MessageBubbleImpl = ({
               <button
                 type="button"
                 onClick={openMenu}
-                className="grid size-6 place-items-center rounded-full opacity-0 transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:hidden"
+                className="tap-target grid size-6 place-items-center rounded-full transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
                 aria-label="Actions for this message"
                 aria-haspopup="menu"
               >
