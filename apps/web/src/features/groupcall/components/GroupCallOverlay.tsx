@@ -125,7 +125,7 @@ export const GroupCallOverlay = () => {
               ? 'Joining the call…'
               : status === 'reconnecting'
                 ? 'Connection lost. Reconnecting…'
-                : `${participants.length} in the call`}
+                : `${participants.length} ${participants.length === 1 ? 'person' : 'people'} in the call`}
           </p>
           <ul className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 content-center gap-3 overflow-y-auto px-4 sm:grid-cols-2 lg:grid-cols-3">
             {participants.map((p) => (

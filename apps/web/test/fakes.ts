@@ -162,6 +162,7 @@ export const makeConversation = (
   type: 'direct',
   title: null,
   avatar_url: null,
+  description: null,
   peer: { id: BOB, username: 'bob', display_name: 'Bob', avatar_url: null, is_bot: false },
   member_count: 2,
   my_role: 'member',

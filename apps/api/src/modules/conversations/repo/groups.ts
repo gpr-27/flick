@@ -311,6 +311,7 @@ export async function setRole(
 
 export interface UpdateInput {
   title?: string;
+  description?: string;
   avatarAttachmentId?: string | null;
   settings?: {
     only_admins_send?: boolean;
@@ -330,7 +331,10 @@ export async function updateConversation(
     const conv = await lockConversation(trx, conversationId);
     const actor = await requireActiveMember(trx, conversationId, actorId);
     const { settings = {} } = input;
-    const changesInfo = input.title !== undefined || input.avatarAttachmentId !== undefined;
+    const changesInfo =
+      input.title !== undefined ||
+      input.description !== undefined ||
+      input.avatarAttachmentId !== undefined;
     const { disappearing_timer_s: timer, ...switches } = settings;
 
     if (!hasGroupFeatures(conv.type)) {
@@ -349,6 +353,7 @@ export async function updateConversation(
 
     const update: Updateable<ConversationsTable> = {};
     if (input.title !== undefined) update.name = input.title;
+    if (input.description !== undefined) update.description = input.description || null;
     if (input.avatarAttachmentId !== undefined) {
       update.avatar_object_key = input.avatarAttachmentId
         ? await attachmentKey(trx, actorId, input.avatarAttachmentId)
