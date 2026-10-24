@@ -18,6 +18,7 @@ Start with the [architecture overview](architecture/overview.md), then the
 - [`features/calls.md`](features/calls.md): 1:1 and group calls, call links, and the web client.
 - [`features/media.md`](features/media.md): uploads, downloads, GIFs, link previews.
 - [`features/pwa-and-push.md`](features/pwa-and-push.md): the installable app and Web Push.
+- [`features/calls-offline.md`](features/calls-offline.md): calls that reach people who are offline or have the app closed, and the limits.
 
 ## Operations
 

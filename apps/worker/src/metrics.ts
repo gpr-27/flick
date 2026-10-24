@@ -25,6 +25,12 @@ export const notificationsTotal = new Counter({
   labelNames: ['result'],
   registers: [registry],
 });
+export const callPushTotal = new Counter({
+  name: 'call_push_total',
+  help: 'Call push jobs by kind (ring, cancel) and outcome.',
+  labelNames: ['kind', 'result'],
+  registers: [registry],
+});
 export const messagesExpiredTotal = new Counter({
   name: 'messages_expired_total',
   help: 'Messages turned into tombstones by the expire-messages job.',

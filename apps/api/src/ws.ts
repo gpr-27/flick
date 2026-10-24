@@ -1,11 +1,12 @@
 import type { Server as HttpServer } from 'node:http';
-import { LIMITS } from '@chat/contracts';
+import { ENDPOINTS, LIMITS } from '@chat/contracts';
 import { createAdapter } from '@socket.io/redis-adapter';
 import type { FastifyInstance } from 'fastify';
 import { PgBoss } from 'pg-boss';
 import { Server } from 'socket.io';
 import type { AppDeps } from './app.js';
 import { flickBotOnMessage, type FlickTrigger } from './modules/ai/bot.js';
+import { CALL_PUSH_QUEUE, type CallPushJob } from './modules/gateway/call-push.js';
 import { attachGateway } from './modules/gateway/index.js';
 import { createDispatcher, NOTIFY_QUEUE } from './modules/dispatcher/index.js';
 import type { Redis } from './redis.js';
@@ -40,10 +41,27 @@ export async function closeIo(io: Server): Promise<void> {
 /** Starts the real-time gateway and the outbox dispatcher with the app, and stops them with it. */
 export function registerRealtime(app: FastifyInstance, deps: AppDeps): void {
   const { authenticateSocket } = deps;
-  if (!authenticateSocket) return;
-
   const stops: (() => Promise<unknown> | void)[] = [];
   let io: Server | undefined;
+  let declineFromPush: ((callId: string, token: string) => Promise<boolean>) | undefined;
+
+  // "Decline" on a call notification while Flick is closed. The service worker has no login; the
+  // one-time token from inside the push is the proof (it expires with the ringing window).
+  app.post(
+    ENDPOINTS.calls.declineFromPush.path,
+    { config: { rateLimit: { max: 20, timeWindow: 60_000 } } },
+    async (req, reply) => {
+      const body = ENDPOINTS.calls.declineFromPush.body.safeParse(req.body);
+      if (!body.success) return reply.code(400).send({ error: { message: 'Invalid request' } });
+      if (!declineFromPush) return reply.code(503).send({ error: { message: 'Not ready' } });
+      const ok = await declineFromPush(body.data.call_id, body.data.token);
+      if (!ok) return reply.code(404).send({ error: { message: 'No such call' } });
+      return reply.code(204).send();
+    },
+  );
+  // Without a socket login there is no gateway, and so no calls to decline (the route answers 503).
+  if (!authenticateSocket) return;
+
   // Fastify waits for open connections before it runs onClose, and a Socket.IO connection stays
   // open until someone closes it. So the sockets are disconnected first (clients reconnect to
   // another replica); without this a shutdown with connected users would hang.
@@ -53,8 +71,6 @@ export function registerRealtime(app: FastifyInstance, deps: AppDeps): void {
   app.addHook('onReady', async () => {
     const server = createIo(app.server, deps.redis, deps.config.CORS_ORIGINS);
     io = server;
-    const gateway = attachGateway(server, { ...deps, authenticateSocket });
-
     // pg-boss only sends here (the worker runs the jobs), so its own scheduling is switched off.
     const boss = new PgBoss({
       connectionString: deps.config.DATABASE_URL,
@@ -66,6 +82,17 @@ export function registerRealtime(app: FastifyInstance, deps: AppDeps): void {
     boss.on('error', (error) => deps.logger.error({ err: error }, 'pg-boss error'));
     await boss.start();
     await boss.createQueue(NOTIFY_QUEUE, { retryLimit: 5, retryDelay: 10, retryBackoff: true });
+    // A ring push is only useful for a few seconds, so it is retried quickly and not for long.
+    await boss.createQueue(CALL_PUSH_QUEUE, { retryLimit: 2, retryDelay: 2 });
+
+    const gateway = attachGateway(server, {
+      ...deps,
+      authenticateSocket,
+      enqueueCallPush: async (job: CallPushJob) => {
+        await boss.send(CALL_PUSH_QUEUE, job);
+      },
+    });
+    declineFromPush = (callId, token) => gateway.calls.declineFromPush(callId, token);
 
     // The @flick bot runs after delivery and is not awaited: a slow AI call never delays messages.
     const { ai } = deps;

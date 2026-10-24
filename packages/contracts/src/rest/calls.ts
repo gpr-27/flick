@@ -61,6 +61,12 @@ export const CallLink = z.object({
 });
 export const CallLinkParams = z.object({ code: CallLink.shape.code });
 
+/**
+ * "Decline" pressed on a call notification while Flick is closed. The service worker has no login,
+ * so it sends the one-time token that came inside the (encrypted) push for this call.
+ */
+export const DeclineFromPushRequest = z.object({ call_id: Id, token: z.string().min(16).max(128) });
+
 export const CallLogEntry = z.object({
   call_id: Id,
   conversation_id: Id.nullable(),

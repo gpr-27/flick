@@ -12,6 +12,9 @@ export interface GatewayRepo {
   touchLastSeen(userId: string): Promise<void>;
   /** Last-seen per user as others may see it: null when unknown or hidden by privacy settings. */
   visibleLastSeen(userIds: string[]): Promise<Map<string, string | null>>;
+  /** True when the user has at least one working Web Push subscription (a call could ring them). */
+  hasPushSubscription(userId: string): Promise<boolean>;
+  displayName(userId: string): Promise<string>;
 }
 
 export function createGatewayRepo(db: Db): GatewayRepo {
@@ -92,6 +95,26 @@ export function createGatewayRepo(db: Db): GatewayRepo {
         result.set(r.id, visible && r.last_seen_at ? new Date(r.last_seen_at).toISOString() : null);
       }
       return result;
+    },
+
+    async hasPushSubscription(userId) {
+      const row = await db
+        .selectFrom('push_subscriptions')
+        .select('id')
+        .where('user_id', '=', userId)
+        .where('disabled_at', 'is', null)
+        .limit(1)
+        .executeTakeFirst();
+      return row !== undefined;
+    },
+
+    async displayName(userId) {
+      const row = await db
+        .selectFrom('users')
+        .select('display_name')
+        .where('id', '=', userId)
+        .executeTakeFirst();
+      return row?.display_name || 'Someone';
     },
   };
 }

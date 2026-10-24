@@ -11,6 +11,9 @@ Two kinds of calls, built on two different technologies.
 
 ## 1:1 calls
 
+Calling someone who is offline or has Flick closed (a push notification with Answer/Decline, and its honest
+limits) is in [calls-offline.md](calls-offline.md).
+
 1. The caller makes a `call_id` and sends `call_offer` (with the WebRTC SDP) over Socket.IO.
 2. The gateway checks it is a direct chat, nobody is blocked and the callee is online, then relays
    the offer. It keeps "who is calling whom" in Redis, so only the real peer gets later events.
