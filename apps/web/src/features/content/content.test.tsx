@@ -418,8 +418,9 @@ describe('link previews', () => {
     await waitFor(() => {
       expect(api.call).toHaveBeenCalled();
     });
-    expect(container.querySelector('a')).toBeNull();
-    expect(screen.getByText('see https://example.test/broken')).toBeInTheDocument();
+    // Only the link inside the text; no preview card.
+    expect(container.querySelectorAll('a')).toHaveLength(1);
+    expect(container).toHaveTextContent('see https://example.test/broken');
   });
 
   it('does not ask for a preview when there is no link', () => {

@@ -9,7 +9,7 @@ import type { ContentType, MessageContent } from '@chat/contracts';
 import { ReloadButton, Spinner } from '@/components/ui';
 import { RemoteImage, VideoView } from '@/features/content/MediaViews';
 import { LinkPreviewCard } from '@/features/content/LinkPreviewCard';
-import { firstUrl } from '@/features/content/urls';
+import { firstUrl, splitLinks } from '@/features/content/urls';
 import { PollView } from '@/features/content/polls/PollView';
 import { ViewOnce } from '@/features/content/ViewOnce';
 import { VoicePlayer } from '@/features/content/voice/VoicePlayer';
@@ -41,6 +41,12 @@ const formatBytes = (n: number): string =>
 
 // ── text ──────────────────────────────────────────────────────────────────
 
+/** Past this many characters or lines a message starts collapsed behind "Read more". */
+const LONG_TEXT_CHARS = 600;
+const LONG_TEXT_LINES = 10;
+export const isLongText = (text: string): boolean =>
+  text.length > LONG_TEXT_CHARS || text.split('\n').length > LONG_TEXT_LINES;
+
 const TextView = ({ content }: { content: Of<'text'> }) => {
   const users = useChatStore((s) => s.users);
   // "@flick" is the AI bot, which may not be in the user cache.
@@ -49,11 +55,43 @@ const TextView = ({ content }: { content: Of<'text'> }) => {
     [users],
   );
   const url = firstUrl(content.text);
+  const long = isLongText(content.text);
+  const [expanded, setExpanded] = useState(false);
   return (
     <>
-      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-        <MentionText text={content.text} known={known} />
+      <p
+        className={`whitespace-pre-wrap break-words text-[15px] leading-relaxed ${long && !expanded ? 'line-clamp-[10]' : ''}`}
+      >
+        {splitLinks(content.text).map((part, i) =>
+          part.href ? (
+            <a
+              key={i}
+              href={part.href}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="underline underline-offset-2 break-all"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              {part.text}
+            </a>
+          ) : (
+            <MentionText key={i} text={part.text} known={known} />
+          ),
+        )}
       </p>
+      {long && (
+        <button
+          type="button"
+          onClick={() => {
+            setExpanded((v) => !v);
+          }}
+          className="mt-1 text-xs font-semibold underline"
+        >
+          {expanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
       {url && <LinkPreviewCard url={url} />}
     </>
   );

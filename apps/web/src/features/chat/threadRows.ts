@@ -72,3 +72,46 @@ export function rowStatus(
   }));
   return tickState(row.message.seq, [...known, ...silent]);
 }
+
+/**
+ * Key of the first unread row when a chat is opened with `unread` new messages: the oldest of
+ * the last `unread` messages written by someone else. Undefined when nothing is unread.
+ */
+export function firstUnreadKey(
+  rows: readonly ThreadRow[],
+  myId: string,
+  unread: number,
+): string | undefined {
+  if (unread <= 0) return undefined;
+  let left = unread;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i];
+    if (!row || row.local || row.message.sender_user_id === myId) continue;
+    if (row.message.content?.type === 'system') continue;
+    left -= 1;
+    if (left === 0) return row.key;
+  }
+  // Fewer loaded than unread: start at the oldest one we have from someone else.
+  for (const row of rows) {
+    if (!row.local && row.message.sender_user_id !== myId) return row.key;
+  }
+  return undefined;
+}
+
+/** Messages from one sender on one day, back to back, share an avatar and a name. */
+export function groupPosition(
+  rows: readonly ThreadRow[],
+  index: number,
+): { startsGroup: boolean; endsGroup: boolean } {
+  const same = (a: ThreadRow | undefined, b: ThreadRow | undefined): boolean =>
+    a !== undefined &&
+    b !== undefined &&
+    a.message.content?.type !== 'system' &&
+    b.message.content?.type !== 'system' &&
+    a.message.sender_user_id === b.message.sender_user_id &&
+    new Date(a.message.created_at).toDateString() === new Date(b.message.created_at).toDateString();
+  return {
+    startsGroup: !same(rows[index - 1], rows[index]),
+    endsGroup: !same(rows[index], rows[index + 1]),
+  };
+}
