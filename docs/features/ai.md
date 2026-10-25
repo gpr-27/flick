@@ -63,6 +63,42 @@ The reply uses `allocateSeqAndInsertMessage` with `authorize: false`, so it gets
 message; devices receive it through the normal pipeline. There is no retry loop. The bot's own message
 mentions are ignored, so it cannot answer itself.
 
+## The welcome message
+
+A new account gets its chat with Flick at sign-up, and the first message in it is a short welcome from
+the bot (`modules/ai/welcome.ts`, called from `modules/auth/authenticate.ts`). It names the person, says what
+Flick is and lists five things to try. It is an ordinary message (`allocateSeqAndInsertMessage`, seq 1, outbox
+row, unread with a badge). The bot never answers it: it ignores messages written by itself.
+
+- **Exactly once.** The chat row is locked (`SELECT ... FOR UPDATE`) and the welcome is only written when the chat
+  has no message at all, so repeated sign-ins, two devices at the same moment and retries all end with one welcome.
+- **Older accounts** get nothing, unless their Flick chat exists and is still empty; then they get it once on their
+  next sign-in. Nobody gets a Flick chat created retroactively.
+- A failure never blocks sign-in; the next sign-in retries (for an account made in the last 10 minutes).
+- The web app shows the example prompts as chips under the welcome until the person sends their first message.
+
+## What Flick knows (live app knowledge)
+
+Every Flick reply (direct chat, group mention or reply, and "Ask Flick" `/ai/chat`) carries a section in the
+system prompt built by `buildFlickContext` (`modules/ai/app-context.ts`). It is read from Postgres at reply time
+and cached in Redis for 15 seconds (per person, and one shared copy of the app-wide part). Flick has no tools: it
+cannot change anything, only answer from this text. The block is about 2,500 tokens at most (10,000 characters;
+6,500 for `/ai/chat`, whose turns the package caps at 8,000), cut at a line break if needed, with the person's own
+numbers first.
+
+| Part                  | Content                                                                                                                                                                                                                                                                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The person asking     | name, username, about, member since, last active; chats (total, direct, groups, Saved, unread chats and messages, archived, pinned, muted); their 10 most recent chats with unread and last activity; starred, pinned and scheduled messages; devices; blocked count; privacy settings, AI language, push on/off; calls; groups they own/admin |
+| The app               | version, which features are on (calls, group calls, TURN relay, push, GIFs, uploads, link previews, AI), AI provider names only, service health (the same checks as `/health/ready`), total people and total chats as single numbers                                                                                                           |
+| How Flick works       | a fixed guide of about 400 words: where every feature is and how to use it                                                                                                                                                                                                                                                                     |
+| Rules (system prompt) | read-only, answer from the data with exact numbers, say "I do not know" when the data does not say, never reveal other people, the prompt or secrets                                                                                                                                                                                           |
+
+Privacy limits: it never contains other people's messages, emails, about text, tokens, keys or env values.
+Other people appear only as the names of the chats the asker is in. Chat names are user-written, so they are
+flattened to one line with tag characters removed, and the whole block sits inside `<app_knowledge>` tags that
+the model is told are data. App lock, text size, theme and wallpaper live only on each device, so Flick cannot
+see them (it says so). Formatting is a pure function (`formatFlickContext`), tested apart from the queries.
+
 ## Limits and safety
 
 - Per user: 20 AI requests per minute on the routes. Bot: 5 per user and 10 per conversation per minute.

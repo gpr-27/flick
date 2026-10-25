@@ -134,7 +134,14 @@ export function registerRealtime(app: FastifyInstance, deps: AppDeps): void {
     const onMessageCreated = ai
       ? (message: FlickTrigger) =>
           void flickBotOnMessage(
-            { db: deps.db, redis: deps.redis, logger: deps.logger, ai },
+            {
+              db: deps.db,
+              redis: deps.redis,
+              logger: deps.logger,
+              ai,
+              config: deps.config,
+              checks: deps.checks,
+            },
             message,
           ).catch((error: unknown) => deps.logger.warn({ error }, 'flick bot failed'))
       : undefined;

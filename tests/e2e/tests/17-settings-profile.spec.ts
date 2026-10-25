@@ -157,7 +157,8 @@ test('sign out, then sign in as someone else in the same browser, and back again
   await page.getByPlaceholder('alice').fill(secondName);
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByRole('button', { name: 'New chat' })).toBeVisible();
-  await expect(page.getByText('No chats yet')).toBeVisible();
+  // A new account starts with one chat: Flick, with its welcome message.
+  await expect(chatInList(page, 'Flick')).toHaveCount(1);
   await expect(chatInList(page, bobName)).toHaveCount(0);
   await goTo(page, 'Profile');
   await expect(page.getByRole('heading', { name: secondName })).toBeVisible();
