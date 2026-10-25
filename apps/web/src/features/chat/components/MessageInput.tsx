@@ -358,7 +358,9 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const attachFile = (file: File): void => {
     markUsed('composer.attach');
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+    // Photos, videos and audio get a preview you can look at (or play) before sending.
+    const previewable = /^(image|video|audio)\//.test(file.type);
+    const previewUrl = previewable ? URL.createObjectURL(file) : null;
     previewUrlRef.current = previewUrl;
     queuedSend.current = null;
     setSendQueued(false);
@@ -787,7 +789,25 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       {attachment && (
         <div className="mb-3 inline-flex">
           <div className="relative">
-            {attachment.previewUrl ? (
+            {attachment.previewUrl && attachment.file.type.startsWith('video/') ? (
+              <video
+                src={attachment.previewUrl}
+                controls
+                muted
+                playsInline
+                preload="metadata"
+                aria-label="Video preview"
+                className="max-h-44 max-w-[min(18rem,70vw)] rounded-2xl bg-black object-contain shadow-sm ring-2 ring-primary/20"
+              />
+            ) : attachment.previewUrl && attachment.file.type.startsWith('audio/') ? (
+              <audio
+                src={attachment.previewUrl}
+                controls
+                preload="metadata"
+                aria-label="Audio preview"
+                className="h-10 max-w-[min(18rem,70vw)]"
+              />
+            ) : attachment.previewUrl ? (
               <img
                 src={attachment.previewUrl}
                 alt="Selected image preview"
