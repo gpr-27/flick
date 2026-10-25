@@ -4,7 +4,8 @@ import type { z } from 'zod';
 import type { Config } from '../../../config.js';
 
 const TTL_SECONDS = 3600;
-// Used when coturn is not configured: enough for calls between peers on friendly networks.
+// Used when no TURN relay is configured: enough for calls between peers on friendly networks, but
+// two phones on different mobile networks usually need a relay.
 const PUBLIC_STUN = 'stun:stun.l.google.com:19302';
 
 /**
@@ -18,7 +19,17 @@ export function turnCredentials(
   now = new Date(),
 ): z.infer<typeof TurnCredentials> {
   const expiresAt = new Date(now.getTime() + TTL_SECONDS * 1000);
-  const { TURN_SECRET, TURN_URLS } = config;
+  const { TURN_SECRET, TURN_URLS, TURN_USERNAME, TURN_CREDENTIAL } = config;
+  // A hosted TURN service with a fixed username and password.
+  if (TURN_URLS?.length && TURN_USERNAME && TURN_CREDENTIAL) {
+    return {
+      ice_servers: [
+        { urls: [PUBLIC_STUN] },
+        { urls: TURN_URLS, username: TURN_USERNAME, credential: TURN_CREDENTIAL },
+      ],
+      expires_at: expiresAt.toISOString(),
+    };
+  }
   if (!TURN_SECRET || !TURN_URLS?.length) {
     return { ice_servers: [{ urls: [PUBLIC_STUN] }], expires_at: expiresAt.toISOString() };
   }

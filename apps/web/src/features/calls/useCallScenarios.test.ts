@@ -23,6 +23,8 @@ import {
   type FakeMedia,
 } from '../../../test/webrtcFakes';
 import {
+  CONNECT_FAILED_MESSAGE,
+  CONNECT_TIMEOUT_MS,
   FAILURE_SHOWN_MS,
   RECONNECT_GRACE_MS,
   RING_TIMEOUT_MS,
@@ -696,5 +698,36 @@ describe('screen share rules', () => {
     await upToConnected('video');
     await store().stopScreenShare();
     expect(store().isSharing).toBe(false);
+  });
+});
+
+describe('a call whose media path never comes up', () => {
+  it('ends with a clear message after the connect timeout, not "Reconnecting" for ever', async () => {
+    vi.useFakeTimers();
+    const callId = await dial();
+    await remoteAnswers(callId);
+    peer().setConnection('connecting');
+    await vi.advanceTimersByTimeAsync(CONNECT_TIMEOUT_MS - 1000);
+    expect(store().callStatus).not.toBe('idle');
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(store().callStatus).toBe('idle');
+    expect(store().failure).toBe(CONNECT_FAILED_MESSAGE);
+    expect(transport.sentOf('call_end')).toHaveLength(1);
+  });
+
+  it('a path that comes up in time keeps the call, with no message', async () => {
+    vi.useFakeTimers();
+    const callId = await dial();
+    await remoteAnswers(callId);
+    peer().setConnection('connecting');
+    await vi.advanceTimersByTimeAsync(CONNECT_TIMEOUT_MS - 5000);
+    peer().setConnection('connected');
+    await vi.advanceTimersByTimeAsync(CONNECT_TIMEOUT_MS * 2);
+    expect(store()).toMatchObject({
+      callStatus: 'connected',
+      connectionState: 'connected',
+      failure: null,
+    });
   });
 });

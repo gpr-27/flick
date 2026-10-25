@@ -26,12 +26,19 @@ import {
 export const RING_TIMEOUT_MS = 45_000;
 /** How long a dropped media path may try to recover (ICE restart) before the call ends. */
 export const RECONNECT_GRACE_MS = 15_000;
+/**
+ * How long a call may spend setting up the media path once the other side has answered. Without
+ * this a call between networks that cannot reach each other would sit on "Reconnecting…" for ever.
+ */
+export const CONNECT_TIMEOUT_MS = 30_000;
+export const CONNECT_FAILED_MESSAGE =
+  "Couldn't connect the call. One of your networks may be blocking calls: try Wi-Fi on both phones, or call again.";
 /** How long the "call failed" message stays on screen. */
 export const FAILURE_SHOWN_MS = 6_000;
 
 export type CallStatus = 'idle' | 'calling' | 'ringing' | 'connected';
 export type MediaConnectionState = 'new' | 'connecting' | 'connected' | 'reconnecting';
-type TimerName = 'ring' | 'reconnect';
+type TimerName = 'ring' | 'reconnect' | 'connect';
 
 interface PendingCandidate {
   callId: string;
@@ -234,7 +241,17 @@ export const useCallStore = create<CallState>()((set, get) => ({
     peer.onconnectionstatechange = () => {
       if (get()._peer !== peer) return;
       const state = peer.connectionState;
+      if (state === 'connecting' && !get()._timers.connect) {
+        // The path is being set up: if it is not up in time, say so and end the call.
+        get()._setTimer('connect', CONNECT_TIMEOUT_MS, () => {
+          if (get()._peer === peer && peer.connectionState !== 'connected') {
+            get().endCall();
+            get()._fail(CONNECT_FAILED_MESSAGE);
+          }
+        });
+      }
       if (state === 'connected') {
+        get()._clearTimer('connect');
         get()._clearTimer('reconnect');
         set({ connectionState: 'connected' });
       } else if (state === 'disconnected' || state === 'failed') {

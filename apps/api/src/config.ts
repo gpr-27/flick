@@ -53,6 +53,10 @@ const schema = z.object({
   // 1:1 calls: coturn shares TURN_SECRET with the API. Without them /calls/turn returns STUN only.
   TURN_SECRET: z.string().optional(),
   TURN_URLS: list.optional(),
+  // A hosted TURN service (ExpressTURN, Metered, ...) gives one fixed username and password
+  // instead of a shared secret. Set these together with TURN_URLS.
+  TURN_USERNAME: z.string().optional(),
+  TURN_CREDENTIAL: z.string().optional(),
 
   // Group calls and call links (LiveKit). Without them those endpoints return FEATURE_DISABLED.
   LIVEKIT_URL: z.url({ protocol: /^wss?$/ }).optional(),

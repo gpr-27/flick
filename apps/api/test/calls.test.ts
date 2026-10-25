@@ -28,6 +28,35 @@ describe('TURN credentials', () => {
     expect(creds.expires_at).toBe(new Date(expiry * 1000).toISOString());
   });
 
+  it("hands out a hosted TURN service's fixed username and password with its URLs", () => {
+    const config = loadConfig({
+      ...TEST_ENV,
+      TURN_URLS: 'turn:relay.example.com:80,turns:relay.example.com:443?transport=tcp',
+      TURN_USERNAME: 'service-user',
+      TURN_CREDENTIAL: 'service-password',
+    });
+    const creds = turnCredentials(config, userId);
+    const turn = creds.ice_servers.find((s) => s.credential);
+    expect(turn).toEqual({
+      urls: ['turn:relay.example.com:80', 'turns:relay.example.com:443?transport=tcp'],
+      username: 'service-user',
+      credential: 'service-password',
+    });
+    expect(creds.ice_servers[0]?.urls[0]).toMatch(/^stun:/); // the public STUN stays first
+  });
+
+  it('needs the URLs and both halves of the login: a partial setup is STUN only', () => {
+    for (const partial of [
+      { TURN_USERNAME: 'u', TURN_CREDENTIAL: 'c' }, // no URLs
+      { TURN_URLS: 'turn:relay.example.com:80', TURN_USERNAME: 'u' }, // no credential
+      { TURN_URLS: 'turn:relay.example.com:80', TURN_CREDENTIAL: 'c' }, // no username
+    ]) {
+      const creds = turnCredentials(loadConfig({ ...TEST_ENV, ...partial }), userId);
+      expect(creds.ice_servers).toHaveLength(1);
+      expect(creds.ice_servers[0]?.credential).toBeUndefined();
+    }
+  });
+
   it('falls back to STUN only, without credentials, when coturn is not configured', () => {
     const creds = turnCredentials(loadConfig(TEST_ENV), userId);
     expect(creds.ice_servers).toHaveLength(1);

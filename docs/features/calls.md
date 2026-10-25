@@ -30,6 +30,12 @@ scheme: username = `<expiry>:<user id>`, password = base64 HMAC-SHA1 of the user
 the credential stops working after one hour. Nothing is stored. Without `TURN_SECRET`/`TURN_URLS`
 the endpoint returns a public STUN server only.
 
+A hosted TURN service (ExpressTURN, Metered, and similar) gives one fixed username and password
+instead of a shared secret. Set `TURN_URLS` to its `turn:`/`turns:` addresses plus `TURN_USERNAME`
+and `TURN_CREDENTIAL`, and the endpoint hands them to signed-in users (the browser never has them
+baked in). Without any TURN relay, two phones on different mobile networks often cannot reach each
+other: the call is ended after 30 seconds with a message, instead of waiting for ever.
+
 `GET /calls` is the calls tab: your calls, newest first, keyset-paginated. You see a call only if
 you are an active member of its conversation (for a 1:1 call, that is the two people).
 `participant_ids` and `conversation_id` give the call-back target.
