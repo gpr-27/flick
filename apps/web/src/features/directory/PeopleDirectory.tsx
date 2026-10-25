@@ -168,7 +168,15 @@ export const PeopleDirectory = ({
       />
 
       <div className={cn('relative min-h-0', listClassName)}>
-        <div ref={scrollRef} className="scroll-slim h-full overflow-y-auto">
+        {/* On phones the list leaves a gutter on the right for the letter strip, so the strip never
+            sits on top of the Add / Message buttons. */}
+        <div
+          ref={scrollRef}
+          className={cn(
+            'scroll-slim h-full overflow-y-auto',
+            showList && !searching && headerIndexes.length > 1 && 'max-sm:pr-7',
+          )}
+        >
           {loading && <SkeletonRows />}
           {error && <ErrorState title="Couldn't load people" message={error} onRetry={retry} />}
           {!loading && !error && rows.length === 0 && (
@@ -209,7 +217,7 @@ export const PeopleDirectory = ({
                       role="presentation"
                       data-letter-header={row.letter}
                       style={style}
-                      className="bg-base-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary"
+                      className="flex items-center rounded-lg bg-base-200 px-3 text-xs font-bold uppercase tracking-wide text-primary"
                     >
                       {row.letter}
                     </div>
@@ -274,7 +282,7 @@ export const PeopleDirectory = ({
         {/* Phones: tap a letter to jump there. */}
         {showList && !searching && headerIndexes.length > 1 && (
           <div
-            className="absolute inset-y-0 right-0 flex flex-col justify-center sm:hidden"
+            className="absolute inset-y-1 right-0 flex w-6 flex-col items-center justify-start gap-0.5 overflow-y-auto rounded-full bg-base-200/80 py-1 sm:hidden"
             role="group"
             aria-label="Jump to letter"
           >
@@ -285,7 +293,7 @@ export const PeopleDirectory = ({
                 <button
                   key={letter}
                   type="button"
-                  className="px-1.5 text-[10px] font-bold leading-4 text-primary"
+                  className="grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-primary active:bg-primary/20"
                   aria-label={`Jump to ${letter}`}
                   onClick={() => {
                     jumpTo(letter);

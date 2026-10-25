@@ -23,18 +23,39 @@ export const Waveform = ({
       </div>
     );
   }
-  const played = Math.round(progress * samples.length);
+  // A recording can have far more samples than fit: a bar is at least 2px wide with a 1px gap, so
+  // draw at most BARS of them (averaged), and the bars can never be wider than the space they have.
+  const bars = reduceBars(samples, BARS);
+  const played = Math.round(progress * bars.length);
   return (
-    <div className="flex h-8 flex-1 items-center gap-px" aria-hidden="true" data-testid="waveform">
-      {samples.map((level, i) => (
+    <div
+      className="flex h-8 w-full min-w-0 items-center gap-px"
+      aria-hidden="true"
+      data-testid="waveform"
+    >
+      {bars.map((level, i) => (
         <span
           key={i}
-          className="w-[3px] flex-1 rounded-full bg-current"
+          className="min-w-0 flex-1 rounded-full bg-current"
           style={{ height: `${Math.max(12, level)}%`, opacity: i < played ? 1 : 0.35 }}
         />
       ))}
     </div>
   );
+};
+
+/** Most bars drawn in a voice note, so each stays a readable width on a phone. */
+const BARS = 40;
+
+/** Averages the samples down to `count` bars (or keeps them when there are fewer). */
+export const reduceBars = (samples: readonly number[], count: number): number[] => {
+  if (samples.length <= count) return [...samples];
+  return Array.from({ length: count }, (_, i) => {
+    const from = Math.floor((i * samples.length) / count);
+    const to = Math.max(from + 1, Math.floor(((i + 1) * samples.length) / count));
+    const slice = samples.slice(from, to);
+    return slice.reduce((sum, v) => sum + v, 0) / slice.length;
+  });
 };
 
 export const VoicePlayer = ({
@@ -76,36 +97,46 @@ export const VoicePlayer = ({
   if (!gate.go) return <TapToDownload noun="voice message" onClick={gate.load} />;
 
   return (
-    // min-w-0 lets the waveform shrink, so the time and speed always keep their room on the right.
-    <div className="flex w-full min-w-0 max-w-64 items-center gap-2">
-      {url ? (
+    // Two rows, so nothing sits on top of anything else: the play button and the waveform, then
+    // (under the waveform) the time on the left and the speed on the right.
+    <div className="flex w-full min-w-0 max-w-64 flex-col gap-1">
+      <div className="flex min-w-0 items-center gap-2">
+        {url ? (
+          <button
+            type="button"
+            onClick={toggle}
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-black/15"
+            aria-label={playing ? 'Pause voice message' : 'Play voice message'}
+          >
+            {playing ? (
+              <Pause className="size-4" aria-hidden="true" />
+            ) : (
+              <Play className="size-4" aria-hidden="true" />
+            )}
+          </button>
+        ) : (
+          <span className="grid size-10 shrink-0 place-items-center">
+            <Spinner size="sm" label="Loading voice message" />
+          </span>
+        )}
+        <div className="flex min-w-0 flex-1">
+          <Waveform samples={waveform} progress={progress} />
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 pl-12 text-xs">
+        {/* While it plays, the time counts up; otherwise it is the length of the message. */}
+        <span className="tabular-nums" aria-label="Voice message time">
+          {formatClock(playing || progress > 0 ? Math.round(progress * durationMs) : durationMs)}
+        </span>
         <button
           type="button"
-          onClick={toggle}
-          className="grid size-9 shrink-0 place-items-center rounded-full bg-black/15"
-          aria-label={playing ? 'Pause voice message' : 'Play voice message'}
+          onClick={cycleSpeed}
+          className="rounded-full bg-black/15 px-2.5 py-1 text-xs font-semibold tabular-nums"
+          aria-label={`Playback speed ${speed}x. Change speed`}
         >
-          {playing ? (
-            <Pause className="size-4" aria-hidden="true" />
-          ) : (
-            <Play className="size-4" aria-hidden="true" />
-          )}
+          {speed}x
         </button>
-      ) : (
-        <Spinner size="sm" label="Loading voice message" />
-      )}
-      <div className="flex min-w-0 flex-1">
-        <Waveform samples={waveform} progress={progress} />
       </div>
-      <span className="shrink-0 text-xs tabular-nums">{formatClock(durationMs)}</span>
-      <button
-        type="button"
-        onClick={cycleSpeed}
-        className="rounded-full bg-black/15 px-2 py-0.5 text-xs font-semibold"
-        aria-label={`Playback speed ${speed}x. Change speed`}
-      >
-        {speed}x
-      </button>
       {url && (
         <audio
           ref={audio}
