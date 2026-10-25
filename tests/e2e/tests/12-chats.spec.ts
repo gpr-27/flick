@@ -51,8 +51,13 @@ test('a group: add a member, promote an admin, remove a member, rename, and leav
   await openGroupInfo(bob.page);
   await expect(bob.page.getByRole('button', { name: 'Add members' })).toHaveCount(0);
   await bob.page.getByRole('button', { name: 'Close', exact: true }).click();
-  await groupDialog(alice.page).getByLabel(`Role of ${bob.name}`).selectOption('admin');
-  await expect(groupDialog(alice.page).getByLabel(`Role of ${bob.name}`)).toHaveValue('admin');
+  await groupDialog(alice.page)
+    .getByRole('button', { name: `Make ${bob.name} admin` })
+    .click();
+  // The button turns into the opposite one: Demote.
+  await expect(
+    groupDialog(alice.page).getByRole('button', { name: `Remove admin from ${bob.name}` }),
+  ).toHaveText('Demote');
   await openGroupInfo(bob.page);
   await expect(bob.page.getByRole('button', { name: 'Add members' })).toBeVisible();
   await bob.page.getByRole('button', { name: 'Close', exact: true }).click();
@@ -60,7 +65,7 @@ test('a group: add a member, promote an admin, remove a member, rename, and leav
   // Alice renames the group: the new name shows in her header and in Bob's list.
   const renamed = uniqueName('renamed');
   await groupDialog(alice.page).getByLabel('Group name').fill(renamed);
-  await groupDialog(alice.page).getByRole('button', { name: 'Rename' }).click();
+  await groupDialog(alice.page).getByRole('button', { name: 'Save', exact: true }).click();
   await alice.page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(alice.page.getByRole('region', { name: `Chat with ${renamed}` })).toBeVisible();
   await expect(bob.page.getByRole('region', { name: `Chat with ${renamed}` })).toBeVisible();
@@ -79,6 +84,11 @@ test('a group: add a member, promote an admin, remove a member, rename, and leav
   // Bob leaves: the group disappears for him and the others are told.
   await openGroupInfo(bob.page);
   await groupDialog(bob.page).getByRole('button', { name: 'Leave group' }).click();
+  // Leaving asks first; "Stay" would keep the group, "Leave" confirms.
+  await bob.page
+    .getByRole('alertdialog', { name: 'Leave this group?' })
+    .getByRole('button', { name: 'Leave', exact: true })
+    .click();
   await expect(bob.page.getByText('No chats yet')).toBeVisible();
   await expect(alice.page.getByText(new RegExp(`${bob.name} left`))).toBeVisible();
 });

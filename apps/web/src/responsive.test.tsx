@@ -1,7 +1,7 @@
 // Responsive behaviour. The phone/laptop split is Tailwind classes (`max-sm:` / `sm:`), which
 // jsdom does not evaluate, so these tests read the class conventions: for each viewport they
 // ask which controls are present (not hidden by their own or an ancestor's classes).
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -188,11 +188,14 @@ describe('composer', () => {
   const renderComposer = () =>
     render(<MessageInput conversation={makeConversation()} messages={[]} />);
 
-  it('phone: one "+" menu, the text field, the mic and Send', () => {
+  it('phone: one "+" menu and the text field, the mic while empty and Send once there is text', () => {
     renderComposer();
     expect(on('phone', byName('More actions'))).toBe(true);
     expect(on('phone', byName('Record voice message'))).toBe(true);
+    expect(on('phone', byName('Send message'))).toBe(false);
+    fireEvent.change(screen.getByPlaceholderText('Type a message…'), { target: { value: 'hi' } });
     expect(on('phone', byName('Send message'))).toBe(true);
+    expect(on('phone', byName('Record voice message'))).toBe(false);
     for (const name of [
       'Insert emoji',
       'Attach photo or video',
@@ -257,7 +260,8 @@ describe('message action sheet', () => {
     render(<MessageMenu {...props} />);
     const dialog = screen.getByRole('dialog', { name: 'Message actions' });
     const overlay = dialog.parentElement!;
-    expect(overlay).toHaveClass('items-end', 'p-0', 'sm:items-center', 'sm:p-4');
+    // Centered by the modal itself; on phones it is pushed to the bottom edge.
+    expect(overlay).toHaveClass('max-sm:items-end', 'items-center', 'sm:p-4');
     expect(dialog).toHaveClass('w-full', 'sm:w-80');
     const grabber = dialog.querySelector('.h-1.w-10')!;
     expect(on('phone', grabber)).toBe(true);

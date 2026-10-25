@@ -48,7 +48,7 @@ test('messages go both ways: emoji, a very long text and a very long word', asyn
   expect(box && viewport && box.x + box.width <= viewport.width).toBe(true);
 });
 
-test('Enter sends, and the one-line box has no way to type a line break', async ({ browser }) => {
+test('Enter sends, and Shift+Enter inserts a line break', async ({ browser }) => {
   const { alice, bob } = await openPair(browser);
   const box = composer(alice.page);
 
@@ -57,19 +57,26 @@ test('Enter sends, and the one-line box has no way to type a line break', async 
   await expect(bubble(bob.page, 'sent with enter')).toBeVisible();
   await expect(box).toHaveValue('');
 
-  // The message box is a one-line <input>, so Shift+Enter submits like Enter: no stray line break
-  // is typed and no half-written message is left behind.
-  await box.fill('sent with shift enter');
+  // The message box is a multi-line field: Shift+Enter adds a line break and sends nothing.
+  await box.fill('first of two');
   await box.press('Shift+Enter');
-  await expect(bubble(bob.page, 'sent with shift enter')).toBeVisible();
+  await box.pressSequentially('second of two');
+  await expect(box).toHaveValue('first of two\nsecond of two');
+  await expect(bubble(bob.page, 'first of two')).toHaveCount(0);
+  // Enter then sends the whole thing as one message, line break included.
+  await box.press('Enter');
   await expect(box).toHaveValue('');
-  await expect(bubble(alice.page, 'sent with shift enter')).toHaveCount(1);
+  const received = bubble(bob.page, 'first of two');
+  await expect(received).toHaveCount(1);
+  await expect(received).toContainText('second of two');
+  await expect(received.getByText('first of two')).toHaveCSS('white-space', 'pre-wrap');
+  await expect(bubble(alice.page, 'first of two')).toHaveCount(1);
 });
 
 test('a message with line breaks keeps them when it is shown', async ({ browser }) => {
   const { alice, bob } = await openPair(browser, 'one line');
-  // The app cannot type a line break (see above), but other clients can send one. Put one into
-  // the chat through the API and look at how both people see it.
+  // Put a message with line breaks into the chat through the API and look at how both people
+  // see it (the typed version of this is in the test above).
   const id = await conversationId(bob.page, alice.name);
   await apiSendText(alice.name, id, 'first line\nsecond line\nthird line');
   const lines = bubble(bob.page, 'first line');

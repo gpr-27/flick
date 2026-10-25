@@ -120,10 +120,15 @@ describe('outbox store scenarios', () => {
     return sendMessage(ME, CONV, { type: 'text', text });
   };
 
-  it('offline queue keeps order and sends oldest first on reconnect', () => {
+  it('offline queue keeps order and sends oldest first on reconnect', async () => {
     const ids = ['one', 'two', 'three', 'four'].map(write);
     expect(sends()).toEqual([]);
     store().setReady(true);
+    // One message at a time per chat: the next goes out when the one ahead is answered.
+    expect(sends().map((s) => s.client_message_id)).toEqual([ids[0]]);
+    for (const [n, id] of ids.entries()) {
+      await transport.reply('send_message', ok(accepted(id, n + 1)));
+    }
     expect(sends().map((s) => s.client_message_id)).toEqual(ids);
   });
 
@@ -133,21 +138,27 @@ describe('outbox store scenarios', () => {
     expect(sends().map((s) => s.client_message_id)).toEqual([id]);
   });
 
-  it('after a drop, unanswered messages are resent in the same order with the same ids', () => {
+  it('after a drop, unanswered messages are resent in the same order with the same ids', async () => {
     store().setReady(true);
     const ids = ['a', 'b', 'c'].map(write);
+    // Only the oldest is in flight; the others wait behind it.
+    expect(sends().map((s) => s.client_message_id)).toEqual([ids[0]]);
     transport.setState('reconnecting');
     store().setReady(false);
     transport.setState('connected');
     store().setReady(true);
-    const all = sends().map((s) => s.client_message_id);
-    expect(all).toEqual([...ids, ...ids]);
+    // The unanswered one goes again first, with the same id.
+    expect(sends().map((s) => s.client_message_id)).toEqual([ids[0], ids[0]]);
+    for (const [n, id] of ids.entries()) {
+      await transport.reply('send_message', ok(accepted(id, n + 1)));
+    }
+    expect(sends().map((s) => s.client_message_id)).toEqual([ids[0], ids[0], ids[1], ids[2]]);
   });
 
-  it('a message accepted before the drop is not resent', () => {
+  it('a message accepted before the drop is not resent', async () => {
     store().setReady(true);
     const [a, b] = ['a', 'b'].map(write) as [string, string];
-    store().handleAccepted(accepted(a, 1));
+    await transport.reply('send_message', ok(accepted(a, 1))); // releases b
     store().setReady(false);
     store().setReady(true);
     expect(sends().map((s) => s.client_message_id)).toEqual([a, b, b]);
@@ -207,12 +218,13 @@ describe('outbox store scenarios', () => {
     expect(id).toBe(copy.client_message_id);
   });
 
-  it('two messages with the same text are two messages with two ids', () => {
+  it('two messages with the same text are two messages with two ids', async () => {
     store().setReady(true);
     const a = write('same');
     const b = write('same');
     expect(a).not.toBe(b);
-    expect(sends()).toHaveLength(2);
+    await transport.reply('send_message', ok(accepted(a, 1)));
+    expect(sends().map((s) => s.client_message_id)).toEqual([a, b]);
   });
 
   it('the server telling us a send was a duplicate still resolves the bubble', () => {

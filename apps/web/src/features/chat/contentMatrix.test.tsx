@@ -428,8 +428,8 @@ describe('content matrix: awkward text', () => {
     const { container } = draw({ type: 'text', text: longWord });
     const p = container.querySelector('p')!;
     expect(p.textContent).toBe(longWord);
-    // break-words lets the string wrap; the bubble clips anything else; the column is capped.
-    expect(p).toHaveClass('break-words');
+    // overflow-wrap:anywhere lets the string wrap (and shrinks the bubble's minimum width, which break-words does not); the bubble clips anything else; the column is capped.
+    expect(p).toHaveClass('[overflow-wrap:anywhere]');
     const bubble = p.closest('.animate-bubble-in');
     expect(bubble).toHaveClass('overflow-hidden');
     expect(bubble!.parentElement!.className).toMatch(/max-w-\[85%\]/);
@@ -447,7 +447,7 @@ describe('content matrix: awkward text', () => {
     const name = screen.getByText(`${longWord}.pdf`);
     expect(name).toHaveClass('truncate');
     const caption = [...container.querySelectorAll('p')].find((p) => p.textContent === longWord);
-    expect(caption).toHaveClass('break-words');
+    expect(caption).toHaveClass('[overflow-wrap:anywhere]');
   });
 
   it('keeps newlines and runs of spaces (whitespace-pre-wrap)', () => {

@@ -192,6 +192,7 @@ export async function chatOption(page: Page, name: string | RegExp): Promise<voi
 const COMPOSER_BUTTONS = {
   Emoji: 'Insert emoji',
   'Photo or video': 'Attach photo or video',
+  Camera: 'Open camera',
   File: 'Attach file',
   'GIFs and stickers': 'GIFs and stickers',
   Poll: 'Create poll',
@@ -246,6 +247,26 @@ export async function toggleTheme(page: Page): Promise<void> {
     await page.getByRole('button', { name: /^Switch to (dark|light) mode$/ }).click();
   }
 }
+
+/** Open one section of the settings page: a tab on laptops, an accordion row on phones. */
+export async function openSettingsSection(page: Page, title: string): Promise<void> {
+  const button = page.getByRole('main').getByRole('button', { name: title, exact: true });
+  if (isPhone() && (await button.getAttribute('aria-expanded')) === 'true') return;
+  await button.click();
+}
+
+/** The theme the person chose, as the app stores it ("light", "dark" or "system"). */
+export const storedTheme = (page: Page): Promise<string | null> =>
+  page.evaluate(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('flick.settings.v1') ?? '{}') as {
+        state?: { theme?: string };
+      };
+      return saved.state?.theme ?? null;
+    } catch {
+      return null;
+    }
+  });
 
 /** The theme the page is wearing: "light" or "dark". */
 export const currentTheme = (page: Page): Promise<string | null> =>

@@ -10,6 +10,7 @@ import {
   openPair,
   scrollsSideways,
   sendAndWait,
+  openSettingsSection,
 } from './support';
 
 // Journeys 14: the phone layout (390 x 844). This file runs only on the `phone` project.
@@ -120,7 +121,13 @@ test('the "+" menu holds the extra attach options, each a full-size button', asy
 
   // On a phone the bar shows only "+", the box and one round button: the microphone while the
   // box is empty, Send once something is typed.
-  for (const name of ['Attach photo or video', 'Attach file', 'Insert emoji', 'Create poll']) {
+  for (const name of [
+    'Attach photo or video',
+    'Open camera',
+    'Attach file',
+    'Insert emoji',
+    'Create poll',
+  ]) {
     await expect(page.getByRole('button', { name, exact: true })).toBeHidden();
   }
   await expect(page.getByRole('button', { name: 'Record voice message' })).toBeVisible();
@@ -139,9 +146,12 @@ test('the "+" menu holds the extra attach options, each a full-size button', asy
   await expect(menu.getByRole('menuitem')).toHaveText([
     'Emoji',
     'Photo or video',
+    'Camera',
     'File',
     'GIFs and stickers',
     'Poll',
+    'Schedule send',
+    'Formatting',
   ]);
   await expectBigButtons(menu.getByRole('menuitem'));
   expect(inside(await menu.boundingBox(), page)).toBe(true);
@@ -169,16 +179,12 @@ test('the message action sheet fits the screen and every button is at least 44 p
     await holdMessage(page, text);
     const sheet = page.getByRole('dialog', { name: 'Message actions' });
     await expect(sheet).toBeVisible();
-    // The sheet rises from the bottom edge and lies wholly inside the window.
-    // (It slides in, so wait for it to come to rest at the bottom edge.)
+    // The sheet rises from the bottom edge and comes to rest wholly inside the window (it slides
+    // in from below, so wait for that: a sheet still sliding is partly outside).
+    await expect.poll(async () => inside(await sheet.boundingBox(), page)).toBe(true);
     const viewport = page.viewportSize();
-    await expect
-      .poll(async () => {
-        const box = await sheet.boundingBox();
-        return (box?.y ?? 0) + (box?.height ?? 0);
-      })
-      .toBeGreaterThan((viewport?.height ?? 0) - 2);
-    expect(inside(await sheet.boundingBox(), page)).toBe(true);
+    const rest = await sheet.boundingBox();
+    expect((rest?.y ?? 0) + (rest?.height ?? 0)).toBeGreaterThan((viewport?.height ?? 0) - 2);
     // Reactions, actions and the delete step: all thumb-sized.
     await expectBigButtons(sheet.getByRole('button'));
     await expectBigButtons(sheet.getByRole('menuitem'));
@@ -208,8 +214,22 @@ test('no page scrolls sideways: list, chat, settings, profile, calls', async ({ 
   expect(await scrollsSideways(page), 'the chat list').toBe(false);
   await goTo(page, 'Settings');
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  // The sections are accordion rows on a phone: open each one and look at the page.
+  for (const section of [
+    'Account',
+    'Notifications',
+    'Appearance',
+    'Chats',
+    'Calls',
+    'Flick assistant',
+    'Storage and data',
+    'Shortcuts and about',
+    'Privacy',
+  ]) {
+    await openSettingsSection(page, section);
+    expect(await scrollsSideways(page), `settings: ${section}`).toBe(false);
+  }
   await expect(page.getByRole('combobox', { name: 'Last seen and online' })).toBeVisible();
-  expect(await scrollsSideways(page), 'settings').toBe(false);
   await goTo(page, 'Profile');
   await expect(page.getByRole('heading', { name: alice.name })).toBeVisible();
   expect(await scrollsSideways(page), 'profile').toBe(false);

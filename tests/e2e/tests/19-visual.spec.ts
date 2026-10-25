@@ -8,6 +8,7 @@ import {
   openActions,
   openChat,
   openGroupInfo,
+  openSettingsSection,
   send,
   sendAndWait,
   setDisplayName,
@@ -189,6 +190,7 @@ test('the six key screens look the way they did', async ({ browser }, testInfo) 
   // 5. Settings.
   await closeChat(page);
   await goTo(page, 'Settings');
+  await openSettingsSection(page, 'Privacy');
   await expect(page.getByRole('combobox', { name: 'Last seen and online' })).toBeVisible();
   await shot('settings.png');
 

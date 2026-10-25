@@ -6,10 +6,12 @@ import {
   currentTheme,
   goTo,
   openChat,
+  openSettingsSection,
   openPair,
   send,
   signIn,
   startDirectChat,
+  storedTheme,
   tick,
   toggleTheme,
   uniqueName,
@@ -18,7 +20,7 @@ import {
 /** Do something that saves a privacy choice, and wait until the server has answered the save. */
 const saved = async (page: Page, change: () => Promise<void>): Promise<void> => {
   const answer = page.waitForResponse(
-    (r) => r.request().method() === 'PATCH' && r.url().includes('/users/me/privacy'),
+    (r) => r.request().method() === 'PATCH' && r.url().includes('/users/me/settings'),
   );
   await change();
   expect((await answer).ok()).toBe(true);
@@ -35,7 +37,7 @@ test('the theme switch works and is still there after a reload', async ({ browse
   const second = first === 'light' ? 'dark' : 'light';
   await expect.poll(() => currentTheme(page)).toBe(second);
   // The choice is stored, so a reload (and the flash-free script in the page head) keeps it.
-  expect(await page.evaluate(() => localStorage.getItem('chat-theme'))).toBe(second);
+  expect(await storedTheme(page)).toBe(second);
   await page.reload();
   await expect(page.getByRole('button', { name: 'New chat' })).toBeVisible();
   expect(await currentTheme(page)).toBe(second);
@@ -57,14 +59,18 @@ test('the profile page shows who you are', async ({ browser }) => {
   await goTo(page, 'Profile');
   await expect(page.getByRole('heading', { name })).toBeVisible();
   await expect(page.getByText(`@${name}`)).toBeVisible();
-  await expect(
-    page.getByRole('region', { name }).getByRole('button', { name: 'Sign out' }),
-  ).toBeVisible();
+  // The page is an editable form: name, username, about and a way to leave.
+  const form = page.getByRole('form', { name: 'Edit profile' });
+  await expect(form.getByRole('textbox', { name: 'Display name' })).toHaveValue(name);
+  await expect(form.getByRole('textbox', { name: 'Username' })).toHaveValue(name);
+  await expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await expect(form.getByRole('button', { name: 'Sign out' })).toBeVisible();
 });
 
 test('privacy choices are saved on the server and kept after a reload', async ({ browser }) => {
   const { page } = await signIn(browser, uniqueName('pat'));
   await goTo(page, 'Settings');
+  await openSettingsSection(page, 'Privacy');
 
   const lastSeen = page.getByRole('combobox', { name: 'Last seen and online' });
   const photo = page.getByRole('combobox', { name: 'Profile photo' });
@@ -80,6 +86,7 @@ test('privacy choices are saved on the server and kept after a reload', async ({
   await expect(receipts).not.toBeChecked();
 
   await page.reload();
+  await openSettingsSection(page, 'Privacy');
   await expect(page.getByRole('combobox', { name: 'Last seen and online' })).toHaveValue('nobody');
   await expect(page.getByRole('combobox', { name: 'Profile photo' })).toHaveValue('nobody');
   await expect(page.getByRole('combobox', { name: 'About' })).toHaveValue('nobody');
@@ -94,6 +101,7 @@ test('privacy choices are saved on the server and kept after a reload', async ({
   );
   await saved(page, () => page.getByRole('switch', { name: 'Read receipts' }).check());
   await page.reload();
+  await openSettingsSection(page, 'Privacy');
   await expect(page.getByRole('combobox', { name: 'Last seen and online' })).toHaveValue(
     'everyone',
   );
@@ -107,6 +115,7 @@ test('with read receipts off you do not send them: the other side never turns bl
   // Bob turns his read receipts off, from the chat list.
   await closeChat(bob.page);
   await goTo(bob.page, 'Settings');
+  await openSettingsSection(bob.page, 'Privacy');
   await saved(bob.page, () => bob.page.getByRole('switch', { name: 'Read receipts' }).uncheck());
   await expect(bob.page.getByRole('switch', { name: 'Read receipts' })).not.toBeChecked();
   await bob.page.goBack();

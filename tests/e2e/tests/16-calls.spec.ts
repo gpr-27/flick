@@ -137,7 +137,9 @@ test('a voice call: ring, accept, connected on both sides, mute, end', async ({ 
   );
 
   // A voice call has no camera or screen controls.
-  await expect(caller.page.getByRole('button', { name: /camera|Share screen/i })).toHaveCount(0);
+  await expect(
+    callDialog(caller.page, 'Voice').getByRole('button', { name: /camera|Share screen/i }),
+  ).toHaveCount(0);
 
   // Ending from one side ends it for both.
   await caller.page.getByRole('button', { name: 'End call' }).click();

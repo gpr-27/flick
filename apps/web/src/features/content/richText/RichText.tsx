@@ -163,7 +163,7 @@ const renderBlock = (b: Block, key: number, renderText: RenderText | undefined):
       );
     case 'para':
       return (
-        <p key={key} dir="auto" className="whitespace-pre-wrap break-words">
+        <p key={key} dir="auto" className="whitespace-pre-wrap [overflow-wrap:anywhere]">
           {inline(b.text)}
         </p>
       );
@@ -256,13 +256,16 @@ export const RichText = ({ text, renderText }: { text: string; renderText?: Rend
   const blocks = useMemo(() => parseBlocks(text), [text]);
   if (blocks.every((b) => b.kind === 'para')) {
     return (
-      <p dir="auto" className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+      <p
+        dir="auto"
+        className="whitespace-pre-wrap [overflow-wrap:anywhere] text-[15px] leading-relaxed"
+      >
         {renderInline(text, renderText)}
       </p>
     );
   }
   return (
-    <div className="min-w-0 max-w-full space-y-2 break-words text-[15px] leading-relaxed">
+    <div className="min-w-0 max-w-full space-y-2 [overflow-wrap:anywhere] text-[15px] leading-relaxed">
       {blocks.map((b, i) => renderBlock(b, i, renderText))}
     </div>
   );

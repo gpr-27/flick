@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { bubble, chatInList, signIn, startDirectChat, uniqueName } from './support';
+import { bubble, chatInList, composerAction, signIn, startDirectChat, uniqueName } from './support';
 
 // Journey (i): take a photo with the live camera and send it. Chromium gets a fake camera (a test
 // picture) and allows it without a prompt, so no real device is needed.
@@ -17,7 +17,7 @@ test('a photo taken with the camera is sent to the other person', async ({ brows
   });
   await startDirectChat(alice.page, bob.name);
 
-  await alice.page.getByRole('button', { name: 'Open camera' }).click();
+  await composerAction(alice.page, 'Camera');
   const shutter = alice.page.getByRole('button', { name: 'Take photo' });
   await expect(shutter).toBeEnabled();
   await shutter.click();
