@@ -736,7 +736,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           <button
             type="button"
             onClick={cancelCompose}
-            className="btn btn-circle btn-ghost btn-xs"
+            className="btn btn-circle btn-ghost btn-sm"
             aria-label={editing ? 'Cancel editing' : 'Cancel reply'}
           >
             <X className="size-4" aria-hidden="true" />

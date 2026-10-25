@@ -432,8 +432,10 @@ describe('content matrix: awkward text', () => {
     expect(p).toHaveClass('[overflow-wrap:anywhere]');
     const bubble = p.closest('.animate-bubble-in');
     expect(bubble).toHaveClass('overflow-hidden');
-    expect(bubble!.parentElement!.className).toMatch(/max-w-\[85%\]/);
-    expect(bubble!.parentElement!.className).toMatch(/sm:max-w-\[65%\]/);
+    // The column that caps the width is the bubble's grandparent (a relative box in between holds the swipe arrow and the heart).
+    const column = bubble!.parentElement!.parentElement!;
+    expect(column.className).toMatch(/max-w-\[85%\]/);
+    expect(column.className).toMatch(/sm:max-w-\[65%\]/);
   });
 
   it('a long unbroken caption and file name cannot stretch the bubble either', () => {

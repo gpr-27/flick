@@ -5,6 +5,7 @@ import {
   Forward,
   Info,
   Languages,
+  CheckSquare,
   Pencil,
   Pin,
   PinOff,
@@ -13,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Modal, cn } from '@/components/ui';
+import { useSheetSwipeDown } from '../gestures/useSheetSwipeDown';
 import { REACTIONS } from '../reactions';
 
 export interface MessageMenuProps {
@@ -26,6 +28,8 @@ export interface MessageMenuProps {
   canTranslate: boolean;
   onReact: (emoji: string) => void;
   onReply: () => void;
+  /** Shown only when given: start choosing several messages with this one. */
+  onSelect?: () => void;
   onCopy: (text: string) => void;
   onForward?: () => void;
   onPin?: () => void;
@@ -71,6 +75,7 @@ const Item = ({
 export const MessageMenu = (props: MessageMenuProps) => {
   const { onClose } = props;
   const [step, setStep] = useState<'actions' | 'delete'>('actions');
+  const sheet = useSheetSwipeDown(onClose);
   // The menu appears right under the finger that is still holding the message. Ignoring touches
   // for a moment keeps the lift of that finger from tapping an emoji or an action by accident.
   const [ready, setReady] = useState(false);
@@ -97,7 +102,11 @@ export const MessageMenu = (props: MessageMenuProps) => {
       overlayClassName={cn('max-sm:items-end sm:p-4', !ready && 'pointer-events-none')}
       className="w-full sm:w-80"
     >
-      <div className="glass-card flex flex-col gap-1 rounded-t-3xl border border-base-content/10 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl">
+      <div
+        {...sheet.props}
+        style={sheet.style}
+        className="glass-card flex touch-pan-x flex-col gap-1 rounded-t-3xl border border-base-content/10 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl"
+      >
         <div
           className="mx-auto mb-1 h-1 w-10 rounded-full bg-base-content/20 sm:hidden"
           aria-hidden="true"
@@ -129,6 +138,11 @@ export const MessageMenu = (props: MessageMenuProps) => {
               <Item icon={<Reply className="size-5" />} onClick={run(props.onReply)}>
                 Reply
               </Item>
+              {props.onSelect && (
+                <Item icon={<CheckSquare className="size-5" />} onClick={run(props.onSelect)}>
+                  Select
+                </Item>
+              )}
               {props.copyText !== null && (
                 <Item
                   icon={<Copy className="size-5" />}

@@ -7,6 +7,7 @@ import {
   Clock,
   Forward,
   Pin,
+  Reply,
   Timer,
   Star,
 } from 'lucide-react';
@@ -21,7 +22,10 @@ import { ReportDialog } from '@/features/settings/components/ReportDialog';
 import { formatDateSeparator, formatMessageTime } from '@/lib/time';
 import { renderContent, previewContent, type ContentContext } from '../content/registry';
 import type { RowStatus, ThreadRow } from '../threadRows';
-import { useLongPress } from '../useLongPress';
+import { haptic } from '../gestures/haptics';
+import { LinkMenu } from '../gestures/LinkMenu';
+import { senderColor } from '../gestures/senderColor';
+import { useMessageGestures } from '../gestures/useMessageGestures';
 import { MessageMenu } from './MessageMenu';
 import { MessageInfoDialog } from './MessageInfoDialog';
 import { useContactInfo } from './useContactInfo';
@@ -57,7 +61,14 @@ export interface MessageBubbleProps {
   pinned?: boolean;
   /** Briefly outlined after a jump to this message. */
   highlighted?: boolean;
+  /** Several messages are being chosen: a tap ticks this one instead of doing its usual thing. */
+  selecting?: boolean;
+  selected?: boolean;
+  /** Start choosing with this message, or tick / untick it when already choosing. */
+  onSelect?: (message: MessageRecord) => void;
 }
+
+const HEART = '❤️';
 
 const StatusMark = ({ status }: { status: RowStatus }) => {
   switch (status) {
@@ -108,12 +119,18 @@ const MessageBubbleImpl = ({
   onForward,
   pinned = false,
   highlighted = false,
+  selecting = false,
+  selected = false,
+  onSelect,
 }: MessageBubbleProps) => {
   const { message, local } = row;
   const [menuOpen, setMenuOpen] = useState(false);
   const [translateOpen, setTranslateOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  // The link under a finger that held the message, and a counter that replays the heart pop.
+  const [heldLink, setHeldLink] = useState<string | null>(null);
+  const [heartPops, setHeartPops] = useState(0);
   const contact = useContactInfo();
   const isMine = message.sender_user_id === myId;
   const isSystem = message.content?.type === 'system';
@@ -133,7 +150,25 @@ const MessageBubbleImpl = ({
   const openMenu = (): void => {
     if (hasActions) setMenuOpen(true);
   };
-  const press = useLongPress(openMenu);
+  const heart = (): void => {
+    const had = message.reactions.some((r) => r.emoji === HEART && r.user_ids.includes(myId));
+    haptic();
+    onReact(message, HEART);
+    if (!had) setHeartPops((n) => n + 1);
+  };
+  const gestures = useMessageGestures({
+    canAct: hasActions,
+    selecting,
+    onLongPress: (target) => {
+      const link = target?.closest('a[href]')?.getAttribute('href');
+      if (link) setHeldLink(link);
+      else openMenu();
+    },
+    onReply: () => {
+      onReply(message);
+    },
+    onHeart: heart,
+  });
 
   const dateSeparator = showDate && (
     <div
@@ -175,10 +210,47 @@ const MessageBubbleImpl = ({
       {unreadDivider}
 
       <div
-        className={cn('group flex items-end gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}
+        className={cn(
+          'group relative flex items-end gap-2 rounded-xl',
+          isMine ? 'flex-row-reverse' : 'flex-row',
+          selecting && 'cursor-pointer pl-9',
+          selected && 'bg-primary/15',
+        )}
         aria-label={`${author} at ${time}`}
         role="article"
+        // While choosing, a tap anywhere on the message ticks it (and nothing inside it fires).
+        onClickCapture={
+          selecting && hasActions
+            ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelect?.(message);
+              }
+            : undefined
+        }
       >
+        {selecting && hasActions && (
+          <span
+            role="checkbox"
+            aria-checked={selected}
+            aria-label="Select message"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                onSelect?.(message);
+              }
+            }}
+            className={cn(
+              'absolute left-2 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full border-2',
+              selected
+                ? 'border-primary bg-primary text-primary-content'
+                : 'border-base-content/40',
+            )}
+          >
+            {selected && <Check className="size-3" aria-hidden="true" />}
+          </span>
+        )}
         {!isMine &&
           (endsGroup ? (
             isBot ? (
@@ -218,69 +290,107 @@ const MessageBubbleImpl = ({
           )}
         >
           {!isMine && startsGroup && (isGroup || isBot) && (
-            <span className="mb-0.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-primary">
+            <span
+              className={cn(
+                'mb-0.5 flex items-center gap-1.5 px-1 text-xs font-semibold',
+                !(isGroup && sender) && 'text-primary',
+              )}
+              // In a group each member keeps one colour, so a busy chat is easy to follow.
+              style={
+                isGroup && sender && !isBot
+                  ? { color: senderColor(message.sender_user_id ?? sender.id) }
+                  : undefined
+              }
+            >
               {author}
               {isBot && <FlickBadge />}
             </span>
           )}
-          <div
-            {...press}
-            onContextMenu={(e) => {
-              if (!hasActions) return;
-              e.preventDefault();
-              setMenuOpen(true);
-            }}
-            className={cn(
-              'animate-bubble-in touch-manipulation overflow-hidden px-3.5 py-2.5 shadow-sm transition-opacity [-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none',
-              local?.status === 'pending' && 'opacity-70',
-              (highlighted || menuOpen) && 'ring-2 ring-primary',
-              isMine
-                ? 'bubble-sent rounded-2xl rounded-br-md'
-                : 'bubble-recv rounded-2xl rounded-bl-md',
-            )}
-          >
-            {replyTo && (
-              <button
-                type="button"
-                onClick={() => {
-                  onJumpTo(replyTo);
+          <div className="relative max-w-full">
+            {gestures.offset > 0 && (
+              <Reply
+                className="absolute left-0 top-1/2 size-5 -translate-y-1/2 text-primary"
+                style={{
+                  opacity: gestures.progress,
+                  translate: `${String(gestures.offset / 2 - 10)}px 0`,
                 }}
-                className="mb-1.5 block w-full rounded-lg border-l-4 border-current/40 bg-black/10 px-2 py-1 text-left text-xs opacity-80"
-                aria-label="Go to the original message"
-              >
-                <span className="block font-semibold">{quotedName}</span>
-                <span className="line-clamp-2 [overflow-wrap:anywhere]">
-                  {quoted ? previewContent(quoted.content) : 'Message'}
-                </span>
-              </button>
-            )}
-            {message.content?.forwarded && (
-              <p className="mb-1 flex items-center gap-1 text-xs italic opacity-70">
-                <Forward className="size-3" aria-hidden="true" />
-                Forwarded
-              </p>
-            )}
-            {deleted ? (
-              <p className="text-sm italic opacity-70">
-                {message.deleted_at ? 'This message was deleted' : 'Opened'}
-              </p>
-            ) : (
-              message.content &&
-              renderContent(message.content, {
-                ...contentContext,
-                message: {
-                  id: message.message_id,
-                  conversationId: message.conversation_id,
-                  isMine,
-                },
-              })
-            )}
-            {message.viewed && !deleted && <p className="mt-1 text-xs italic opacity-70">Opened</p>}
-            {isBot && message.content?.type === 'text' && message.content.ai_model && (
-              <ModelTag
-                label={modelLabel(message.content.ai_provider ?? '', message.content.ai_model)}
-                className="mt-1.5 !text-current opacity-60"
+                aria-hidden="true"
+                data-testid="swipe-reply-arrow"
               />
+            )}
+            <div
+              {...gestures.bubbleProps}
+              style={gestures.style}
+              onContextMenu={(e) => {
+                if (!hasActions || selecting) return;
+                e.preventDefault();
+                // A hold on a link has already opened the link actions; do not stack the menu on it.
+                if (heldLink === null) setMenuOpen(true);
+              }}
+              className={cn(
+                'animate-bubble-in relative touch-pan-y overflow-hidden px-3.5 py-2.5 shadow-sm transition-opacity [-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none',
+                local?.status === 'pending' && 'opacity-70',
+                (highlighted || menuOpen) && 'ring-2 ring-primary',
+                isMine
+                  ? 'bubble-sent rounded-2xl rounded-br-md'
+                  : 'bubble-recv rounded-2xl rounded-bl-md',
+              )}
+            >
+              {replyTo && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onJumpTo(replyTo);
+                  }}
+                  className="mb-1.5 block w-full rounded-lg border-l-4 border-current/40 bg-black/10 px-2 py-1 text-left text-xs opacity-80"
+                  aria-label="Go to the original message"
+                >
+                  <span className="block font-semibold">{quotedName}</span>
+                  <span className="line-clamp-2 [overflow-wrap:anywhere]">
+                    {quoted ? previewContent(quoted.content) : 'Message'}
+                  </span>
+                </button>
+              )}
+              {message.content?.forwarded && (
+                <p className="mb-1 flex items-center gap-1 text-xs italic opacity-70">
+                  <Forward className="size-3" aria-hidden="true" />
+                  Forwarded
+                </p>
+              )}
+              {deleted ? (
+                <p className="text-sm italic opacity-70">
+                  {message.deleted_at ? 'This message was deleted' : 'Opened'}
+                </p>
+              ) : (
+                message.content &&
+                renderContent(message.content, {
+                  ...contentContext,
+                  message: {
+                    id: message.message_id,
+                    conversationId: message.conversation_id,
+                    isMine,
+                  },
+                })
+              )}
+              {message.viewed && !deleted && (
+                <p className="mt-1 text-xs italic opacity-70">Opened</p>
+              )}
+              {isBot && message.content?.type === 'text' && message.content.ai_model && (
+                <ModelTag
+                  label={modelLabel(message.content.ai_provider ?? '', message.content.ai_model)}
+                  className="mt-1.5 !text-current opacity-60"
+                />
+              )}
+            </div>
+            {heartPops > 0 && (
+              <span
+                key={heartPops}
+                className="pointer-events-none absolute inset-0 z-[2] grid animate-heart-pop place-items-center text-5xl"
+                aria-hidden="true"
+                data-testid="heart-pop"
+              >
+                {HEART}
+              </span>
             )}
           </div>
 
@@ -357,6 +467,19 @@ const MessageBubbleImpl = ({
               </span>
             )}
 
+            {hasActions && !selecting && (
+              <button
+                type="button"
+                onClick={() => {
+                  onReply(message);
+                }}
+                className="tap-target grid size-6 place-items-center rounded-full transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
+                aria-label="Reply to this message"
+              >
+                <Reply className="size-4" aria-hidden="true" />
+              </button>
+            )}
+
             {hasActions && (
               <button
                 type="button"
@@ -397,11 +520,18 @@ const MessageBubbleImpl = ({
           copyText={message.content.type === 'text' ? message.content.text : null}
           canTranslate={message.content.type === 'text'}
           onReact={(emoji) => {
+            haptic();
             onReact(message, emoji);
           }}
           onReply={() => {
             onReply(message);
           }}
+          onSelect={
+            onSelect &&
+            (() => {
+              onSelect(message);
+            })
+          }
           onCopy={(text) => void copyToClipboard(text)}
           onForward={
             onForward &&
@@ -449,6 +579,14 @@ const MessageBubbleImpl = ({
           messageId={message.message_id}
           onClose={() => {
             setInfoOpen(false);
+          }}
+        />
+      )}
+      {heldLink !== null && (
+        <LinkMenu
+          href={heldLink}
+          onClose={() => {
+            setHeldLink(null);
           }}
         />
       )}
