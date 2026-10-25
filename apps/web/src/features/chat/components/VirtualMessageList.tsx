@@ -118,6 +118,24 @@ function VirtualMessageListInner<T>(
     virtualizer.scrollToEnd();
   }, [count, virtualizer]);
 
+  // New or changed rows (including a reply that is still being written): follow the bottom.
+  useLayoutEffect(() => {
+    if (didInitialScroll.current && stuckToBottom.current) virtualizer.scrollToEnd();
+  }, [items, count, virtualizer]);
+
+  // The scrolling area itself changes size (the composer grows or shrinks): stay at the bottom.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (stuckToBottom.current) virtualizer.scrollToEnd();
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+    };
+  }, [virtualizer]);
+
   const loadOlderIfNeeded = useCallback(() => {
     const el = scrollRef.current;
     if (!el || !hasOlder || isLoadingOlder || !didInitialScroll.current) return;
@@ -126,10 +144,16 @@ function VirtualMessageListInner<T>(
     if (nearTop || underfilled) onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
+  // Whether the reader is at the newest message. While they are, the list keeps following the
+  // bottom: when a reply arrives or grows, and when the message box gets taller (the "Suggest
+  // replies" row or a longer draft), so the newest message never slips under the composer.
+  const stuckToBottom = useRef(true);
+
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     const bottom = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD_PX;
+    stuckToBottom.current = bottom;
     setAtBottom(bottom);
     if (bottom) setNewCount(0);
     loadOlderIfNeeded();
