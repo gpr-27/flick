@@ -33,6 +33,7 @@ import { SettingsPage } from '@/features/settings/SettingsPage';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { useThemeStore } from '@/features/settings/useThemeStore';
 import { InstallGuide } from '@/pwa/InstallGuide';
+import { ServerWakeNotice } from '@/features/serverWake/ServerWakeNotice';
 import { OfflineNotice, UpdateBanner } from '@/pwa/PwaBanners';
 
 /** Wire chat and call events to the transport for as long as someone is signed in. */
@@ -152,6 +153,7 @@ export const App = () => {
       </SignedIn>
       <AppToaster />
       <OfflineNotice />
+      <ServerWakeNotice />
       <UpdateBanner />
       <InstallGuide />
     </div>
