@@ -20,6 +20,7 @@ Start with the [architecture overview](architecture/overview.md), then the
 - [`features/media.md`](features/media.md): uploads, downloads, GIFs, link previews.
 - [`features/pwa-and-push.md`](features/pwa-and-push.md): the installable app and Web Push.
 - [`features/calls-offline.md`](features/calls-offline.md): calls that reach people who are offline or have the app closed, and the limits.
+- [`features/guide.md`](features/guide.md): the in-app tour and tips, the rules that keep them polite, and how to add a topic.
 
 ## Operations
 

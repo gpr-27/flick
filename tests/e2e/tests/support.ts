@@ -26,6 +26,22 @@ export interface SignInOptions {
   context?: Parameters<Browser['newContext']>[0];
   /** Runs before the page loads, e.g. to install a network trick. */
   beforeLoad?: (page: Page) => Promise<unknown>;
+  /** Leave the in-app guide ON (only the guide journey does). Everywhere else it is switched off. */
+  guide?: boolean;
+}
+
+/**
+ * The in-app guide (tour and tips) is switched off on this browser, so the other journeys never
+ * meet an overlay. It is a per-device switch: it hides the guide without touching saved progress.
+ */
+export async function switchGuideOff(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('flick.guide.off', '1');
+    } catch {
+      // storage blocked: nothing to switch off
+    }
+  });
 }
 
 /** True on the `phone` project. Outside a test (the README screenshot script) it is false. */
@@ -49,6 +65,7 @@ export async function signIn(
 ): Promise<Person> {
   // `browser.newContext()` inherits the project's `use` (size, touch, user agent, permissions).
   const context = await browser.newContext(options.context);
+  if (!options.guide) await switchGuideOff(context);
   const page = await context.newPage();
   await options.beforeLoad?.(page);
   await page.goto(`/?as=${name}`);

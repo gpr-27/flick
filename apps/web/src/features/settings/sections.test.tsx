@@ -407,8 +407,8 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('switch', { name: 'Enter sends' })).toBeInTheDocument();
     await user.click(chats);
     expect(screen.queryByRole('switch', { name: 'Enter sends' })).not.toBeInTheDocument();
-    // all nine sections are there
-    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(9);
+    // all ten sections are there
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(10);
   });
 
   it('on a laptop there is a list of sections and one open section', async () => {
@@ -421,7 +421,7 @@ describe('SettingsPage', () => {
     }));
     render(page());
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
-    expect(within(nav).getAllByRole('button')).toHaveLength(9);
+    expect(within(nav).getAllByRole('button')).toHaveLength(10);
     expect(within(nav).getByRole('button', { name: 'Account' })).toHaveAttribute(
       'aria-current',
       'page',

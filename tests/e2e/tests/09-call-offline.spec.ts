@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type Page } from '@playwright/test';
-import { signIn, startDirectChat, uniqueName, type Person } from './support';
+import { signIn, startDirectChat, switchGuideOff, uniqueName, type Person } from './support';
 
 // Journey (i): calling someone whose app is closed. The server parks the offer for 45 seconds and
 // queues a push (the worker only logs it here: there are no VAPID keys, and a headless browser
@@ -73,6 +73,7 @@ async function subscribeToPush(person: Person): Promise<void> {
  */
 async function openFlick(browser: Browser, name: string, path: string): Promise<Page> {
   const context = await browser.newContext({ permissions: ['microphone', 'camera'] });
+  await switchGuideOff(context);
   await context.addInitScript((user) => {
     sessionStorage.setItem('flick.e2e_user', user);
   }, name);

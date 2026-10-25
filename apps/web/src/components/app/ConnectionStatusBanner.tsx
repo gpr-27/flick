@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { WifiOff } from 'lucide-react';
 import { Spinner, cn } from '@/components/ui';
+import { useFeatureGuide } from '@/features/guide/useFeatureGuide';
 import { useConnectionState } from '@/lib/realtime';
 import { RECONNECT_BANNER_DELAY_MS, bannerFor } from './connectionBanner';
 
@@ -22,6 +23,7 @@ export const ConnectionStatusBanner = () => {
   }, [state]);
 
   const content = state === 'reconnecting' && !delayElapsed ? null : bannerFor(state);
+  useFeatureGuide('net.offline', content?.tone === 'offline');
 
   return (
     <div
@@ -31,6 +33,7 @@ export const ConnectionStatusBanner = () => {
     >
       {content && (
         <div
+          data-guide="net.banner"
           className={cn(
             'glass-card pointer-events-auto flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-lg animate-fade-in-up',
             content.tone === 'offline' ? 'text-error' : 'text-base-content/80',

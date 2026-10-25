@@ -5,6 +5,7 @@ import { ENDPOINTS, type UpdateMeRequest, type UserStats } from '@chat/contracts
 import type { z } from 'zod';
 import { Avatar, ErrorState, Modal, PopoverMenu, cn } from '@/components/ui';
 import { notify } from '@/components/ui/notify';
+import { useFeatureGuide, useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { uploadAttachment } from '@/features/chat/upload';
 import { CameraCapture } from '@/features/content/camera/CameraCapture';
@@ -87,6 +88,9 @@ export const ProfilePage = () => {
   }, [user, name, username, about]);
   const dirty = Object.keys(changes).length > 0 || avatar.kind !== 'unchanged';
   const guard = useUnsavedGuard(dirty);
+  useFeatureGuide('profile.page', Boolean(user));
+  // Choosing a photo or changing any field counts as using the profile page.
+  useMarkUsedWhen('profile.page', dirty);
 
   if (!user) {
     return (
@@ -211,6 +215,7 @@ export const ProfilePage = () => {
                   imgClassName="ring-4 ring-base-100"
                 />
                 <PopoverMenu
+                  guideId="profile.photo"
                   label="Change photo"
                   icon={<Camera className="size-5" aria-hidden="true" />}
                   className="absolute -bottom-1 -right-1 rounded-full bg-base-100 shadow"
@@ -304,6 +309,7 @@ export const ProfilePage = () => {
         </div>
 
         <form
+          data-guide="profile.edit"
           className="glass-card space-y-5 rounded-3xl p-5 sm:p-6"
           aria-label="Edit profile"
           onSubmit={(e) => {

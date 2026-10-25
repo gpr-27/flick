@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { MessageRecord, UserSummary } from '@chat/contracts';
 import { Avatar, cn, notify } from '@/components/ui';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
 import { isFlickBot } from '@/features/ai/isFlickBot';
 import { ModelTag } from '@/features/ai/ModelTag';
@@ -131,7 +132,10 @@ const MessageBubbleImpl = ({
   // A message that is still sending, or was deleted, has no actions.
   const hasActions = settled && !deleted && message.content !== null;
   const openMenu = (): void => {
-    if (hasActions) setMenuOpen(true);
+    if (hasActions) {
+      markUsed('message.menu');
+      setMenuOpen(true);
+    }
   };
   const press = useLongPress(openMenu);
 
@@ -141,7 +145,10 @@ const MessageBubbleImpl = ({
       role="separator"
       aria-label={formatDateSeparator(message.created_at)}
     >
-      <span className="chip text-[11px] font-semibold uppercase tracking-wider">
+      <span
+        data-guide="chat.date"
+        className="chip text-[11px] font-semibold uppercase tracking-wider"
+      >
         {formatDateSeparator(message.created_at)}
       </span>
     </div>
@@ -225,9 +232,11 @@ const MessageBubbleImpl = ({
           )}
           <div
             {...press}
+            data-guide="message"
             onContextMenu={(e) => {
               if (!hasActions) return;
               e.preventDefault();
+              markUsed('message.menu');
               setMenuOpen(true);
             }}
             className={cn(
@@ -329,7 +338,11 @@ const MessageBubbleImpl = ({
               <Star className="size-3 fill-current text-warning" aria-label="Starred" role="img" />
             )}
             {pinned && <Pin className="size-3 text-primary" aria-label="Pinned" role="img" />}
-            {isMine && <StatusMark status={status} />}
+            {isMine && (
+              <span data-guide="message.status" className="inline-flex">
+                <StatusMark status={status} />
+              </span>
+            )}
 
             {local?.status === 'failed' && (
               <span className="flex items-center gap-2 font-semibold text-error">

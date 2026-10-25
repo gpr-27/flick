@@ -87,6 +87,15 @@ export const ENDPOINTS = {
       body: Users.UpdateSettingsRequest,
       response: Users.AccountSettings,
     },
+    /** The in-app guide progress (tour and tips); follows the person across devices. */
+    guide: { method: 'GET', path: '/users/me/guide', auth: true, response: Users.GuideState },
+    updateGuide: {
+      method: 'PATCH',
+      path: '/users/me/guide',
+      auth: true,
+      body: Users.UpdateGuideRequest,
+      response: Users.GuideState,
+    },
     /** Streams a JSON file (Content-Disposition: attachment); the web client saves it as a file. */
     export: { method: 'GET', path: '/users/me/export', auth: true, response: z.unknown() },
     deleteAccount: {

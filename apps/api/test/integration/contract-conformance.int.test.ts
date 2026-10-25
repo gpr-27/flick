@@ -252,6 +252,14 @@ const SCENARIOS: Record<string, Scenario> = {
     conforms(def, res);
     expect(res.body.ai_language).toBe('fr');
   },
+  'users.guide': async (f, def) => conforms(def, await call(f.alice, def)),
+  'users.updateGuide': async (f, def) => {
+    const res = await call(f.alice, def, {
+      body: { seen: { 'welcome.tour': '2026-01-01T00:00:00.000Z' }, enabled: true },
+    });
+    conforms(def, res);
+    expect(res.body.seen['welcome.tour']).toBeDefined();
+  },
   // export, deleteAccount and clearFlickChat run as a throwaway user: they read or destroy the
   // caller's own data, which must not be the fixture's.
   'users.export': async (f, def) => {

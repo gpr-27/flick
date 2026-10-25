@@ -119,6 +119,7 @@ erDiagram
   The enum still has `contacts`, but nothing sets it: the product has no contact list.
 - `groups_add_privacy` is stored but not used yet.
 - Whether I send read receipts.
+- `guide` (jsonb, migration 0013): in-app guide progress (topics seen/used, tour done). Topic ids and times only.
 
 **`devices`**
 

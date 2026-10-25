@@ -1,5 +1,5 @@
 import { InstallCard } from '@/pwa/InstallCard';
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
   Archive,
   BellOff,
@@ -17,6 +17,9 @@ import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, Badge, EmptyState, ErrorState, Input, cn, formatCount } from '@/components/ui';
 import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
 import { isFlickChat } from '@/features/ai/isFlickBot';
+import { WelcomeCard } from '@/features/guide/WelcomeCard';
+import { useFeatureGuide, useFeatureGuides } from '@/features/guide/useFeatureGuide';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { formatRelativeTime } from '@/lib/time';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CHAT_TABS, visibleChats, type ChatTab, type ChatView } from '../../organise/chatFilters';
@@ -70,7 +73,9 @@ const ConversationRow = ({
       aria-selected={isActive}
       tabIndex={isFocusTarget ? 0 : -1}
       data-conversation-id={c.id}
+      data-guide={bot ? 'flick-chat' : undefined}
       onClick={() => {
+        if (bot) markUsed('ai.flickchat');
         onSelect(c.id);
       }}
       onFocus={onFocus}
@@ -165,8 +170,10 @@ const SavedRow = ({
   return (
     <button
       type="button"
+      data-guide="saved-row"
       aria-current={isActive}
       onClick={() => {
+        markUsed('saved.messages');
         if (conversation) select(conversation.id);
         else void openSaved();
       }}
@@ -229,6 +236,26 @@ export const Sidebar = () => {
     tab === 'all' &&
     SAVED_TITLE.toLowerCase().includes(search.trim().toLowerCase());
 
+  // First-open tips for what the list offers. Someone who already has notes saved has used Saved
+  // messages, so it is never shown to them as new.
+  const usedSaved = Boolean(saved?.last_message);
+  useEffect(() => {
+    if (usedSaved) markUsed('saved.messages');
+  }, [usedSaved]);
+  useFeatureGuide('saved.messages', listStatus === 'ready' && showSaved && !usedSaved);
+  useFeatureGuide('search.chat', listStatus === 'ready');
+  const hasChats = listStatus === 'ready' && all.length > 0;
+  useFeatureGuides(
+    ['chats.list', 'chats.new', 'chat.starred', 'scheduled.list', 'group.create'],
+    listStatus === 'ready',
+  );
+  useFeatureGuide('ai.flickchat', hasChats && all.some((c) => isFlickChat(c)));
+  // Someone who already has a group has used groups; never show it to them as new.
+  const hasGroup = all.some((c) => c.type === 'group');
+  useEffect(() => {
+    if (hasGroup) markUsed('group.create');
+  }, [hasGroup]);
+
   if (listStatus === 'idle' || (listStatus === 'loading' && all.length === 0)) {
     return <SidebarSkeleton />;
   }
@@ -279,8 +306,10 @@ export const Sidebar = () => {
     <aside
       className="glass flex h-full w-full flex-col border-r border-base-content/10"
       aria-label="Conversations"
+      data-guide="chat-list"
     >
       <InstallCard />
+      <WelcomeCard />
       <div className="space-y-3 border-b border-base-content/10 p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-bold tracking-tight">Chats</h2>
@@ -290,7 +319,9 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="Search messages"
               title="Search messages"
+              data-guide="search.messages"
               onClick={() => {
+                markUsed('search.chat');
                 setSearchOpen(true);
               }}
             >
@@ -301,7 +332,9 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="Starred messages"
               title="Starred messages"
+              data-guide="starred.open"
               onClick={() => {
+                markUsed('chat.starred');
                 setStarredOpen(true);
               }}
             >
@@ -312,7 +345,9 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="Scheduled messages"
               title="Scheduled messages"
+              data-guide="scheduled.open"
               onClick={() => {
+                markUsed('scheduled.list');
                 setScheduledOpen(true);
               }}
             >
@@ -323,7 +358,9 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="New chat"
               title="New chat"
+              data-guide="new-chat"
               onClick={() => {
+                markUsed('chats.new');
                 setNewChat(true);
               }}
             >
@@ -334,7 +371,9 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="New group"
               title="New group"
+              data-guide="new-group"
               onClick={() => {
+                markUsed('group.create');
                 setNewGroup(true);
               }}
             >
@@ -344,28 +383,35 @@ export const Sidebar = () => {
           </div>
         </div>
 
-        <Input
-          type="search"
-          label="Search chats"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-          }}
-          placeholder="Search chats"
-          leadingIcon={<Search className="size-4" />}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              focusRow(0);
-            }
-          }}
-        />
+        <div data-guide="chat-list.search">
+          <Input
+            type="search"
+            label="Search chats"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+            }}
+            placeholder="Search chats"
+            leadingIcon={<Search className="size-4" />}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusRow(0);
+              }
+            }}
+          />
+        </div>
       </div>
 
       {all.length > 0 && <PushPrompt />}
 
       {view === 'chats' ? (
-        <div role="tablist" aria-label="Filter chats" className="flex gap-1 px-3 pt-2">
+        <div
+          role="tablist"
+          aria-label="Filter chats"
+          data-guide="chat-list.tabs"
+          className="flex gap-1 px-3 pt-2"
+        >
           {CHAT_TABS.map((t) => (
             <button
               key={t.id}

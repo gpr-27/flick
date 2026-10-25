@@ -1,6 +1,8 @@
 // Asks about push notifications in context: only once the user has chats, only after a tap,
 // and never again once dismissed. If the browser has blocked them, says how to unblock.
 import { useEffect, useState } from 'react';
+import { useFeatureGuide } from '@/features/guide/useFeatureGuide';
+import { markUsed } from '@/features/guide/useGuideStore';
 import {
   enablePush,
   fetchVapidKey,
@@ -32,6 +34,7 @@ export const PushPrompt = () => {
     let cancelled = false;
     void getPushState().then((state) => {
       if (cancelled) return;
+      if (state === 'subscribed') markUsed('push.permission');
       if (state === 'unsubscribed' && Notification.permission === 'default') setView('ask');
       else if (state === 'denied') setView('blocked');
     });
@@ -58,15 +61,18 @@ export const PushPrompt = () => {
   const turnOn = async (): Promise<void> => {
     try {
       await enablePush(vapidKey);
+      markUsed('push.permission');
       setView('hidden');
     } catch (error) {
       setView(error instanceof PushError && error.failure === 'denied' ? 'blocked' : 'hidden');
     }
   };
 
+  useFeatureGuide('push.permission', view === 'ask' && Boolean(vapidKey));
   if (view === 'hidden' || (view === 'ask' && !vapidKey)) return null;
   return (
     <div
+      data-guide="push.prompt"
       className="mx-3 mt-2 rounded-2xl bg-primary/10 p-3 text-sm"
       role="region"
       aria-label="Notifications"

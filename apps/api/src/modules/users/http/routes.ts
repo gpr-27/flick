@@ -7,6 +7,7 @@ import { toMe, toSummary } from '../domain/present.js';
 import { createPresence } from '../../gateway/presence.js';
 import { revokeDevices } from '../../devices/revoke.js';
 import { findProfile, getSettings, updateSettings } from '../repo/privacy.js';
+import { getGuide, updateGuide } from '../repo/guide.js';
 import {
   anonymiseUser,
   exportChunks,
@@ -164,6 +165,19 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
     handle((req) =>
       updateSettings(db, req.auth!.userId, parse(users.updateSettings.body, req.body)),
     ),
+  );
+
+  // The in-app guide progress. Only the caller's own row is ever read or written.
+  app.get(
+    users.guide.path,
+    guard,
+    handle((req) => getGuide(db, req.auth!.userId)),
+  );
+
+  app.patch(
+    users.updateGuide.path,
+    guard,
+    handle((req) => updateGuide(db, req.auth!.userId, parse(users.updateGuide.body, req.body))),
   );
 
   // The data download. It streams, so a big history never sits in memory; a stricter limit than

@@ -73,6 +73,17 @@ describe('migrations', () => {
       ).rows.length;
     expect(await aiLanguageColumn()).toBe(1);
 
+    const guideColumn = async () =>
+      (
+        await sql<{ column_name: string }>`
+          SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'user_settings' AND column_name = 'guide'`.execute(t.db)
+      ).rows.length;
+    expect(await guideColumn()).toBe(1);
+
+    await migrateDown(t.db); // undoes 0013 (the in-app guide)
+    expect(await guideColumn()).toBe(0);
+
     await migrateDown(t.db); // undoes 0012 (saved and scheduled messages)
     expect(await tables()).not.toContain('scheduled_messages');
 

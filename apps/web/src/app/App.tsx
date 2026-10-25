@@ -15,6 +15,7 @@ import { IncomingCallModal } from '@/features/calls/components/IncomingCallModal
 import { useAnswerFromNotification } from '@/features/calls/useAnswerFromNotification';
 import { bindCallRealtime } from '@/features/calls/useCallStore';
 import { CallLogPage } from '@/features/calllog/CallLogPage';
+import { GuideHost } from '@/features/guide/GuideHost';
 import { InvitePage } from '@/features/chat/InvitePage';
 import { CallLinkPage } from '@/features/groupcall/CallLinkPage';
 import { GroupCallOverlay } from '@/features/groupcall/components/GroupCallOverlay';
@@ -121,6 +122,7 @@ const SignedInApp = () => {
       <CallPermissionPrompt />
       <CallOverlay />
       <GroupCallOverlay />
+      <GuideHost />
     </>
   );
 };

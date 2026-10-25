@@ -4,6 +4,7 @@ import { MoreVertical, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { AnchoredPanel, Modal, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
 import { isFlickChat } from '@/features/ai/isFlickBot';
+import { useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { useChatStore } from '../chat/useChatStore';
 import { LockModal } from './ChatLock';
 import { useLockStore } from './lock';
@@ -162,6 +163,7 @@ export const ChatOptionsMenu = ({
   const close = (): void => {
     setOpen(false);
   };
+  useMarkUsedWhen('chat.options', open);
   useFocusTrap(menuRef, open, { onEscape: close });
   // Escape must work wherever the focus is while the menu is open. The menu lives in <body>, so
   // a key handler on the menu alone does not see keys pressed elsewhere.
@@ -211,6 +213,8 @@ export const ChatOptionsMenu = ({
         aria-haspopup="menu"
         aria-expanded={open}
         title="Chat options"
+        // On a phone the menu also stands in for the header buttons that are folded into it.
+        data-guide="chat.options ai.ask call.video call.group group.info chat.disappearing"
       >
         <MoreVertical className="size-5" aria-hidden="true" />
       </button>
