@@ -12,6 +12,7 @@ import * as Msg from './messages.js';
 import * as Mod from './moderation.js';
 import * as Notif from './notifications.js';
 import * as Push from './push.js';
+import * as Reminders from './reminders.js';
 import * as Scheduled from './scheduled.js';
 import * as Users from './users.js';
 
@@ -87,6 +88,15 @@ export const ENDPOINTS = {
       auth: true,
       body: Users.UpdateSettingsRequest,
       response: Users.AccountSettings,
+    },
+    /** The in-app guide progress (tour and tips); follows the person across devices. */
+    guide: { method: 'GET', path: '/users/me/guide', auth: true, response: Users.GuideState },
+    updateGuide: {
+      method: 'PATCH',
+      path: '/users/me/guide',
+      auth: true,
+      body: Users.UpdateGuideRequest,
+      response: Users.GuideState,
     },
     /** Streams a JSON file (Content-Disposition: attachment); the web client saves it as a file. */
     export: { method: 'GET', path: '/users/me/export', auth: true, response: z.unknown() },
@@ -175,6 +185,19 @@ export const ENDPOINTS = {
       params: Conv.ConversationParams,
       body: Conv.UpdateChatPrefsRequest,
       response: Conv.ChatPrefs,
+    },
+    /**
+     * "Delete chat" for me only: my copy of the messages is removed, the other members keep
+     * theirs. A direct chat disappears from my list until a newer message arrives (then it shows
+     * only the newer messages). Groups must be left first (409). For the assistant chat and
+     * Saved messages it only clears the history and the chat stays.
+     */
+    deleteForMe: {
+      method: 'DELETE',
+      path: '/conversations/:conversation_id',
+      auth: true,
+      params: Conv.ConversationParams,
+      response: null,
     },
     leave: {
       method: 'POST',
@@ -544,6 +567,29 @@ export const ENDPOINTS = {
       path: '/scheduled/:scheduled_id',
       auth: true,
       params: Scheduled.ScheduledParams,
+      response: null,
+    },
+  },
+  reminders: {
+    create: {
+      method: 'POST',
+      path: '/reminders',
+      auth: true,
+      body: Reminders.CreateReminderRequest,
+      response: Reminders.Reminder,
+    },
+    list: {
+      method: 'GET',
+      path: '/reminders',
+      auth: true,
+      query: Reminders.ReminderListQuery,
+      response: Reminders.ReminderList,
+    },
+    cancel: {
+      method: 'DELETE',
+      path: '/reminders/:reminder_id',
+      auth: true,
+      params: Reminders.ReminderParams,
       response: null,
     },
   },

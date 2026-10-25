@@ -38,6 +38,13 @@ import {
 } from './threadOps';
 
 export type Member = z.infer<typeof MemberSchema>;
+/** The `user_updated` event: the new public profile of one person. */
+export interface ProfileUpdate {
+  user_id: string;
+  display_name: string;
+  username: string;
+  avatar_url: string | null;
+}
 export type Activity = 'typing' | 'recording_voice' | 'recording_video' | 'uploading';
 
 export interface Thread {
@@ -65,6 +72,11 @@ interface ChatState {
   threads: Record<string, Thread>;
   members: Record<string, Member[]>;
   users: Record<string, UserSummary>;
+  /**
+   * The newest profile of everyone a `user_updated` event told us about. Lists that keep their own
+   * copy of people (the directory, a profile card) lay these over what they loaded earlier.
+   */
+  profiles: Record<string, ProfileUpdate>;
   /** Other members' delivered/read cursors per conversation; ticks are derived from them. */
   receipts: Record<string, Record<string, Cursors>>;
   typing: Record<string, Record<string, Activity>>;
@@ -96,6 +108,8 @@ interface ChatState {
   }) => void;
   setActivity: (conversationId: string, userId: string, activity: Activity | null) => void;
   presenceUpdate: (userId: string, online: boolean, lastSeenAt: string | null) => void;
+  /** Someone you share a chat with changed their name, username or picture. */
+  userUpdated: (profile: ProfileUpdate) => void;
   conversationUpdated: (conversationId: string, summary: ConversationSummary | null) => void;
   removeConversations: (ids: string[]) => void;
   clearTyping: () => void;
@@ -134,6 +148,7 @@ const initial = {
   threads: {},
   members: {},
   users: {},
+  profiles: {},
   receipts: {},
   typing: {},
   presence: {},
@@ -505,6 +520,37 @@ export const useChatStore = create<ChatState>()((set, get) => {
       }));
     },
 
+    userUpdated: (profile) => {
+      const fields = {
+        display_name: profile.display_name,
+        username: profile.username,
+        avatar_url: profile.avatar_url,
+      };
+      set((s) => {
+        const known = s.users[profile.user_id];
+        const members = { ...s.members };
+        for (const [conversationId, list] of Object.entries(s.members)) {
+          if (list.some((m) => m.user.id === profile.user_id)) {
+            members[conversationId] = list.map((m) =>
+              m.user.id === profile.user_id ? { ...m, user: { ...m.user, ...fields } } : m,
+            );
+          }
+        }
+        const conversations = { ...s.conversations };
+        for (const [id, c] of Object.entries(s.conversations)) {
+          if (c.peer?.id === profile.user_id) {
+            conversations[id] = { ...c, peer: { ...c.peer, ...fields } };
+          }
+        }
+        return {
+          profiles: { ...s.profiles, [profile.user_id]: profile },
+          users: known ? { ...s.users, [profile.user_id]: { ...known, ...fields } } : s.users,
+          members,
+          conversations,
+        };
+      });
+    },
+
     conversationUpdated: (conversationId, summary) => {
       if (!summary) {
         get().removeConversations([conversationId]);
@@ -840,3 +886,19 @@ export const syncEngine: SyncEngine = createSyncEngine({
 /** Display name for a user id, from whatever we have cached. */
 export const userName = (users: Record<string, UserSummary>, id: string | null): string =>
   (id ? users[id]?.display_name : undefined) ?? 'Someone';
+
+/** `user` with the newest name, username and picture an event told us about (if any). */
+export const withLiveProfile = <T extends UserSummary>(
+  user: T,
+  profiles: Record<string, ProfileUpdate>,
+): T => {
+  const live = profiles[user.id];
+  return live
+    ? {
+        ...user,
+        display_name: live.display_name,
+        username: live.username,
+        avatar_url: live.avatar_url,
+      }
+    : user;
+};

@@ -10,6 +10,7 @@ import type { Config } from '../../config.js';
 import type { Db } from '../../db.js';
 import { messageDispatchLatency } from '../../metrics.js';
 import { fromRow } from '../messages/domain/content.js';
+import { toSummary } from '../users/domain/present.js';
 import { getConversation } from '../conversations/repo/summaries.js';
 import { queueNotifications } from './notify.js';
 
@@ -184,6 +185,52 @@ async function receipt(p: Payload, ctx: DispatchContext): Promise<void> {
   });
 }
 
+/**
+ * A member changed their profile. Current members get the new name and picture, except anyone who
+ * blocked them or was blocked by them (a block hides the person, so it must not leak updates). The
+ * person's own devices always hear it.
+ */
+async function memberProfileChanged(p: Payload, ctx: DispatchContext): Promise<void> {
+  const subjectId = p.data?.user_id;
+  if (!subjectId) return;
+  const user = await ctx.db
+    .selectFrom('users')
+    .select(['id', 'username', 'display_name', 'avatar_object_key', 'avatar_url', 'is_bot'])
+    .where('id', '=', subjectId)
+    .where('status', '=', 'active')
+    .executeTakeFirst();
+  if (!user) return;
+  const members = (await activeMembers(ctx.db, p.conversation_id)).map((m) => m.user_id);
+  if (!members.includes(subjectId)) return; // they left since: their old chats hear nothing
+  const others = members.filter((id) => id !== subjectId);
+  const blocked =
+    others.length === 0
+      ? []
+      : await ctx.db
+          .selectFrom('blocks')
+          .select(['blocker_id', 'blocked_id'])
+          .where((eb) =>
+            eb.or([
+              eb.and([eb('blocker_id', '=', subjectId), eb('blocked_id', 'in', others)]),
+              eb.and([eb('blocked_id', '=', subjectId), eb('blocker_id', 'in', others)]),
+            ]),
+          )
+          .execute();
+  const hidden = new Set(blocked.flatMap((b) => [b.blocker_id, b.blocked_id]));
+  const summary = toSummary(ctx.config, user);
+  return emitToUsers(
+    ctx,
+    members.filter((id) => id === subjectId || !hidden.has(id)),
+    'user_updated',
+    {
+      user_id: summary.id,
+      display_name: summary.display_name,
+      username: summary.username,
+      avatar_url: summary.avatar_url,
+    },
+  );
+}
+
 /** Each member gets their own view of the conversation; a removed user gets `null`. */
 async function conversationChanged(p: Payload, ctx: DispatchContext): Promise<void> {
   if (p.type === 'conversation.pins_changed') {
@@ -196,6 +243,7 @@ async function conversationChanged(p: Payload, ctx: DispatchContext): Promise<vo
       actor_user_id: p.data?.actor_user_id,
     });
   }
+  if (p.type === 'conversation.member_profile_changed') return memberProfileChanged(p, ctx);
   const users = new Set((await activeMembers(ctx.db, p.conversation_id)).map((m) => m.user_id));
   if (p.type === 'conversation.member_removed' && p.data?.user_id) users.add(p.data.user_id);
   await inBatches([...users], async (batch) => {

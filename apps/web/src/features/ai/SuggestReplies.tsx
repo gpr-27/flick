@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
+import { useFeatureGuide } from '@/features/guide/useFeatureGuide';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { suggestReplies } from './aiApi';
 import { ModelTag } from './ModelTag';
 import { useAiEnabled } from './useAiEnabled';
@@ -22,8 +24,10 @@ export const SuggestReplies = ({
 }) => {
   const enabled = useAiEnabled();
   const [state, setState] = useState<State>({ status: 'idle' });
+  useFeatureGuide('ai.suggest', enabled === true);
 
   const load = (): void => {
+    markUsed('ai.suggest');
     setState({ status: 'loading' });
     suggestReplies(conversationId)
       .then(({ replies, model }) => {
@@ -39,7 +43,10 @@ export const SuggestReplies = ({
 
   return (
     // One line on phones: the chips scroll sideways instead of wrapping into more rows.
-    <div className="scroll-slim mb-2 flex items-center gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto sm:flex-wrap">
+    <div
+      data-guide="ai.suggest"
+      className="scroll-slim mb-2 flex items-center gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto sm:flex-wrap"
+    >
       <button
         type="button"
         onClick={load}

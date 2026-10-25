@@ -76,6 +76,33 @@ describe('migrations', () => {
     await migrateDown(t.db); // undoes 0017 (notification centre)
     expect(await tables()).not.toContain('notifications');
 
+    expect(await tables()).toContain('reminders');
+    await migrateDown(t.db); // undoes 0016 (reminders)
+    expect(await tables()).not.toContain('reminders');
+
+    const memberColumn = async (name: string) =>
+      (
+        await sql<{ column_name: string }>`
+          SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'conversation_members' AND column_name = ${name}`.execute(t.db)
+      ).rows.length;
+    expect(await memberColumn('cleared_seq')).toBe(1);
+
+    await migrateDown(t.db); // undoes 0015 (chat list: delete for me, mark as unread)
+    expect(await memberColumn('cleared_seq')).toBe(0);
+    expect(await memberColumn('marked_unread')).toBe(0);
+
+    const guideColumn = async () =>
+      (
+        await sql<{ column_name: string }>`
+          SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'user_settings' AND column_name = 'guide'`.execute(t.db)
+      ).rows.length;
+    expect(await guideColumn()).toBe(1);
+
+    await migrateDown(t.db); // undoes 0013 (the in-app guide)
+    expect(await guideColumn()).toBe(0);
+
     await migrateDown(t.db); // undoes 0012 (saved and scheduled messages)
     expect(await tables()).not.toContain('scheduled_messages');
 

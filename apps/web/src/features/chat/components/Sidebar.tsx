@@ -1,190 +1,121 @@
 import { InstallCard } from '@/pwa/InstallCard';
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
   Archive,
-  BellOff,
   Bookmark,
+  AlarmClock,
   CalendarClock,
-  Lock,
   MessageSquarePlus,
-  Pin,
+  MoreVertical,
   Search,
   Star,
   Users,
   UsersRound,
 } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
-import { Avatar, Badge, EmptyState, ErrorState, Input, cn, formatCount } from '@/components/ui';
-import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
+import { EmptyState, ErrorState, Input, cn } from '@/components/ui';
 import { isFlickChat } from '@/features/ai/isFlickBot';
-import { formatRelativeTime } from '@/lib/time';
+import { WelcomeCard } from '@/features/guide/WelcomeCard';
+import { useFeatureGuide, useFeatureGuides } from '@/features/guide/useFeatureGuide';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CHAT_TABS, visibleChats, type ChatTab, type ChatView } from '../../organise/chatFilters';
-import { useDraftStore } from '../../organise/drafts';
-import { useIsHidden } from '../../organise/lock';
-import { isMuted } from '../../organise/prefs';
 import { StarredPanel } from '../../organise/StarredPanel';
 import { SearchPanel } from '../../search/SearchPanel';
+import { RemindersDialog } from '@/features/reminders/RemindersDialog';
+import { useLoadReminders } from '@/features/reminders/useLoadReminders';
 import { ScheduledDialog } from '@/features/scheduled/ScheduledDialog';
 import { previewContent } from '../content/registry';
-import { SAVED_TITLE, conversationAvatar, conversationTitle } from '../conversationView';
+import { SAVED_TITLE, conversationTitle } from '../conversationView';
 import { useChatStore } from '../useChatStore';
 import { InviteButton } from '@/features/directory/InviteButton';
 import { NewChatModal, NewGroupModal } from './NewChatModals';
 import { ChatListMenu } from '../../notifications/ChatListMenu';
-import { useMentions } from '../../notifications/mentions';
 import { PushPrompt } from '../../notifications/PushPrompt';
 import { SidebarSkeleton } from './SidebarSkeleton';
-
-interface ConversationRowProps {
-  conversation: ConversationSummary;
-  myId: string | undefined;
-  isOnline: boolean;
-  isActive: boolean;
-  isFocusTarget: boolean;
-  onSelect: (id: string) => void;
-  onFocus: () => void;
-}
-
-const ConversationRow = ({
-  conversation: c,
-  myId,
-  isOnline,
-  isActive,
-  isFocusTarget,
-  onSelect,
-  onFocus,
-}: ConversationRowProps) => {
-  const unread = c.unread_count;
-  const last = c.last_message;
-  const prefix = last && last.sender_user_id === myId ? 'You: ' : '';
-  const draft = useDraftStore((s) => s.drafts[c.id]);
-  // A locked chat shows no message text until its passcode is entered in this tab.
-  const hidden = useIsHidden(c.id, c.prefs.locked);
-  const muted = isMuted(c.prefs);
-  const mentioned = useMentions((s) => c.id in s.chats);
-  const bot = isFlickChat(c);
-  return (
-    <li
-      role="option"
-      aria-selected={isActive}
-      tabIndex={isFocusTarget ? 0 : -1}
-      data-conversation-id={c.id}
-      onClick={() => {
-        onSelect(c.id);
-      }}
-      onFocus={onFocus}
-      className={cn(
-        'mb-1 flex w-full cursor-pointer items-center gap-3 rounded-2xl p-2.5 text-left outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/50',
-        isActive ? 'bg-primary/12 ring-1 ring-primary/30' : 'hover:bg-base-content/5',
-      )}
-    >
-      {bot ? (
-        <FlickAvatar size="md" />
-      ) : (
-        <Avatar src={conversationAvatar(c)} name="" size="md" online={isOnline} />
-      )}
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className={cn(
-              'flex min-w-0 items-center gap-1.5',
-              unread > 0 ? 'font-bold' : 'font-semibold',
-            )}
-          >
-            <span className="truncate">{conversationTitle(c)}</span>
-            {bot && <FlickBadge />}
-          </span>
-          {last && (
-            <span className="shrink-0 text-[11px] font-medium text-base-content/60">
-              {formatRelativeTime(last.created_at)}
-            </span>
-          )}
-        </div>
-
-        <div className="mt-0.5 flex items-center justify-between gap-2">
-          <span
-            className={cn(
-              'flex min-w-0 items-center gap-1 truncate text-sm',
-              unread > 0 ? 'text-base-content/80' : 'text-base-content/60',
-            )}
-          >
-            {hidden ? (
-              <span className="flex items-center gap-1 italic">
-                <Lock className="size-3.5" aria-hidden="true" />
-                Locked chat
-              </span>
-            ) : draft && !isActive ? (
-              <>
-                <span className="shrink-0 font-semibold text-error">Draft:</span>
-                <span className="truncate">{draft}</span>
-              </>
-            ) : last ? (
-              <>
-                {prefix && <span className="shrink-0">{prefix}</span>}
-                <span className="truncate">{previewContent(last.content)}</span>
-              </>
-            ) : (
-              <span className="italic text-base-content/55">Tap to start chatting</span>
-            )}
-          </span>
-
-          <span className="flex shrink-0 items-center gap-1.5 text-base-content/50">
-            {muted && <BellOff className="size-3.5" aria-label="Muted" role="img" />}
-            {(c.prefs.pinned || bot) && <Pin className="size-3.5" aria-label="Pinned" role="img" />}
-            {c.prefs.favorite && <Star className="size-3.5" aria-label="Favourite" role="img" />}
-            {mentioned && unread > 0 && (
-              <Badge variant="count" label="You were mentioned">
-                @
-              </Badge>
-            )}
-            {unread > 0 && (
-              <Badge variant="count" label={`${unread} unread`}>
-                {formatCount(unread)}
-              </Badge>
-            )}
-          </span>
-        </div>
-      </div>
-    </li>
-  );
-};
+import { ChatRow } from '../../chatlist/ChatRow';
+import { RowMenu } from '../../chatlist/RowMenu';
+import { SelectionBar } from '../../chatlist/SelectionBar';
+import { clearMarkedUnreadOnOpen, type ActionId } from '../../chatlist/rowActions';
+import { useChatActions } from '../../chatlist/useChatActions';
+import { useOpenRow } from '../../chatlist/useOpenRow';
+import { useSelection } from '../../chatlist/useSelection';
 
 /** "Saved messages" (notes to yourself): always the first row; the chat is created on first tap. */
 const SavedRow = ({
   conversation,
   isActive,
+  onAction,
 }: {
   conversation: ConversationSummary | undefined;
   isActive: boolean;
+  onAction: (id: ActionId, c: ConversationSummary) => void;
 }) => {
   const select = useChatStore((s) => s.select);
   const openSaved = useChatStore((s) => s.openSaved);
+  const [menu, setMenu] = useState(false);
+  const menuAnchor = useRef<HTMLButtonElement>(null);
   const last = conversation?.last_message;
   return (
-    <button
-      type="button"
-      aria-current={isActive}
-      onClick={() => {
-        if (conversation) select(conversation.id);
-        else void openSaved();
-      }}
-      className={cn(
-        'mb-1 flex w-full items-center gap-3 rounded-2xl p-2.5 text-left outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/50',
-        isActive ? 'bg-primary/12 ring-1 ring-primary/30' : 'hover:bg-base-content/5',
-      )}
-    >
-      <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
-        <Bookmark className="size-6" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-semibold">{SAVED_TITLE}</span>
-        <span className="block truncate text-sm text-base-content/60">
-          {last ? previewContent(last.content) : 'Notes to yourself'}
+    <div className="group relative mb-2">
+      <button
+        type="button"
+        data-guide="saved-row"
+        aria-current={isActive}
+        onClick={() => {
+          if (conversation) select(conversation.id);
+          else void openSaved();
+        }}
+        onContextMenu={(e) => {
+          if (!conversation) return;
+          e.preventDefault();
+          setMenu(true);
+        }}
+        className={cn(
+          'flex min-h-[64px] w-full items-center gap-3 rounded-2xl border p-2.5 text-left outline-none backdrop-blur-md transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary/50',
+          isActive
+            ? 'border-primary/40 bg-primary/10 ring-1 ring-primary/30'
+            : 'border-base-content/10 bg-base-100/70 hover:bg-base-100',
+        )}
+      >
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+          <Bookmark className="size-6" aria-hidden="true" />
         </span>
-      </span>
-    </button>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{SAVED_TITLE}</span>
+          <span className="block truncate text-sm text-base-content/60">
+            {last ? previewContent(last.content) : 'Notes to yourself'}
+          </span>
+        </span>
+      </button>
+      {conversation && (
+        <button
+          ref={menuAnchor}
+          type="button"
+          tabIndex={-1}
+          aria-hidden="true"
+          onClick={() => {
+            setMenu(true);
+          }}
+          className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-base-100/90 text-base-content/70 opacity-0 shadow transition-opacity hover:text-primary group-hover:opacity-100 [@media(hover:none)]:hidden"
+        >
+          <MoreVertical className="size-5" />
+        </button>
+      )}
+      {menu && conversation && (
+        <RowMenu
+          conversation={conversation}
+          anchor={menuAnchor}
+          onAction={(id) => {
+            onAction(id, conversation);
+          }}
+          onSelect={() => undefined}
+          onClose={() => {
+            setMenu(false);
+          }}
+        />
+      )}
+    </div>
   );
 };
 
@@ -206,7 +137,29 @@ export const Sidebar = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [starredOpen, setStarredOpen] = useState(false);
   const [scheduledOpen, setScheduledOpen] = useState(false);
+  const [remindersOpen, setRemindersOpen] = useState(false);
+  useLoadReminders();
   const listRef = useRef<HTMLUListElement>(null);
+  const selecting = useSelection((s) => s.active);
+  const selectedIds = useSelection((s) => s.ids);
+  const { run, askDelete, dialogs } = useChatActions();
+
+  // A chat marked as unread loses its dot once it is opened.
+  useEffect(() => {
+    if (selectedId) clearMarkedUnreadOnOpen(selectedId);
+  }, [selectedId]);
+  // Switching the list (tabs, archived) or leaving the screen ends select mode and closes swipes.
+  useEffect(() => {
+    useSelection.getState().end();
+    useOpenRow.getState().close();
+  }, [tab, view]);
+  useEffect(
+    () => () => {
+      useSelection.getState().end();
+      useOpenRow.getState().close();
+    },
+    [],
+  );
 
   // Saved messages has its own row at the top, so it is not part of the filtered list.
   const saved = useMemo(
@@ -228,6 +181,26 @@ export const Sidebar = () => {
     view === 'chats' &&
     tab === 'all' &&
     SAVED_TITLE.toLowerCase().includes(search.trim().toLowerCase());
+
+  // First-open tips for what the list offers. Someone who already has notes saved has used Saved
+  // messages, so it is never shown to them as new.
+  const usedSaved = Boolean(saved?.last_message);
+  useEffect(() => {
+    if (usedSaved) markUsed('saved.messages');
+  }, [usedSaved]);
+  useFeatureGuide('saved.messages', listStatus === 'ready' && showSaved && !usedSaved);
+  useFeatureGuide('search.chat', listStatus === 'ready');
+  const hasChats = listStatus === 'ready' && all.length > 0;
+  useFeatureGuides(
+    ['chats.list', 'chats.new', 'chat.starred', 'scheduled.list', 'group.create'],
+    listStatus === 'ready',
+  );
+  useFeatureGuide('ai.flickchat', hasChats && all.some((c) => isFlickChat(c)));
+  // Someone who already has a group has used groups; never show it to them as new.
+  const hasGroup = all.some((c) => c.type === 'group');
+  useEffect(() => {
+    if (hasGroup) markUsed('group.create');
+  }, [hasGroup]);
 
   if (listStatus === 'idle' || (listStatus === 'loading' && all.length === 0)) {
     return <SidebarSkeleton />;
@@ -266,7 +239,8 @@ export const Sidebar = () => {
       case 'Enter':
       case ' ': {
         const target = filtered[current];
-        if (target) select(target.id);
+        if (target && selecting) useSelection.getState().toggle(target.id);
+        else if (target) select(target.id);
         break;
       }
       default:
@@ -279,8 +253,10 @@ export const Sidebar = () => {
     <aside
       className="glass flex h-full w-full flex-col border-r border-base-content/10"
       aria-label="Conversations"
+      data-guide="chat-list"
     >
       <InstallCard />
+      <WelcomeCard />
       <div className="space-y-3 border-b border-base-content/10 p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-bold tracking-tight">Chats</h2>
@@ -290,7 +266,9 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="Search messages"
               title="Search messages"
+              data-guide="search.messages"
               onClick={() => {
+                markUsed('search.chat');
                 setSearchOpen(true);
               }}
             >
@@ -301,7 +279,9 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="Starred messages"
               title="Starred messages"
+              data-guide="starred.open"
               onClick={() => {
+                markUsed('chat.starred');
                 setStarredOpen(true);
               }}
             >
@@ -312,7 +292,9 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="Scheduled messages"
               title="Scheduled messages"
+              data-guide="scheduled.open"
               onClick={() => {
+                markUsed('scheduled.list');
                 setScheduledOpen(true);
               }}
             >
@@ -321,9 +303,22 @@ export const Sidebar = () => {
             <button
               type="button"
               className="btn btn-circle btn-ghost btn-sm"
+              aria-label="Reminders"
+              title="Reminders"
+              onClick={() => {
+                setRemindersOpen(true);
+              }}
+            >
+              <AlarmClock className="size-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="btn btn-circle btn-ghost btn-sm"
               aria-label="New chat"
               title="New chat"
+              data-guide="new-chat"
               onClick={() => {
+                markUsed('chats.new');
                 setNewChat(true);
               }}
             >
@@ -334,38 +329,60 @@ export const Sidebar = () => {
               className="btn btn-circle btn-ghost btn-sm"
               aria-label="New group"
               title="New group"
+              data-guide="new-group"
               onClick={() => {
+                markUsed('group.create');
                 setNewGroup(true);
               }}
             >
               <UsersRound className="size-5" aria-hidden="true" />
             </button>
-            <ChatListMenu />
+            <ChatListMenu
+              onSelectChats={() => {
+                useSelection.getState().begin();
+              }}
+            />
           </div>
         </div>
 
-        <Input
-          type="search"
-          label="Search chats"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-          }}
-          placeholder="Search chats"
-          leadingIcon={<Search className="size-4" />}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              focusRow(0);
-            }
-          }}
-        />
+        <div data-guide="chat-list.search">
+          <Input
+            type="search"
+            label="Search chats"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+            }}
+            placeholder="Search chats"
+            leadingIcon={<Search className="size-4" />}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusRow(0);
+              }
+            }}
+          />
+        </div>
       </div>
 
       {all.length > 0 && <PushPrompt />}
 
+      {selecting && (
+        <SelectionBar
+          chats={selectedIds.flatMap((id) => conversations[id] ?? [])}
+          visibleIds={filtered.map((c) => c.id)}
+          archivedView={view === 'archived'}
+          onDelete={askDelete}
+        />
+      )}
+
       {view === 'chats' ? (
-        <div role="tablist" aria-label="Filter chats" className="flex gap-1 px-3 pt-2">
+        <div
+          role="tablist"
+          aria-label="Filter chats"
+          data-guide="chat-list.tabs"
+          className="flex gap-1 px-3 pt-2"
+        >
           {CHAT_TABS.map((t) => (
             <button
               key={t.id}
@@ -399,19 +416,32 @@ export const Sidebar = () => {
         </div>
       )}
 
-      <div className="scroll-slim flex-1 overflow-y-auto p-2">
-        {showSaved && <SavedRow conversation={saved} isActive={saved?.id === selectedId} />}
+      <div
+        className="scroll-slim flex-1 overflow-y-auto p-2"
+        onScroll={() => {
+          useOpenRow.getState().close();
+        }}
+      >
         {view === 'chats' && archivedCount > 0 && (
           <button
             type="button"
-            className="mb-1 flex w-full items-center gap-3 rounded-2xl p-2.5 text-left text-sm font-semibold hover:bg-base-content/5"
+            aria-label={`Archived (${archivedCount})`}
+            className="mb-2 flex min-h-[44px] w-full items-center gap-3 rounded-2xl border border-base-content/10 bg-base-100/70 p-2.5 text-left text-sm font-semibold backdrop-blur-md hover:bg-base-100"
             onClick={() => {
               setView('archived');
             }}
           >
-            <Archive className="size-5" aria-hidden="true" />
-            Archived ({archivedCount})
+            <Archive className="size-5 text-primary" aria-hidden="true" />
+            <span className="flex-1" aria-hidden="true">
+              Archived
+            </span>
+            <span className="text-base-content/60" aria-hidden="true">
+              {archivedCount}
+            </span>
           </button>
+        )}
+        {showSaved && (
+          <SavedRow conversation={saved} isActive={saved?.id === selectedId} onAction={run} />
         )}
         {listStatus === 'error' && all.length === 0 ? (
           <ErrorState
@@ -435,9 +465,15 @@ export const Sidebar = () => {
             )}
           </>
         ) : (
-          <ul ref={listRef} role="listbox" aria-label="Chats" onKeyDown={onListKeyDown}>
+          <ul
+            ref={listRef}
+            role="listbox"
+            aria-label="Chats"
+            aria-multiselectable={selecting || undefined}
+            onKeyDown={onListKeyDown}
+          >
             {filtered.map((c) => (
-              <ConversationRow
+              <ChatRow
                 key={c.id}
                 conversation={c}
                 myId={myId}
@@ -448,6 +484,7 @@ export const Sidebar = () => {
                 onFocus={() => {
                   setFocusedId(c.id);
                 }}
+                onAction={run}
               />
             ))}
           </ul>
@@ -464,6 +501,12 @@ export const Sidebar = () => {
         open={starredOpen}
         onClose={() => {
           setStarredOpen(false);
+        }}
+      />
+      <RemindersDialog
+        open={remindersOpen}
+        onClose={() => {
+          setRemindersOpen(false);
         }}
       />
       <ScheduledDialog
@@ -484,6 +527,7 @@ export const Sidebar = () => {
           setNewGroup(false);
         }}
       />
+      {dialogs}
     </aside>
   );
 };

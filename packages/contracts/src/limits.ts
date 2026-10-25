@@ -35,6 +35,15 @@ export const LIMITS = {
   SCHEDULE_MAX_LEAD_S: 365 * 86_400,
   /** Max waiting (pending or failed) scheduled messages per user. */
   MAX_SCHEDULED_PER_USER: 50,
+  /** A reminder must be at least a minute ahead (the worker checks once a minute), at most a year. */
+  REMINDER_MIN_LEAD_S: 60,
+  REMINDER_MAX_LEAD_S: 365 * 86_400,
+  /** Max characters in the optional note of a reminder. */
+  MAX_REMINDER_NOTE_LENGTH: 200,
+  /** Max waiting (pending) reminders per user. */
+  MAX_PENDING_REMINDERS_PER_USER: 50,
+  /** Reminders that were already sent stay in the list this long. */
+  REMINDER_SENT_VISIBLE_S: 3 * 86_400,
 } as const;
 
 export const TYPING = {

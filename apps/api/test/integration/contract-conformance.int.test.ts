@@ -252,6 +252,14 @@ const SCENARIOS: Record<string, Scenario> = {
     conforms(def, res);
     expect(res.body.ai_language).toBe('fr');
   },
+  'users.guide': async (f, def) => conforms(def, await call(f.alice, def)),
+  'users.updateGuide': async (f, def) => {
+    const res = await call(f.alice, def, {
+      body: { seen: { 'welcome.tour': '2026-01-01T00:00:00.000Z' }, enabled: true },
+    });
+    conforms(def, res);
+    expect(res.body.seen['welcome.tour']).toBeDefined();
+  },
   // export, deleteAccount and clearFlickChat run as a throwaway user: they read or destroy the
   // caller's own data, which must not be the fixture's.
   'users.export': async (f, def) => {
@@ -323,6 +331,11 @@ const SCENARIOS: Record<string, Scenario> = {
     conforms(def, await call(f.alice, def, { params: C(f), body: { title: 'Renamed' } })),
   'conversations.updatePrefs': async (f, def) =>
     conforms(def, await call(f.alice, def, { params: C(f), body: { archived: true } })),
+  'conversations.deleteForMe': async (f, def) => {
+    const temp = await stack.user('chatdeleter');
+    const conversation = await direct(stack, temp, f.alice);
+    conforms(def, await call(temp, def, { params: { conversation_id: conversation } }));
+  },
   'conversations.leave': async (f, def) => {
     const g = await group(stack, f.alice, [f.bob, f.carol], 'to leave');
     conforms(def, await call(f.carol, def, { params: { conversation_id: g } }));
@@ -597,6 +610,30 @@ const SCENARIOS: Record<string, Scenario> = {
       body: { text: 'cancel me', send_at: inOneHour() },
     });
     conforms(def, await call(f.alice, def, { params: { scheduled_id: made.body.id } }));
+  },
+
+  // ------------------------------------------------------------------ reminders
+  'reminders.create': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, {
+        body: { message_id: f.messageId, remind_at: inOneHour(), note: 'look again' },
+      }),
+      201,
+    ),
+  'reminders.list': async (f, def) => {
+    await call(f.alice, E.reminders.create, {
+      body: { conversation_id: f.conv, remind_at: inOneHour() },
+    });
+    const res = await call(f.alice, def, { query: 'limit=5' });
+    conforms(def, res);
+    expect(res.body.items.length).toBeGreaterThan(0);
+  },
+  'reminders.cancel': async (f, def) => {
+    const made = await call(f.alice, E.reminders.create, {
+      body: { message_id: f.messageId, remind_at: inOneHour() },
+    });
+    conforms(def, await call(f.alice, def, { params: { reminder_id: made.body.id } }));
   },
 
   // ------------------------------------------------------------------ ai (fake provider)

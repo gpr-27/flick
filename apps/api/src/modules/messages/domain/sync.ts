@@ -47,7 +47,15 @@ export async function syncConversation(
   query: { conversationId: string; afterSeq: number; limit: number },
 ): Promise<ConversationSync> {
   await requireMember(deps.db, query.conversationId, auth.userId);
-  const { conversationId, afterSeq } = query;
+  const { conversationId } = query;
+  // Messages the member removed with "Delete chat" are never replayed to any of their devices.
+  const cleared = await deps.db
+    .selectFrom('conversation_members')
+    .select('cleared_seq')
+    .where('conversation_id', '=', conversationId)
+    .where('user_id', '=', auth.userId)
+    .executeTakeFirst();
+  const afterSeq = Math.max(query.afterSeq, cleared?.cleared_seq ?? 0);
   const limit = Math.min(Math.max(query.limit, 1), LIMITS.MAX_SYNC_PAGE_SIZE);
 
   // Each side is limited on its own: the first limit+1 rows of the union can only come from
@@ -207,6 +215,10 @@ export async function syncMany(
         .select('conversation_id')
         .where('user_id', '=', auth.userId)
         .where('left_at', 'is', null)
+        // A chat deleted on another device is reported as removed here (until a newer message).
+        .where(
+          sql<boolean>`(deleted_at IS NULL OR cleared_seq < (SELECT last_seq FROM conversations c WHERE c.id = conversation_id))`,
+        )
         .where(
           'conversation_id',
           'in',

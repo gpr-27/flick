@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ENDPOINTS, type UserSummary } from '@chat/contracts';
 import { getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
+import { useChatStore, withLiveProfile } from '@/features/chat/useChatStore';
 
 const PAGE_SIZE = 50;
 const DEBOUNCE_MS = 250;
@@ -85,10 +86,17 @@ export const useDirectory = (text: string) => {
     void fetchPage(state.q, state.items.length > 0 ? state.next : null);
   }, [state.q, state.items.length, state.next, fetchPage]);
 
+  // Someone renamed themselves since this page was loaded: show the newer name.
+  const profiles = useChatStore((s) => s.profiles);
+  const items = useMemo(
+    () => state.items.map((u) => withLiveProfile(u, profiles)),
+    [state.items, profiles],
+  );
+
   // Between typing and the debounce, the old results are not the answer yet.
   const waiting = text.trim() !== q || state.q !== q;
   return {
-    items: state.q === q ? state.items : [],
+    items: state.q === q ? items : [],
     hasMore: state.next !== null,
     // First page only: while a later page loads we keep showing the list.
     loading: waiting || (state.status === 'loading' && state.items.length === 0),

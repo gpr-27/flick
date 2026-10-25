@@ -48,6 +48,7 @@ export const SERVER_PAYLOADS = {
   conversation_updated: E.ConversationUpdatedPayload,
   pins_changed: E.PinsChangedPayload,
   notification_created: NotificationCreatedPayload,
+  user_updated: E.UserUpdatedPayload,
   call_offer: E.RelayedCall.call_offer,
   call_answer: E.RelayedCall.call_answer,
   call_ice: E.RelayedCall.call_ice,

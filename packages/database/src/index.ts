@@ -7,3 +7,4 @@ export * from './queries/messages.js';
 export * from './queries/cursors.js';
 export * from './queries/conversations.js';
 export * from './queries/outbox.js';
+export * from './queries/reminders.js';

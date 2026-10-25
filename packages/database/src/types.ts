@@ -64,6 +64,8 @@ export interface UserSettingsTable {
   /** Language Flick answers in; null = the language of the message. */
   ai_language: string | null;
   read_receipts: Generated<boolean>;
+  /** In-app guide progress (topic ids and times only). The shape is GuideState in contracts. */
+  guide: Generated<unknown>;
 }
 
 export interface DevicesTable {
@@ -113,6 +115,12 @@ export interface ConversationMembersTable {
   favourite: Generated<boolean>;
   wallpaper: string | null;
   lock_hash: string | null;
+  // "Delete chat" (for me only): messages up to cleared_seq are gone from this member's view.
+  cleared_seq: Int8Default;
+  // Set when the chat was deleted (not just cleared); a newer message brings the chat back.
+  deleted_at: Timestamp | null;
+  // "Mark as unread": the list shows a dot until the chat is opened.
+  marked_unread: Generated<boolean>;
 }
 
 export interface MessagesTable {
@@ -352,6 +360,24 @@ export interface ScheduledMessagesTable {
   created_at: CreatedAt;
 }
 
+export type ReminderStatus = 'pending' | 'sent' | 'cancelled';
+
+// "Remind me": the row stores only WHEN and WHAT (ids and an optional note). The message text is
+// never copied here; it is read when the reminder is shown or sent, so deleting a message also
+// removes it from its reminders.
+export interface RemindersTable {
+  id: Generated<string>;
+  user_id: string;
+  conversation_id: string;
+  // null = a reminder about the whole chat
+  message_id: string | null;
+  note: string | null;
+  remind_at: Timestamp;
+  status: Generated<ReminderStatus>;
+  created_at: CreatedAt;
+  sent_at: Timestamp | null;
+}
+
 export interface Database {
   users: UsersTable;
   user_settings: UserSettingsTable;
@@ -382,6 +408,7 @@ export interface Database {
   view_once_opens: ViewOnceOpensTable;
   scheduled_messages: ScheduledMessagesTable;
   notifications: NotificationsTable;
+  reminders: RemindersTable;
 }
 
 // Every application table; the seed truncates these and a test checks they all exist.
@@ -415,6 +442,7 @@ export const APP_TABLES: ReadonlyArray<keyof Database> = [
   'view_once_opens',
   'scheduled_messages',
   'notifications',
+  'reminders',
 ];
 
 export type User = Selectable<UsersTable>;

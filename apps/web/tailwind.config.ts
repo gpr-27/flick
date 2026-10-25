@@ -35,6 +35,13 @@ const config: Config & { daisyui: Record<string, unknown> } = {
           from: { opacity: '0', transform: 'translateY(8px) scale(0.96)' },
           to: { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
+        // The heart that pops up on a double tap: grows, holds, then floats away.
+        'heart-pop': {
+          '0%': { opacity: '0', transform: 'scale(0.4)' },
+          '30%': { opacity: '1', transform: 'scale(1.25)' },
+          '60%': { opacity: '1', transform: 'scale(1)' },
+          '100%': { opacity: '0', transform: 'scale(1) translateY(-14px)' },
+        },
         'scale-in': {
           from: { opacity: '0', transform: 'scale(0.94)' },
           to: { opacity: '1', transform: 'scale(1)' },
@@ -58,6 +65,7 @@ const config: Config & { daisyui: Record<string, unknown> } = {
       animation: {
         'fade-in-up': 'fade-in-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both',
         'bubble-in': 'bubble-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both',
+        'heart-pop': 'heart-pop 0.8s ease-out both',
         'scale-in': 'scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both',
         'blob-drift': 'blob-drift 22s ease-in-out infinite',
         'ring-ripple': 'ring-ripple 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite',

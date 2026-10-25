@@ -24,6 +24,8 @@ import { installListLayout } from '../../../../test/layout';
 import { configureOutboxStorage, useOutboxStore } from '../outbox/useOutboxStore';
 import { createMemoryKv } from '@/lib/idb';
 import type { OutboxItem } from '../outbox/outboxMachine';
+import { FLICK_BOT_USER_ID } from '@chat/contracts';
+import { EXAMPLE_PROMPTS } from '@/features/ai/examplePrompts';
 import { useChatStore, type Thread } from '../useChatStore';
 import { ChatContainer } from './ChatContainer';
 
@@ -599,5 +601,53 @@ describe('accessibility', () => {
       makeConversation({ prefs: { ...makeConversation().prefs, locked: true, lock_hash: 'x' } }),
     );
     await expectNoA11yViolations(locked.container);
+  });
+});
+
+describe('the Flick chat with its welcome message', () => {
+  const flickBot = {
+    id: FLICK_BOT_USER_ID,
+    username: 'flick',
+    display_name: 'Flick',
+    avatar_url: null,
+    is_bot: true,
+  };
+  const flickChat = () => makeConversation({ peer: flickBot, unread_count: 1 });
+  const welcome = () =>
+    makeMessage({
+      sender_user_id: FLICK_BOT_USER_ID,
+      content: { type: 'text', text: 'Hi Asha, welcome to Flick! I am your assistant.' },
+    });
+
+  it('opens with the welcome visible and the example prompts under it', () => {
+    open(flickChat(), ready([welcome()]));
+    expect(screen.getByText(/welcome to Flick! I am your assistant/)).toBeInTheDocument();
+    const prompts = screen.getByRole('list', { name: 'Example questions' });
+    for (const prompt of EXAMPLE_PROMPTS) {
+      expect(within(prompts).getByRole('button', { name: prompt })).toBeInTheDocument();
+    }
+    // The welcome is a message, so the empty-chat greeting is not shown as well.
+    expect(screen.queryByText('Ask Flick anything')).not.toBeInTheDocument();
+  });
+
+  it('still shows the empty-chat greeting when there is no message at all', () => {
+    open(flickChat(), ready());
+    expect(screen.getByText('Ask Flick anything')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: EXAMPLE_PROMPTS[0] })).toHaveLength(1);
+  });
+
+  it('drops the prompts once the person has written something', () => {
+    const mine = makeMessage({
+      sender_user_id: ME,
+      content: { type: 'text', text: 'What can you do?' },
+    });
+    open(flickChat(), ready([welcome(), mine]));
+    expect(screen.getByText(/welcome to Flick/)).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Example questions' })).not.toBeInTheDocument();
+  });
+
+  it('other chats never show the prompts', () => {
+    open(makeConversation(), ready([makeMessage({ sender_user_id: BOB })]));
+    expect(screen.queryByRole('list', { name: 'Example questions' })).not.toBeInTheDocument();
   });
 });

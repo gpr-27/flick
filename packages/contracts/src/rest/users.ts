@@ -111,3 +111,41 @@ export const UserStats = z.object({
 
 /** POST /users/me/delete: typing the username is the confirmation. */
 export const DeleteAccountRequest = z.object({ username: z.string().min(1).max(64) });
+
+/** The guide is the in-app tour and tips. A topic id is a short lowercase name such as `composer.attach`. */
+export const GUIDE_MAX_TOPICS = 200;
+export const GuideTopicId = z.string().regex(/^[a-z0-9._-]{1,64}$/, 'a short lowercase topic id');
+
+/** Topic id -> when it happened. At most GUIDE_MAX_TOPICS entries. */
+const GuideTimes = z
+  .record(GuideTopicId, IsoDateTime)
+  .refine((times) => Object.keys(times).length <= GUIDE_MAX_TOPICS, {
+    message: `at most ${GUIDE_MAX_TOPICS} topics`,
+  });
+
+/** Guide progress that follows the person across devices. Only topic ids and times are stored. */
+export const GuideState = z.object({
+  /** Topics the person has been shown. */
+  seen: GuideTimes,
+  /** Topics whose feature the person has already used; these are never shown as tips. */
+  used: GuideTimes,
+  /** When the welcome tour was finished or skipped; null = not yet. */
+  welcome_done_at: IsoDateTime.nullable(),
+  /** The "Show tips as I use new features" switch. */
+  enabled: z.boolean(),
+  /** Counts the changes made, so a client can tell which copy is newer. */
+  version: z.number().int().min(0),
+});
+
+/**
+ * PATCH merges: `seen` and `used` entries are only ever added (an existing time is kept), and
+ * `welcome_done_at` is set once. Only `reset: true` clears seen, used and the welcome time (the
+ * other fields of the same request are applied after the clearing).
+ */
+export const UpdateGuideRequest = z.object({
+  seen: GuideTimes.optional(),
+  used: GuideTimes.optional(),
+  welcome_done_at: IsoDateTime.optional(),
+  enabled: z.boolean().optional(),
+  reset: z.literal(true).optional(),
+});

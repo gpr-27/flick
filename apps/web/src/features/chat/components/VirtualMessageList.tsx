@@ -20,6 +20,8 @@ import {
   type ReactNode,
 } from 'react';
 import { Spinner } from '@/components/ui';
+import { useFeatureGuide } from '@/features/guide/useFeatureGuide';
+import { markUsed } from '@/features/guide/useGuideStore';
 
 /** Within this many px of the bottom counts as "at the bottom". */
 export const STICK_THRESHOLD_PX = 48;
@@ -73,6 +75,7 @@ function VirtualMessageListInner<T>(
   const hasFooter = footer !== undefined && footer !== null && footer !== false;
   const count = items.length + (hasFooter ? 1 : 0);
   const [atBottom, setAtBottom] = useState(true);
+  useFeatureGuide('chat.jump', !atBottom);
   // Messages that arrived while the reader was scrolled up (shown on the jump button).
   const [newCount, setNewCount] = useState(0);
   const [floatingDate, setFloatingDate] = useState<string | null>(null);
@@ -244,10 +247,12 @@ function VirtualMessageListInner<T>(
         <button
           type="button"
           onClick={() => {
+            markUsed('chat.jump');
             virtualizer.scrollToEnd({ behavior: 'smooth' });
           }}
           className="glass-card absolute bottom-3 right-4 grid size-10 place-items-center rounded-full text-primary shadow-lg transition-transform hover:scale-105"
           aria-label="Jump to latest message"
+          data-guide="chat.jump"
           title="Jump to latest"
         >
           <ArrowDown className="size-5" aria-hidden="true" />

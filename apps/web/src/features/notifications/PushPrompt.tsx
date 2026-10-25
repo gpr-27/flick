@@ -5,6 +5,8 @@
 // iPhone/iPad browser tabs and blocked permissions get steps instead of a button that cannot work.
 import { useEffect, useState } from 'react';
 import { BellOff } from 'lucide-react';
+import { useFeatureGuide } from '@/features/guide/useFeatureGuide';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { useChatStore } from '@/features/chat/useChatStore';
 import { openInstallGuide } from '@/pwa/install';
 import { DEVICE_REASONS, detectDeviceState, unblockSteps, type DeviceState } from './pushDevice';
@@ -36,7 +38,9 @@ export const PushPrompt = () => {
   useEffect(() => {
     let cancelled = false;
     void detectDeviceState().then((s) => {
-      if (!cancelled) setState(s);
+      if (cancelled) return;
+      if (s === 'on') markUsed('push.permission');
+      setState(s);
     });
     // Fetched now, not on the tap: the permission prompt must follow the tap at once.
     fetchVapidKey().then(
@@ -50,12 +54,16 @@ export const PushPrompt = () => {
     };
   }, []);
 
+  const canTurnOn = (state === 'can_ask' || state === 'off') && vapidKey !== null;
+  const showCard = canTurnOn && hasMessages && !hidden;
+  useFeatureGuide('push.permission', showCard);
   if (state === null || state === 'on' || state === 'unsupported') return null;
 
   const turnOn = async (): Promise<void> => {
     try {
       await enablePush(vapidKey);
       void refreshPushSubscription();
+      markUsed('push.permission');
       setState('on');
     } catch (error) {
       setState(error instanceof PushError && error.failure === 'denied' ? 'denied' : state);
@@ -71,12 +79,10 @@ export const PushPrompt = () => {
     setHidden(true);
   };
 
-  const canTurnOn = (state === 'can_ask' || state === 'off') && vapidKey !== null;
-  const showCard = canTurnOn && hasMessages && !hidden;
-
   if (showCard) {
     return (
       <div
+        data-guide="push.prompt"
         className="mx-3 mt-2 rounded-2xl bg-primary/10 p-3 text-sm"
         role="region"
         aria-label="Notifications"

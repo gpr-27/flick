@@ -94,6 +94,7 @@ await startJobs({
   logger,
   notify: { db, provider },
   callPush: { db, redis, sender: pushSender, logger },
+  reminderPush: { db, sender: pushSender, logger },
   storage,
 });
 logger.info(

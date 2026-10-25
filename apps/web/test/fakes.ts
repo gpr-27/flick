@@ -187,6 +187,7 @@ export const makeConversation = (
     locked: false,
     lock_hash: null,
     wallpaper: null,
+    marked_unread: false,
   },
   ...overrides,
 });

@@ -4,7 +4,10 @@ import { MoreVertical, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { AnchoredPanel, Modal, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
 import { isFlickChat } from '@/features/ai/isFlickBot';
+import { useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { useChatStore } from '../chat/useChatStore';
+import { ReminderDialog } from '@/features/reminders/ReminderDialog';
+import { conversationTitle } from '../chat/conversationView';
 import { LockModal } from './ChatLock';
 import { useLockStore } from './lock';
 import { MUTE_OPTIONS, isMuted, mutedUntilFor, updatePrefs } from './prefs';
@@ -36,7 +39,7 @@ const DialogHeader = ({
   </div>
 );
 
-const MuteModal = ({
+export const MuteModal = ({
   conversationId,
   open,
   onClose,
@@ -119,7 +122,7 @@ const WallpaperModal = ({
   );
 };
 
-type Dialog = 'mute' | 'wallpaper' | 'lock-set' | 'lock-remove';
+type Dialog = 'mute' | 'wallpaper' | 'lock-set' | 'lock-remove' | 'remind';
 
 const Item = ({
   onClick,
@@ -162,6 +165,7 @@ export const ChatOptionsMenu = ({
   const close = (): void => {
     setOpen(false);
   };
+  useMarkUsedWhen('chat.options', open);
   useFocusTrap(menuRef, open, { onEscape: close });
   // Escape must work wherever the focus is while the menu is open. The menu lives in <body>, so
   // a key handler on the menu alone does not see keys pressed elsewhere.
@@ -211,6 +215,8 @@ export const ChatOptionsMenu = ({
         aria-haspopup="menu"
         aria-expanded={open}
         title="Chat options"
+        // On a phone the menu also stands in for the header buttons that are folded into it.
+        data-guide="chat.options ai.ask call.video call.group group.info chat.disappearing"
       >
         <MoreVertical className="size-5" aria-hidden="true" />
       </button>
@@ -281,6 +287,7 @@ export const ChatOptionsMenu = ({
               <Item onClick={dialogItem('lock-set')}>Lock chat…</Item>
             )}
             <Item onClick={act(onSearch)}>Search in chat</Item>
+            <Item onClick={dialogItem('remind')}>Remind me about this chat</Item>
           </div>
         </AnchoredPanel>
       )}
@@ -294,6 +301,14 @@ export const ChatOptionsMenu = ({
       <WallpaperModal
         conversation={conversation}
         open={dialog === 'wallpaper'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <ReminderDialog
+        open={dialog === 'remind'}
+        target={{ conversationId: id }}
+        preview={`Chat with ${conversationTitle(conversation)}`}
         onClose={() => {
           setDialog(null);
         }}

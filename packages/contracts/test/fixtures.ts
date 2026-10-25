@@ -102,6 +102,7 @@ export const SUMMARY = {
     locked: false,
     lock_hash: null,
     wallpaper: null,
+    marked_unread: false,
   },
 };
 
@@ -173,6 +174,7 @@ export const SERVER_EVENTS = {
     message_id: MSG,
     created_at: NOW,
   },
+  user_updated: { user_id: BOB, display_name: 'Bob B', username: 'bob', avatar_url: null },
   call_offer: { call_id: CALL, conversation_id: CONV, media: 'audio', sdp: SDP, from_user_id: BOB },
   call_answer: { call_id: CALL, sdp: ANSWER, from_user_id: BOB },
   call_ice: { call_id: CALL, candidate: null, from_user_id: BOB },

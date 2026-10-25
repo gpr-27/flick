@@ -3,6 +3,7 @@ import { Eye, Mic, Send, Trash2 } from 'lucide-react';
 import type { MessageContent } from '@chat/contracts';
 import { Spinner, cn } from '@/components/ui';
 import { uploadAttachment } from '@/features/chat/upload';
+import { useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { formatClock } from '../format';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder';
 
@@ -72,6 +73,7 @@ export const VoiceComposer = ({
   };
 
   const active = state !== 'idle' || pending !== null;
+  useMarkUsedWhen('composer.voice', state === 'recording');
 
   return (
     <>
@@ -87,6 +89,7 @@ export const VoiceComposer = ({
           buttonClassName,
         )}
         aria-label="Record voice message"
+        data-guide="composer.voice"
       >
         <Mic className="size-5" aria-hidden="true" />
       </button>

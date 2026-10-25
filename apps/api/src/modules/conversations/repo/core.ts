@@ -148,6 +148,8 @@ export async function insertMember(
         favourite: false,
         wallpaper: null,
         lock_hash: null,
+        deleted_at: null,
+        marked_unread: false,
       }),
     )
     .execute();

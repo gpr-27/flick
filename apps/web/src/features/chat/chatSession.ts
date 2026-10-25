@@ -5,6 +5,7 @@
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import type { Unsubscribe } from '@/lib/realtime';
 import { getTransport } from '@/lib/services';
+import { useReminderStore } from '@/features/reminders/reminderStore';
 import { usePinsStore } from '../organise/messageActions';
 import { useOutboxStore } from './outbox/useOutboxStore';
 import { onSynced, syncEngine, useChatStore } from './useChatStore';
@@ -84,6 +85,19 @@ export function startChatSession(userId: string): Unsubscribe {
     transport.on('pins_changed', (change) => {
       usePinsStore.getState().applyChange(change);
     }),
+    transport.on('user_updated', (profile) => {
+      chat().userUpdated(profile);
+      // Another device of mine renamed me: keep my own record in step.
+      const session = useSessionStore.getState();
+      if (session.user?.id === profile.user_id) {
+        session.setUser({
+          ...session.user,
+          display_name: profile.display_name,
+          username: profile.username,
+          avatar_url: profile.avatar_url,
+        });
+      }
+    }),
     transport.on('conversation_updated', ({ conversation_id, conversation }) => {
       chat().conversationUpdated(conversation_id, conversation);
     }),
@@ -132,6 +146,7 @@ export function startChatSession(userId: string): Unsubscribe {
 /** Sign-out: forget the previous user's chats and unsent messages. */
 export function resetChatSession(): void {
   useChatStore.getState().reset();
+  useReminderStore.getState().reset();
   void useOutboxStore.getState().clear();
 }
 

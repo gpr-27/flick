@@ -1,10 +1,13 @@
 import { AiUnavailableError, RedisRateLimitStore } from '@chat/ai';
 import { mentionsFlick } from '@chat/contracts';
 import { FLICK_BOT_USER_ID, allocateSeqAndInsertMessage, type MessageRow } from '@chat/db';
+import type { DependencyCheck } from '@chat/shared';
+import type { Config } from '../../config.js';
 import type { Db } from '../../db.js';
 import type { Logger } from '../../logger.js';
 import { messagesAccepted, rateLimitRejections } from '../../metrics.js';
 import type { Redis } from '../../redis.js';
+import { buildFlickContext, wrapContext } from './app-context.js';
 import { getMembership, loadLines, transcript } from './context.js';
 import type { AiService } from './service.js';
 
@@ -17,6 +20,10 @@ export interface FlickBotDeps {
   redis: Redis;
   logger: Logger;
   ai: AiService;
+  /** For the live app knowledge in the system prompt. */
+  config: Config;
+  /** The /health/ready checks, reported to the assistant as service status. */
+  checks: DependencyCheck[];
 }
 
 /** The part of a message row the bot needs. */
@@ -130,13 +137,16 @@ export async function flickBotOnMessage(
     const lines = await loadLines(db, senderId, message.conversation_id, member, CONTEXT);
     const asker = lines.findLast((l) => l.fromMe)?.sender ?? 'the user';
     const language = await preferredLanguage(db, senderId);
+    const knowledge = await flickKnowledge(deps, senderId);
     try {
       // One pass through the provider chain, no retry loop. The package already falls through
       // providers; if all of them fail we post one short notice and stop.
       const result = await ai.chain.complete(
         {
           system:
-            (direct ? DIRECT_SYSTEM : BOT_SYSTEM) + (language ? `\n${languageRule(language)}` : ''),
+            (direct ? DIRECT_SYSTEM : BOT_SYSTEM) +
+            (language ? `\n${languageRule(language)}` : '') +
+            knowledge,
           messages: [
             {
               role: 'user',
@@ -162,6 +172,31 @@ export async function flickBotOnMessage(
     // Never log the prompt, the reply or the error text (it can echo them): only the error type.
     logger.warn({ err: err instanceof Error ? err.name : 'unknown' }, 'flick bot failed');
     return 'failed';
+  }
+}
+
+/**
+ * The live app knowledge section of the system prompt for this asker ('' if it cannot be built:
+ * a failure here must never stop Flick from answering).
+ */
+export async function flickKnowledge(
+  deps: Pick<FlickBotDeps, 'db' | 'redis' | 'logger' | 'config' | 'checks'>,
+  userId: string,
+  maxChars?: number,
+): Promise<string> {
+  try {
+    const block = await buildFlickContext(
+      deps.db,
+      deps.redis,
+      deps.config,
+      userId,
+      deps.checks,
+      maxChars,
+    );
+    return block ? `\n\n${wrapContext(block)}` : '';
+  } catch (err) {
+    deps.logger.warn({ err: err instanceof Error ? err.name : 'unknown' }, 'flick context failed');
+    return '';
   }
 }
 

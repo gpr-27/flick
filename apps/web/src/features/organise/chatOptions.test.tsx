@@ -72,6 +72,7 @@ describe('chat options menu', () => {
       'Wallpaper…',
       'Lock chat…',
       'Search in chat',
+      'Remind me about this chat',
     ]);
   });
 
@@ -100,6 +101,7 @@ describe('chat options menu', () => {
       'Lock now',
       'Remove chat lock…',
       'Search in chat',
+      'Remind me about this chat',
     ]);
   });
 

@@ -31,6 +31,12 @@ export const callPushTotal = new Counter({
   labelNames: ['kind', 'result'],
   registers: [registry],
 });
+export const reminderPushTotal = new Counter({
+  name: 'reminder_push_total',
+  help: 'Reminder push jobs by outcome: sent, simulated, skipped.',
+  labelNames: ['result'],
+  registers: [registry],
+});
 export const messagesExpiredTotal = new Counter({
   name: 'messages_expired_total',
   help: 'Messages turned into tombstones by the expire-messages job.',

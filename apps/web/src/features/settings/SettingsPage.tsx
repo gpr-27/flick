@@ -12,6 +12,7 @@ import {
   Shield,
   Sparkles,
   Database,
+  GraduationCap,
   User,
   type LucideIcon,
 } from 'lucide-react';
@@ -27,6 +28,8 @@ import { NotificationsSection } from './components/NotificationsSection';
 import { PrivacySettings } from './components/PrivacySettings';
 import { ScreenLockSettings } from './components/ScreenLockSettings';
 import { StorageSection } from './components/StorageSection';
+import { GuideSettings } from '@/features/guide/GuideSettings';
+import { useFeatureGuide, useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { useIsWide } from './useIsWide';
 
 interface Section {
@@ -60,6 +63,7 @@ const SECTIONS: Section[] = [
     ),
   },
   { id: 'ai', title: 'Flick assistant', icon: Sparkles, content: () => <AiSection /> },
+  { id: 'guide', title: 'Guide and tips', icon: GraduationCap, content: () => <GuideSettings /> },
   { id: 'storage', title: 'Storage and data', icon: Database, content: () => <StorageSection /> },
   {
     id: 'about',
@@ -78,6 +82,8 @@ export const SettingsPage = () => {
   // Laptops always show one section; phones can have all of them closed.
   const [active, setActive] = useState<string | null>(null);
   const shown = wide ? (active ?? 'account') : active;
+  useFeatureGuide('settings.page');
+  useMarkUsedWhen('settings.page', active !== null);
 
   return (
     <main className="app-bg min-h-dvh-screen px-4 pb-[max(4rem,calc(1rem+env(safe-area-inset-bottom)))] pt-[calc(6rem+env(safe-area-inset-top))]">
@@ -97,6 +103,7 @@ export const SettingsPage = () => {
                     <button
                       type="button"
                       aria-current={shown === s.id ? 'page' : undefined}
+                      data-guide={`settings.${s.id}`}
                       onClick={() => {
                         setActive(s.id);
                       }}
@@ -125,6 +132,7 @@ export const SettingsPage = () => {
                       type="button"
                       aria-expanded={open}
                       aria-controls={`settings-${s.id}`}
+                      data-guide={`settings.${s.id}`}
                       onClick={() => {
                         setActive(open ? null : s.id);
                       }}

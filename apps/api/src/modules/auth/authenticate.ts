@@ -4,6 +4,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { AuthContext, Authenticate } from '../../auth-guard.js';
 import type { Db } from '../../db.js';
 import type { Redis } from '../../redis.js';
+import { ensureFlickWelcome } from '../ai/welcome.js';
 import { deviceName } from '../devices/domain/name.js';
 import type { Clerk, ClerkProfile } from './clerk.js';
 
@@ -59,14 +60,26 @@ export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
   async function findOrCreateUser(clerkId: string): Promise<string> {
     const existing = await db
       .selectFrom('users')
-      .select(['id', 'status'])
+      .select(['id', 'status', 'created_at'])
       .where('clerk_id', '=', clerkId)
       .executeTakeFirst();
     if (existing) {
       if (existing.status !== 'active') throw new AuthError('FORBIDDEN', 'Account is not active');
+      // A Flick chat that is still empty gets its welcome once (accounts older than the welcome).
+      // An account made minutes ago whose welcome failed is still treated as new.
+      await welcome(existing.id, Date.now() - existing.created_at.getTime() < 10 * 60_000);
       return existing.id;
     }
     return createUser(clerkId, await clerk.profile(clerkId));
+  }
+
+  /** Signing in never fails because the welcome could not be written; the next sign-in retries. */
+  async function welcome(userId: string, create: boolean): Promise<void> {
+    try {
+      await ensureFlickWelcome(db, userId, { create });
+    } catch {
+      // ignored on purpose: see above
+    }
   }
 
   async function createUser(clerkId: string, profile: ClerkProfile): Promise<string> {
@@ -93,6 +106,7 @@ export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
         .executeTakeFirst();
       if (row) {
         await db.insertInto('user_settings').values({ user_id: row.id }).execute();
+        await welcome(row.id, true);
         return row.id;
       }
       // Two first requests can race: if the other one won, use its row.

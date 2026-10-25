@@ -216,6 +216,35 @@ describe('formatting toolbar', () => {
   });
 });
 
+describe('the preview before sending', () => {
+  const drop = (field: HTMLElement, file: File) =>
+    fireEvent.drop(field.closest('form')!, { dataTransfer: { files: [file], types: ['Files'] } });
+
+  it('a video can be played before it is sent', () => {
+    vi.spyOn(uploadModule, 'uploadAttachment').mockReturnValue(new Promise(() => undefined));
+    const { field } = setup();
+    drop(field, new File(['v'], 'clip.mp4', { type: 'video/mp4' }));
+    const video = screen.getByLabelText('Video preview');
+    expect(video.tagName).toBe('VIDEO');
+    expect(video).toHaveAttribute('controls');
+    expect(video).toHaveAttribute('src', 'blob:fake');
+    expect(screen.queryByText('clip.mp4')).not.toBeInTheDocument();
+  });
+
+  it('an audio file gets a player, a photo a thumbnail, a document just its name', () => {
+    vi.spyOn(uploadModule, 'uploadAttachment').mockReturnValue(new Promise(() => undefined));
+    const { field } = setup();
+    drop(field, new File(['a'], 'song.mp3', { type: 'audio/mpeg' }));
+    expect(screen.getByLabelText('Audio preview').tagName).toBe('AUDIO');
+    drop(field, new File(['x'], 'shot.png', { type: 'image/png' }));
+    expect(screen.getByAltText('Selected image preview')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Audio preview')).not.toBeInTheDocument();
+    drop(field, new File(['p'], 'report.pdf', { type: 'application/pdf' }));
+    expect(screen.getByText('report.pdf')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Video preview')).not.toBeInTheDocument();
+  });
+});
+
 describe('files upload as soon as they are attached', () => {
   const video = () => new File(['v'], 'clip.mp4', { type: 'video/mp4' });
   const attachVideo = (field: HTMLElement) =>

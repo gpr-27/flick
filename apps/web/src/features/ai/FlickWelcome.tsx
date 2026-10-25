@@ -11,20 +11,31 @@ export const FlickWelcome = ({ onPick }: { onPick: (prompt: string) => void }) =
         Your built-in AI assistant. Try one of these to get started.
       </p>
     </div>
-    <ul className="flex max-w-md flex-wrap justify-center gap-2">
-      {EXAMPLE_PROMPTS.map((prompt) => (
-        <li key={prompt}>
-          <button
-            type="button"
-            onClick={() => {
-              onPick(prompt);
-            }}
-            className="chip min-h-[44px] px-4 text-sm font-medium hover:bg-primary/10"
-          >
-            {prompt}
-          </button>
-        </li>
-      ))}
-    </ul>
+    <FlickPromptChips onPick={onPick} />
   </div>
+);
+
+/**
+ * The example prompts as tappable chips. They sit under Flick's welcome message until the person
+ * sends their first message.
+ */
+export const FlickPromptChips = ({ onPick }: { onPick: (prompt: string) => void }) => (
+  <ul
+    aria-label="Example questions"
+    className="flex max-w-md flex-wrap justify-center gap-2 self-center px-4 py-3"
+  >
+    {EXAMPLE_PROMPTS.map((prompt) => (
+      <li key={prompt}>
+        <button
+          type="button"
+          onClick={() => {
+            onPick(prompt);
+          }}
+          className="chip min-h-[44px] px-4 text-sm font-medium hover:bg-primary/10"
+        >
+          {prompt}
+        </button>
+      </li>
+    ))}
+  </ul>
 );

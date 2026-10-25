@@ -8,6 +8,7 @@ import { AppToaster } from '@/components/ui';
 import { getTransport } from '@/lib/services';
 import { setClerkBridge } from '@/features/auth/authBridge';
 import { SignInPage } from '@/features/auth/components/SignInPage';
+import { useClerkProfileSync } from '@/features/auth/useClerkProfileSync';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CallOverlay } from '@/features/calls/components/CallOverlay';
 import { CallPermissionPrompt } from '@/features/calls/components/CallPermissionPrompt';
@@ -15,6 +16,7 @@ import { IncomingCallModal } from '@/features/calls/components/IncomingCallModal
 import { useAnswerFromNotification } from '@/features/calls/useAnswerFromNotification';
 import { bindCallRealtime } from '@/features/calls/useCallStore';
 import { CallLogPage } from '@/features/calllog/CallLogPage';
+import { GuideHost } from '@/features/guide/GuideHost';
 import { InvitePage } from '@/features/chat/InvitePage';
 import { CallLinkPage } from '@/features/groupcall/CallLinkPage';
 import { GroupCallOverlay } from '@/features/groupcall/components/GroupCallOverlay';
@@ -34,6 +36,7 @@ import { SettingsPage } from '@/features/settings/SettingsPage';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { useThemeStore } from '@/features/settings/useThemeStore';
 import { InstallGuide } from '@/pwa/InstallGuide';
+import { ServerWakeNotice } from '@/features/serverWake/ServerWakeNotice';
 import { OfflineNotice, UpdateBanner } from '@/pwa/PwaBanners';
 
 /** Wire chat and call events to the transport for as long as someone is signed in. */
@@ -80,6 +83,7 @@ const SignedInApp = () => {
 
   useRealtimeBindings(userId);
   useNotificationBindings(userId);
+  useClerkProfileSync();
   useOpenPendingConversation();
   useUnreadIndicators();
   useAnswerFromNotification(status === 'authenticated');
@@ -126,6 +130,7 @@ const SignedInApp = () => {
       <CallPermissionPrompt />
       <CallOverlay />
       <GroupCallOverlay />
+      <GuideHost />
     </>
   );
 };
@@ -156,6 +161,7 @@ export const App = () => {
       </SignedIn>
       <AppToaster />
       <OfflineNotice />
+      <ServerWakeNotice />
       <UpdateBanner />
       <InstallGuide />
     </div>

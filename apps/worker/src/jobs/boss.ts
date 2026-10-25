@@ -6,6 +6,12 @@ import { CALL_PUSH_QUEUE, registerCallPush, type CallPushDeps } from './call-pus
 import { EXPIRE_QUEUE, registerExpireMessages } from './expire-messages.js';
 import { NOTIFY_QUEUE, registerNotify, type NotifyDeps } from './notify.js';
 import { registerPurgeNotifications } from './purge-notifications.js';
+import {
+  REMINDER_PUSH_QUEUE,
+  SEND_REMINDERS_QUEUE,
+  registerSendReminders,
+  type ReminderPushDeps,
+} from './send-reminders.js';
 import { SEND_SCHEDULED_QUEUE, registerSendScheduled } from './send-scheduled.js';
 import { SWEEP_UPLOADS_QUEUE, registerSweepUploads, type UploadStorage } from './sweep-uploads.js';
 
@@ -19,9 +25,10 @@ export async function startJobs(deps: {
   logger: Logger;
   notify: NotifyDeps;
   callPush: CallPushDeps;
+  reminderPush: ReminderPushDeps;
   storage: UploadStorage | undefined;
 }): Promise<void> {
-  const { boss, db, logger, notify, callPush, storage } = deps;
+  const { boss, db, logger, notify, callPush, reminderPush, storage } = deps;
   boss.on('error', (error) => logger.error({ err: error }, 'pg-boss error'));
   await boss.start();
   // A failed notify job is retried 5 times with growing delays: 10s, 20s, 40s, ...
@@ -35,6 +42,14 @@ export async function startJobs(deps: {
   await registerPurgeNotifications(boss, db, logger);
   await boss.createQueue(SEND_SCHEDULED_QUEUE);
   await registerSendScheduled(boss, db, logger);
+  // The reminder push is retried like a message push (the push service may be briefly down).
+  await boss.createQueue(REMINDER_PUSH_QUEUE, {
+    retryLimit: 5,
+    retryDelay: 10,
+    retryBackoff: true,
+  });
+  await boss.createQueue(SEND_REMINDERS_QUEUE);
+  await registerSendReminders(boss, db, reminderPush, logger);
   if (storage) {
     await boss.createQueue(SWEEP_UPLOADS_QUEUE);
     await registerSweepUploads(boss, db, storage, logger);

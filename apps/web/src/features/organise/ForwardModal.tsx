@@ -13,11 +13,15 @@ import { forwardContent, forwardMessage } from './messageActions';
 /** Pick one or more chats and send a copy of the message to each, marked "Forwarded". */
 export const ForwardModal = ({
   message,
+  messages,
   onClose,
 }: {
   message: MessageRecord | null;
+  /** Several messages at once (multi-select); when given it is used instead of `message`. */
+  messages?: readonly MessageRecord[];
   onClose: () => void;
 }) => {
+  const list = messages ?? (message ? [message] : []);
   const conversations = useChatStore((s) => s.conversations);
   const myId = useSessionStore((s) => s.user?.id);
   const [picked, setPicked] = useState<string[]>([]);
@@ -34,9 +38,13 @@ export const ForwardModal = ({
   };
 
   const send = (): void => {
-    if (!message || !myId) return;
-    if (forwardMessage(myId, message, picked)) {
-      notify.success(picked.length === 1 ? 'Message forwarded.' : 'Messages forwarded.');
+    if (list.length === 0 || !myId) return;
+    // Messages that cannot be forwarded (polls, system lines) are skipped; the rest go through.
+    const sent = list.filter((m) => forwardMessage(myId, m, picked));
+    if (sent.length > 0) {
+      notify.success(
+        picked.length === 1 && sent.length === 1 ? 'Message forwarded.' : 'Messages forwarded.',
+      );
       close();
     } else {
       notify.error("This kind of message can't be forwarded.");
@@ -49,7 +57,7 @@ export const ForwardModal = ({
 
   return (
     <Modal
-      open={message !== null}
+      open={list.length > 0}
       onClose={close}
       labelledBy="forward-title"
       className="glass-card mx-4 flex max-h-[80vh] w-full max-w-md flex-col rounded-3xl p-6 animate-scale-in"
@@ -67,11 +75,16 @@ export const ForwardModal = ({
           <X className="size-5" aria-hidden="true" />
         </button>
       </div>
-      {message && (
+      {list.length === 1 && list[0] && (
         <p className="mb-3 truncate rounded-xl bg-base-content/5 px-3 py-2 text-sm">
-          {forwardContent(message.content)
-            ? previewContent(message.content)
+          {forwardContent(list[0].content)
+            ? previewContent(list[0].content)
             : "This kind of message can't be forwarded."}
+        </p>
+      )}
+      {list.length > 1 && (
+        <p className="mb-3 rounded-xl bg-base-content/5 px-3 py-2 text-sm">
+          {list.length} messages
         </p>
       )}
       <label htmlFor="forward-filter" className="sr-only">

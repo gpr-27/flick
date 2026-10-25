@@ -8,6 +8,7 @@ import { getApi } from '@/lib/services';
 import { CallNotificationCard } from '@/features/calls/components/CallNotificationCard';
 import { useCallStore } from '@/features/calls/useCallStore';
 import { useChatStore } from '@/features/chat/useChatStore';
+import { useFeatureGuide } from '@/features/guide/useFeatureGuide';
 import { conversationTitle } from '@/features/chat/conversationView';
 import type { CallLogEntry } from '../groupcall/types';
 import { formatCallDuration, formatCallWhen } from './format';
@@ -179,9 +180,10 @@ export const CallLogPage = () => {
     );
   }
 
+  useFeatureGuide('calls.tab');
   return (
     <main className="app-bg min-h-dvh-screen px-4 pb-8 pt-20">
-      <div className="glass-card mx-auto max-w-xl rounded-3xl p-4 sm:p-6">
+      <div data-guide="calls.list" className="glass-card mx-auto max-w-xl rounded-3xl p-4 sm:p-6">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="font-display text-xl font-bold">Calls</h1>
           <Link to="/" className="btn btn-ghost btn-sm">

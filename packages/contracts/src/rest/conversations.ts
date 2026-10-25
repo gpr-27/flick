@@ -46,6 +46,8 @@ export const ChatPrefs = z.object({
    */
   lock_hash: z.string().min(16).max(256).nullable(),
   wallpaper: z.string().max(64).nullable(),
+  /** "Mark as unread": the list shows a dot until the chat is opened. */
+  marked_unread: z.boolean(),
 });
 
 export type ChatPrefs = z.infer<typeof ChatPrefs>;

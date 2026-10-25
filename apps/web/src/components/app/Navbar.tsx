@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
 import {
   Bell,
+  CircleHelp,
   MessageSquare,
   MoreVertical,
   Moon,
@@ -11,6 +12,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import { startWelcome } from '@/features/guide/welcomeRules';
 import { Avatar, PopoverMenu, cn, type PopoverMenuItem } from '@/components/ui';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { BellLink } from '@/features/notifications/center/BellLink';
@@ -50,6 +52,11 @@ const PhoneMenu = () => {
       icon: <Settings className="size-5" aria-hidden="true" />,
     },
     { label: 'Profile', to: '/profile', icon: <User className="size-5" aria-hidden="true" /> },
+    {
+      label: 'Take the tour',
+      icon: <CircleHelp className="size-5" aria-hidden="true" />,
+      onClick: startWelcome,
+    },
   ];
   return (
     <PopoverMenu
@@ -57,6 +64,7 @@ const PhoneMenu = () => {
       icon={<MoreVertical className="size-5" aria-hidden="true" />}
       items={items}
       className="sm:hidden"
+      guideId="nav.settings"
     />
   );
 };
@@ -100,6 +108,7 @@ export const Navbar = () => {
           <BellLink />
           <Link
             to="/calls"
+            data-guide="nav.calls"
             className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:min-h-[44px] max-sm:min-w-[44px]"
           >
             <Phone className="size-4" aria-hidden="true" />
@@ -115,11 +124,22 @@ export const Navbar = () => {
           </Link>
           <Link
             to="/settings"
+            data-guide="nav.settings"
             className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:hidden"
           >
             <Settings className="size-4" aria-hidden="true" />
             <span className="sr-only">Settings</span>
           </Link>
+          {/* A "?" that starts the tour again. Phones have "Take the tour" in the More menu. */}
+          <button
+            type="button"
+            onClick={startWelcome}
+            className="btn btn-ghost btn-sm btn-circle max-sm:hidden"
+            aria-label="Take the tour"
+            title="Take the tour"
+          >
+            <CircleHelp className="size-5" aria-hidden="true" />
+          </button>
           <Link
             to="/profile"
             className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:hidden"

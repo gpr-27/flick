@@ -1557,6 +1557,7 @@ const PARAM_VALUE: Record<string, () => string> = {
   username: () => bob.name,
   device_id: () => randomUUID(),
   scheduled_id: () => randomUUID(),
+  reminder_id: () => randomUUID(),
 };
 
 function resolvePath(def: Endpoint, overrides: Record<string, string> = {}): string {

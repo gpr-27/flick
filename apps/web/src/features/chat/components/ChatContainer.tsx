@@ -6,8 +6,9 @@ import { ErrorState, Modal } from '@/components/ui';
 import { formatDateSeparator, isNewDay } from '@/lib/time';
 import { useConnectionState } from '@/lib/realtime';
 import { useSessionStore } from '@/features/auth/useSessionStore';
+import { useFeatureGuides } from '@/features/guide/useFeatureGuide';
 import { FlickThinking } from '@/features/ai/FlickThinking';
-import { FlickWelcome } from '@/features/ai/FlickWelcome';
+import { FlickPromptChips, FlickWelcome } from '@/features/ai/FlickWelcome';
 import { useFlickThinking } from '@/features/ai/useFlickThinking';
 import { isFlickChat } from '@/features/ai/isFlickBot';
 import { GroupCallBanner } from '@/features/groupcall/components/GroupCallBanner';
@@ -24,6 +25,8 @@ import { toggleStar, usePinsStore } from '../../organise/messageActions';
 import { PinnedBar } from '../../organise/PinnedBar';
 import { wallpaperStyle } from '../../organise/wallpapers';
 import { useSettingsStore } from '../../settings/useSettingsStore';
+import { SelectionBar } from '../selection/SelectionBar';
+import { useSelectedIds, useSelectionStore } from '../selection/useSelectionStore';
 import { buildRows, firstUnreadKey, groupPosition, rowStatus, type ThreadRow } from '../threadRows';
 import { useChatStore, userName, type Activity } from '../useChatStore';
 import { ChatHeader } from './ChatHeader';
@@ -191,6 +194,11 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   // The conversation is "in view" when it is open, loaded and the window is focused. Then
   // incoming messages are read: send read_ack (again when the connection comes back).
   const ready = thread?.status === 'ready';
+  // First-open tips about reading a chat (see features/guide). The ticks only exist on your own messages.
+  const hasMessages = ready && (messages?.length ?? 0) > 0;
+  const hasMine = hasMessages && (messages ?? []).some((m) => m.sender_user_id === myId);
+  useFeatureGuides(['message.menu', 'message.dates'], hasMessages);
+  useFeatureGuides(['message.ticks'], hasMine);
   const inView = ready && focused;
   useEffect(() => {
     useChatStore.getState().setInView(inView);
@@ -245,6 +253,22 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   const pinnedIds = useMemo(() => new Set((pins ?? []).map((m) => m.message_id)), [pins]);
   const togglePin = usePinsStore((s) => s.toggle);
   const [forwarding, setForwarding] = useState<MessageRecord | null>(null);
+  // Choosing several messages: the ticked ids, and a tap that ticks or unticks one.
+  const selectedIds = useSelectedIds(id);
+  const selecting = selectedIds.length > 0;
+  const selectMessage = useCallback(
+    (m: MessageRecord) => {
+      useSelectionStore.getState().toggle(id, m.message_id);
+    },
+    [id],
+  );
+  // Leaving the chat ends the selection.
+  useEffect(
+    () => () => {
+      useSelectionStore.getState().clear();
+    },
+    [id],
+  );
   const contentContext = useMemo<ContentContext>(() => ({ onOpenImage: setLightbox }), []);
   const retry = useOutboxStore.getState().retry;
   const discard = useOutboxStore.getState().discard;
@@ -265,6 +289,23 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   ) : thinking ? (
     <FlickThinking />
   ) : null;
+
+  // Flick's welcome message is the first message of a new Flick chat; until the person writes
+  // something, the example prompts stay available right under it.
+  const showPrompts =
+    isBot && rows.length > 0 && !rows.some((r) => r.message.sender_user_id === myId);
+  const footer = showPrompts ? (
+    <>
+      <FlickPromptChips
+        onPick={(prompt) => {
+          sendMessage(myId, id, { type: 'text', text: prompt });
+        }}
+      />
+      {activityRow}
+    </>
+  ) : (
+    activityRow
+  );
 
   let body;
   if (!thread || thread.status === 'loading') {
@@ -304,7 +345,7 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
         hasOlder={thread.hasOlder}
         isLoadingOlder={thread.loadingOlder}
         onLoadOlder={loadOlder}
-        footer={activityRow}
+        footer={footer}
         dateLabel={(row) => formatDateSeparator(row.message.created_at)}
         renderItem={(row, index) => {
           const { message } = row;
@@ -348,6 +389,9 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
               onForward={setForwarding}
               pinned={pinnedIds.has(message.message_id)}
               highlighted={flashId === message.message_id}
+              selecting={selecting}
+              selected={selectedIds.includes(message.message_id)}
+              onSelect={selectMessage}
             />
           );
         }}
@@ -360,7 +404,11 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
       className="flex min-w-0 flex-1 flex-col overflow-hidden"
       aria-label={`Chat with ${title}`}
     >
-      <ChatHeader conversation={conversation} />
+      {selecting ? (
+        <SelectionBar messages={messages ?? []} ids={selectedIds} myId={myId} />
+      ) : (
+        <ChatHeader conversation={conversation} />
+      )}
       {isGroup && <GroupCallBanner conversationId={id} messages={messages ?? []} />}
       <PinnedBar conversationId={id} />
       <div
