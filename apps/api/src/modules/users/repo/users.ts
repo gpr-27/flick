@@ -1,6 +1,7 @@
 import type { User } from '@chat/db';
 import { sql } from 'kysely';
 import type { Db } from '../../../db.js';
+import { announceProfileChange } from './announce.js';
 
 export const findUserById = (db: Db, id: string): Promise<User | undefined> =>
   db.selectFrom('users').selectAll().where('id', '=', id).executeTakeFirst();
@@ -12,13 +13,33 @@ export interface ProfileChanges {
   avatar_object_key?: string | null;
 }
 
+/**
+ * Saves the changes. When the name, username or picture really changed, the people who share a
+ * chat with the user are told (in the same transaction); saving the same values again tells nobody.
+ */
 export async function updateProfile(db: Db, userId: string, changes: ProfileChanges) {
-  return db
-    .updateTable('users')
-    .set({ ...changes, updated_at: sql`now()` })
-    .where('id', '=', userId)
-    .returningAll()
-    .executeTakeFirstOrThrow();
+  return db.transaction().execute(async (trx) => {
+    const before = await trx
+      .selectFrom('users')
+      .select(['display_name', 'username', 'avatar_object_key'])
+      .where('id', '=', userId)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    const after = await trx
+      .updateTable('users')
+      .set({ ...changes, updated_at: sql`now()` })
+      .where('id', '=', userId)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    if (
+      before.display_name !== after.display_name ||
+      before.username !== after.username ||
+      before.avatar_object_key !== after.avatar_object_key
+    ) {
+      await announceProfileChange(trx, userId);
+    }
+    return after;
+  });
 }
 
 /** An uploaded avatar image the user owns, or undefined. Marks it as in use. */
