@@ -915,9 +915,6 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           placeholder={editing ? 'Edit your message…' : 'Type a message…'}
           aria-describedby={composeLabel ? 'compose-context' : undefined}
           autoComplete="off"
-          role="combobox"
-          aria-multiline="true"
-          aria-expanded={mention.open || shortcodes.open}
           aria-controls={
             mention.open ? MENTION_LIST_ID : shortcodes.open ? SHORTCODE_LIST_ID : undefined
           }

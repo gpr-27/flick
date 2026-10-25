@@ -2,7 +2,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ENDPOINTS, type ConversationSummary } from '@chat/contracts';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { notify } from '@/components/ui/notify';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import {
@@ -19,7 +19,25 @@ import { useChatStore, type Member } from '../useChatStore';
 import { GroupInfoModal } from './GroupInfoModal';
 import { NewChatModal, NewGroupModal } from './NewChatModals';
 
+// jsdom does no layout: give elements a size so the virtual people list has a viewport.
+const saved: [string, PropertyDescriptor | undefined][] = [];
+beforeAll(() => {
+  for (const [key, value] of [
+    ['clientHeight', 400],
+    ['clientWidth', 320],
+  ] as const) {
+    saved.push([key, Object.getOwnPropertyDescriptor(Element.prototype, key)]);
+    Object.defineProperty(Element.prototype, key, { configurable: true, value });
+  }
+});
+afterAll(() => {
+  for (const [key, desc] of saved) {
+    if (desc) Object.defineProperty(Element.prototype, key, desc);
+  }
+});
+
 let api: FakeApi;
+const search = (): HTMLElement => screen.getByRole('searchbox', { name: 'Search people' });
 const CAROL = nextId();
 const DAVE = nextId();
 const person = (id: string, name: string) => ({
@@ -41,8 +59,17 @@ const MEMBERS = [
   member(DAVE, 'Dave', 'owner'),
 ];
 
-const group = (myRole: ConversationSummary['my_role']): ConversationSummary =>
+const group = (
+  myRole: ConversationSummary['my_role'],
+  onlyAdminsEditInfo = false,
+): ConversationSummary =>
   makeConversation({
+    settings: {
+      only_admins_send: false,
+      only_admins_edit_info: onlyAdminsEditInfo,
+      approval_required: false,
+      disappearing_timer_s: 0,
+    },
     id: CONV,
     type: 'group',
     title: 'Team',
@@ -66,8 +93,8 @@ beforeEach(() => {
   vi.spyOn(notify, 'error').mockImplementation(() => '');
 });
 
-const openInfo = async (role: ConversationSummary['my_role']) => {
-  const conversation = group(role);
+const openInfo = async (role: ConversationSummary['my_role'], onlyAdminsEditInfo = false) => {
+  const conversation = group(role, onlyAdminsEditInfo);
   useChatStore.setState({ conversations: { [CONV]: conversation } });
   const onClose = vi.fn();
   const user = userEvent.setup();
@@ -78,53 +105,103 @@ const openInfo = async (role: ConversationSummary['my_role']) => {
 const row = (name: string) => screen.getByText(name, { exact: false }).closest('li')!;
 
 describe('group info: what each role sees', () => {
-  it('a member sees the list with role chips and no controls', async () => {
-    await openInfo('member');
+  it('a member sees read-only info with role badges and no controls once editing is admin-only', async () => {
+    await openInfo('member', true);
     expect(screen.getByText('4 members')).toBeInTheDocument();
+    expect(screen.getByText('Team')).toBeInTheDocument(); // the name as text, not a field
     expect(screen.queryByLabelText('Group name')).not.toBeInTheDocument();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change photo' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /admin/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add members' })).not.toBeInTheDocument();
-    expect(within(row('Bob')).getByText('admin')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument(); // the admin switches
+    expect(within(row('Bob')).getByText('Admin')).toBeInTheDocument();
+    expect(within(row('Dave')).getByText('Owner')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Leave group' })).toBeInTheDocument();
   });
 
-  it('an admin can rename, change roles and remove members, but not the owner or themselves', async () => {
+  it('a member can edit the name and photo while the group allows it, but still not manage people', async () => {
+    await openInfo('member', false);
+    expect(screen.getByLabelText('Group name')).toHaveValue('Team');
+    expect(screen.getByRole('button', { name: 'Change photo' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add members' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('an admin can rename, promote and remove members, but not the owner or themselves', async () => {
     await openInfo('admin');
     expect(screen.getByLabelText('Group name')).toHaveValue('Team');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add members' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Role of Bob')).toBeInTheDocument();
-    expect(screen.getByLabelText('Role of Carol')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Role of Dave')).not.toBeInTheDocument(); // owner
-    expect(screen.queryByLabelText('Role of Me')).not.toBeInTheDocument(); // yourself
-    expect(within(row('Dave')).getByText('owner')).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3); // the three group switches
+    expect(screen.getByRole('button', { name: 'Remove admin from Bob' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Make Carol admin' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove Carol' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove Bob' })).toBeInTheDocument();
+    // The owner and yourself: no promote, demote or remove.
+    for (const name of ['Dave', 'Me']) {
+      expect(screen.queryByRole('button', { name: `Make ${name} admin` })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: `Remove admin from ${name}` }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: `Remove ${name}` })).not.toBeInTheDocument();
+    }
+    expect(within(row('Dave')).getByText('Owner')).toBeInTheDocument();
     expect(screen.getByText('Me (you)')).toBeInTheDocument();
   });
 
-  it('only an owner can hand out the owner role', async () => {
-    const admin = await openInfo('admin');
-    const adminOptions = within(screen.getByLabelText('Role of Carol'))
-      .getAllByRole('option')
-      .map((o) => o.textContent);
-    expect(adminOptions).toEqual(['member', 'admin']);
-    admin.view.unmount();
-    await openInfo('owner');
-    const ownerOptions = within(screen.getByLabelText('Role of Carol'))
-      .getAllByRole('option')
-      .map((o) => o.textContent);
-    expect(ownerOptions).toEqual(['member', 'admin', 'owner']);
+  it('nobody can hand out the owner role from this dialog, only admin and member', async () => {
+    for (const role of ['admin', 'owner'] as const) {
+      const { view } = await openInfo(role);
+      expect(screen.queryByRole('button', { name: /owner/i })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/^Role of/)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Make Carol admin' })).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('only admins load the join requests', async () => {
+    const member = await openInfo('member');
+    expect(api.call).not.toHaveBeenCalledWith(
+      ENDPOINTS.conversations.joinRequests,
+      expect.anything(),
+    );
+    member.view.unmount();
+    await openInfo('admin');
+    expect(api.call).toHaveBeenCalledWith(
+      ENDPOINTS.conversations.joinRequests,
+      expect.objectContaining({ params: { conversation_id: CONV } }),
+    );
   });
 });
 
 describe('group info: actions', () => {
-  it('changing a role calls setRole then reloads the members', async () => {
+  it('Make admin calls setRole then reloads the members', async () => {
     const { user } = await openInfo('admin');
-    await user.selectOptions(screen.getByLabelText('Role of Carol'), 'admin');
+    api.call.mockClear();
+    await user.click(screen.getByRole('button', { name: 'Make Carol admin' }));
     expect(api.call).toHaveBeenCalledWith(
       ENDPOINTS.conversations.setRole,
       expect.objectContaining({
         params: { conversation_id: CONV, user_id: CAROL },
         body: { role: 'admin' },
+      }),
+    );
+    await waitFor(() => {
+      expect(api.call).toHaveBeenCalledWith(ENDPOINTS.conversations.members, expect.anything());
+    });
+  });
+
+  it('Demote takes the admin role away', async () => {
+    const { user } = await openInfo('admin');
+    await user.click(screen.getByRole('button', { name: 'Remove admin from Bob' }));
+    expect(api.call).toHaveBeenCalledWith(
+      ENDPOINTS.conversations.setRole,
+      expect.objectContaining({
+        params: { conversation_id: CONV, user_id: BOB },
+        body: { role: 'member' },
       }),
     );
   });
@@ -138,17 +215,17 @@ describe('group info: actions', () => {
     );
   });
 
-  it('Rename sends the trimmed title, and not an unchanged or empty one', async () => {
+  it('Save sends the trimmed name, and nothing for an unchanged or empty one', async () => {
     const { user } = await openInfo('owner');
     const field = screen.getByLabelText('Group name');
     api.call.mockClear();
-    await user.click(screen.getByRole('button', { name: 'Rename' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(api.call).not.toHaveBeenCalled(); // unchanged
     await user.clear(field);
-    await user.click(screen.getByRole('button', { name: 'Rename' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(api.call).not.toHaveBeenCalled(); // empty
     await user.type(field, '  New name  ');
-    await user.click(screen.getByRole('button', { name: 'Rename' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(api.call).toHaveBeenCalledWith(
       ENDPOINTS.conversations.update,
       expect.objectContaining({ body: { title: 'New name' } }),
@@ -166,14 +243,15 @@ describe('group info: actions', () => {
             ? { items: MEMBERS, next_cursor: null }
             : endpoint === ENDPOINTS.conversations.addMembers
               ? { added: [erin.id], failed: [] }
-              : undefined,
+              : { items: [], next_cursor: null },
       ),
     );
     await user.click(screen.getByRole('button', { name: 'Add members' }));
-    await user.type(screen.getByRole('searchbox'), 'er');
+    await user.type(search(), 'er');
     const pick = await screen.findByRole('button', { name: 'Add Erin to the group' });
     // People already in the group are not offered.
     expect(screen.queryByRole('button', { name: 'Add Bob to the group' })).not.toBeInTheDocument();
+    expect(screen.getByText('In this group')).toBeInTheDocument();
     await user.click(pick);
     expect(api.call).toHaveBeenCalledWith(
       ENDPOINTS.conversations.addMembers,
@@ -181,9 +259,19 @@ describe('group info: actions', () => {
     );
   });
 
-  it('Leave group closes the dialog and leaves', async () => {
+  it('Leave group asks first; Stay keeps you in, Leave closes the dialog and leaves', async () => {
     const { user, onClose } = await openInfo('member');
+    api.call.mockClear();
     await user.click(screen.getByRole('button', { name: 'Leave group' }));
+    expect(screen.getByRole('alertdialog', { name: 'Leave this group?' })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(api.call).not.toHaveBeenCalled(); // asking is not leaving
+    await user.click(screen.getByRole('button', { name: 'Stay' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(api.call).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Leave group' }));
+    await user.click(screen.getByRole('button', { name: 'Leave' }));
     expect(onClose).toHaveBeenCalled();
     expect(api.call).toHaveBeenCalledWith(
       ENDPOINTS.conversations.leave,
@@ -223,7 +311,7 @@ describe('new chat', () => {
           ? { items: [erin, person(ME, 'Me')], next_cursor: null }
           : endpoint === ENDPOINTS.conversations.createDirect
             ? makeConversation({ id: nextId(), peer: erin })
-            : undefined,
+            : { items: [], next_cursor: null },
       ),
     );
   });
@@ -232,7 +320,7 @@ describe('new chat', () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     render(<NewChatModal open onClose={onClose} />);
-    await user.type(screen.getByRole('searchbox'), 'er');
+    await user.type(search(), 'er');
     await user.click(await screen.findByRole('button', { name: 'Chat with Erin' }));
     expect(screen.queryByRole('button', { name: 'Chat with Me' })).not.toBeInTheDocument();
     expect(api.call).toHaveBeenCalledWith(ENDPOINTS.conversations.createDirect, {
@@ -248,22 +336,22 @@ describe('new chat', () => {
     const user = userEvent.setup();
     api.call.mockResolvedValue({ items: [], next_cursor: null });
     render(<NewChatModal open onClose={vi.fn()} />);
-    await user.type(screen.getByRole('searchbox'), 'zzz');
-    expect(await screen.findByText('No one found.')).toBeInTheDocument();
+    await user.type(search(), 'zzz');
+    expect(await screen.findByText('No one found')).toBeInTheDocument();
   });
 
   it('shows a failed search', async () => {
     const user = userEvent.setup();
     api.call.mockRejectedValue(new Error('x'));
     render(<NewChatModal open onClose={vi.fn()} />);
-    await user.type(screen.getByRole('searchbox'), 'er');
-    expect(await screen.findByText('Search failed.')).toBeInTheDocument();
+    await user.type(search(), 'er');
+    expect(await screen.findByText("Couldn't load people")).toBeInTheDocument();
   });
 
   it('debounces: typing quickly sends one search', async () => {
     const user = userEvent.setup();
     render(<NewChatModal open onClose={vi.fn()} />);
-    await user.type(screen.getByRole('searchbox'), 'erin');
+    await user.type(search(), 'erin');
     await screen.findByRole('button', { name: 'Chat with Erin' });
     const searches = api.call.mock.calls.filter((c) => c[0] === ENDPOINTS.users.search);
     expect(searches).toHaveLength(1);
@@ -272,7 +360,7 @@ describe('new chat', () => {
   it('has no accessibility violations', async () => {
     const user = userEvent.setup();
     render(<NewChatModal open onClose={vi.fn()} />);
-    await user.type(screen.getByRole('searchbox'), 'er');
+    await user.type(search(), 'er');
     await screen.findByRole('button', { name: 'Chat with Erin' });
     await expectNoA11yViolations();
   });
@@ -287,7 +375,7 @@ describe('new group', () => {
           ? { items: [erin], next_cursor: null }
           : endpoint === ENDPOINTS.conversations.createGroup
             ? makeConversation({ id: nextId(), type: 'group', title: 'Trip', peer: null })
-            : undefined,
+            : { items: [], next_cursor: null },
       ),
     );
   });
@@ -301,7 +389,7 @@ describe('new group', () => {
     await user.type(screen.getByLabelText('Group name'), 'Trip');
     expect(create).toBeEnabled();
 
-    await user.type(screen.getByRole('searchbox'), 'er');
+    await user.type(search(), 'er');
     await user.click(await screen.findByRole('button', { name: 'Add Erin' }));
     const chips = screen.getByRole('list', { name: 'Selected members' });
     expect(within(chips).getByText('Erin')).toBeInTheDocument();

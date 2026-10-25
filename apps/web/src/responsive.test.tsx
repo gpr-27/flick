@@ -222,7 +222,10 @@ describe('composer', () => {
 
   it('the text field is 16px on phones so iOS does not zoom, and 44px tall', () => {
     renderComposer();
-    expect(screen.getByRole('combobox')).toHaveClass('max-sm:text-base', 'max-sm:min-h-11');
+    expect(screen.getByRole('textbox', { name: /^Message / })).toHaveClass(
+      'max-sm:text-base',
+      'max-sm:min-h-11',
+    );
   });
 
   it('on phones Send sits after the field (order-2) and the mic before it (order-1)', () => {

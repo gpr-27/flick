@@ -85,7 +85,7 @@ describe('PeopleDirectory', () => {
       (h) => h.textContent,
     );
     expect(headers).toEqual(['A', 'B', 'E', '#']);
-    const options = screen.getAllByRole('option');
+    const options = screen.getAllByRole('listitem');
     expect(options.map((o) => within(o).getByText(/^@/).textContent)).toEqual([
       '@amy',
       '@bob',
@@ -190,7 +190,7 @@ describe('PeopleDirectory', () => {
     serve(api, () => ({ items: [person('Amy'), person('Bob')], next_cursor: null }));
     setup({ disabledIds: ['amy'], disabledLabel: 'In this group', buttonText: 'Add' });
     await screen.findByText('2 people on Flick');
-    const amy = screen.getByRole('option', { name: /Amy/ });
+    const amy = screen.getByText('Amy').closest<HTMLElement>('[role="listitem"]')!;
     expect(amy).toHaveAttribute('aria-disabled', 'true');
     expect(within(amy).getByText('In this group')).toBeInTheDocument();
     expect(within(amy).queryByRole('button')).toBeNull();
@@ -235,7 +235,10 @@ describe('PeopleDirectory', () => {
 
     await userEvent.keyboard('{ArrowDown}');
     expect(search).toHaveAttribute('aria-activedescendant', 'person-amy');
-    expect(screen.getByRole('option', { name: /Amy/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Amy').closest('[role="listitem"]')).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
 
     await userEvent.keyboard('{ArrowDown}'); // skips Bob, who is disabled
     expect(search).toHaveAttribute('aria-activedescendant', 'person-cy');
@@ -269,12 +272,12 @@ describe('PeopleDirectory', () => {
     serve(api, () => ({ items: everyone, next_cursor: null }));
     setup();
     expect(await screen.findByText('5000 people on Flick')).toBeInTheDocument();
-    const rendered = screen.getAllByRole('option').length;
+    const rendered = screen.getAllByRole('listitem').length;
     expect(rendered).toBeGreaterThan(0);
     expect(rendered).toBeLessThan(40);
     await waitFor(() => {
       expect(
-        document.querySelectorAll('[role="option"], [data-letter-header]').length,
+        document.querySelectorAll('[role="listitem"], [data-letter-header]').length,
       ).toBeLessThan(50);
     });
   });

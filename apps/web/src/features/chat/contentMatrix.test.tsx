@@ -365,7 +365,9 @@ describe('content matrix: dressings', () => {
       },
       { sender_user_id: FLICK_BOT_USER_ID },
     );
-    expect(screen.getByText('Flick', { selector: 'span.rounded-full' })).toBeInTheDocument();
+    expect(screen.getByText('Flick')).toBeInTheDocument(); // the author name
+    const badge = screen.getByRole('img', { name: 'Flick AI assistant' });
+    expect(badge).toHaveTextContent('AI');
     expect(screen.getByText('Answered by Anthropic · claude-haiku-5-5')).toBeInTheDocument();
   });
 
@@ -428,8 +430,8 @@ describe('content matrix: awkward text', () => {
     expect(p.textContent).toBe(longWord);
     // break-words lets the string wrap; the bubble clips anything else; the column is capped.
     expect(p).toHaveClass('break-words');
-    const bubble = p.closest('.overflow-hidden');
-    expect(bubble).not.toBeNull();
+    const bubble = p.closest('.animate-bubble-in');
+    expect(bubble).toHaveClass('overflow-hidden');
     expect(bubble!.parentElement!.className).toMatch(/max-w-\[85%\]/);
     expect(bubble!.parentElement!.className).toMatch(/sm:max-w-\[65%\]/);
   });

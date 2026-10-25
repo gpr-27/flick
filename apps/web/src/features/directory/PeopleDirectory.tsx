@@ -163,8 +163,6 @@ export const PeopleDirectory = ({
         }}
         leadingIcon={<Search className="size-4" />}
         autoFocus={autoFocus}
-        role="combobox"
-        aria-expanded={showList}
         aria-controls="people-list"
         aria-activedescendant={activeId ? activeRow(activeId) : undefined}
       />
@@ -185,7 +183,7 @@ export const PeopleDirectory = ({
           {showList && (
             <div
               id="people-list"
-              role="listbox"
+              role="list"
               aria-label="People"
               className="relative w-full"
               style={{ height: virtualizer.getTotalSize() }}
@@ -223,9 +221,9 @@ export const PeopleDirectory = ({
                   <div
                     key={user.id}
                     id={activeRow(user.id)}
-                    role="option"
-                    aria-selected={user.id === activeId}
-                    aria-disabled={off}
+                    role="listitem"
+                    aria-current={user.id === activeId ? 'true' : undefined}
+                    aria-disabled={off || undefined}
                     style={style}
                     className={cn(
                       'flex items-center gap-3 rounded-xl px-2',

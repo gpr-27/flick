@@ -62,7 +62,7 @@ const stubMembers = () =>
         next_cursor: null,
       });
     }
-    return Promise.resolve(undefined);
+    return Promise.resolve({ items: [], next_cursor: null });
   });
 
 describe('GroupInfoModal', () => {

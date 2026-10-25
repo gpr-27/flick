@@ -1,5 +1,5 @@
 // The message box: multi-line text as typed, paste, drop, shortcuts, camera and the small helpers.
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS } from '@chat/contracts';
@@ -204,6 +204,9 @@ describe('formatting toolbar', () => {
     await user.click(screen.getByRole('button', { name: 'Formatting' }));
     await user.type(field, '# Title');
     await user.click(screen.getByRole('button', { name: 'Preview' }));
-    expect(screen.getByRole('region', { name: 'Message preview' })).toHaveTextContent('# Title');
+    // The preview draws the markdown the way the chat will: a heading, not the "# " characters.
+    const preview = screen.getByRole('region', { name: 'Message preview' });
+    expect(within(preview).getByRole('heading', { name: 'Title' })).toBeInTheDocument();
+    expect(preview).not.toHaveTextContent('#');
   });
 });

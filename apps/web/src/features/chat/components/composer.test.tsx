@@ -39,7 +39,7 @@ const queued = () => useOutboxStore.getState().items;
 
 const mount = (messages = [] as ReturnType<typeof makeMessage>[]) =>
   render(<MessageInput conversation={conversation} messages={messages} />);
-const box = () => screen.getByRole('combobox');
+const box = () => screen.getByRole('textbox', { name: /^(Message |Edit your message)/ });
 
 beforeEach(() => {
   localStorage.clear();
@@ -66,17 +66,27 @@ afterEach(() => {
 });
 
 describe('sending text', () => {
-  it('Enter queues the trimmed text, clears the box and keeps focus', async () => {
+  it('Enter queues the text without trailing space, clears the box and keeps focus', async () => {
     const user = userEvent.setup();
     mount();
+    // Indentation on the first line is kept (it can be markdown); blank space at the end is not.
     await user.type(box(), '  hello there  {Enter}');
     expect(queued()).toHaveLength(1);
     expect(queued()[0]).toMatchObject({
       conversation_id: CONV,
       user_id: ME,
-      content: { type: 'text', text: 'hello there' },
+      content: { type: 'text', text: '  hello there' },
     });
     expect(box()).toHaveValue('');
+    expect(box()).toHaveFocus();
+  });
+
+  it('a multi-line message keeps its inner line breaks and drops leading blank lines', async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.type(box(), '{Shift>}{Enter}{/Shift}one{Shift>}{Enter}{Enter}{/Shift}two  {Enter}');
+    expect(queued()).toHaveLength(1);
+    expect(queued()[0]).toMatchObject({ content: { type: 'text', text: 'one\n\ntwo' } });
   });
 
   it('the Send button is disabled for empty or blank text', async () => {
