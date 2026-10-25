@@ -9,7 +9,7 @@ import { ReportDialog } from '@/features/settings/components/ReportDialog';
 import { getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
 import { presenceLabel } from '../conversationView';
-import { useChatStore } from '../useChatStore';
+import { useChatStore, withLiveProfile } from '../useChatStore';
 
 type Profile = z.infer<typeof UserProfile>;
 
@@ -74,7 +74,9 @@ export const ContactInfo = ({
     };
   }, [userId, attempt]);
 
-  const shown = profile ?? fallback ?? null;
+  const live = useChatStore((s) => s.profiles);
+  const loaded = profile ?? fallback ?? null;
+  const shown = loaded ? withLiveProfile(loaded, live) : null;
   const isMe = userId === myId;
 
   const toggleBlock = async (): Promise<void> => {
