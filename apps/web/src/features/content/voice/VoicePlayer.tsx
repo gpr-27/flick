@@ -48,7 +48,7 @@ export const Waveform = ({
 const BARS = 40;
 
 /** Averages the samples down to `count` bars (or keeps them when there are fewer). */
-export const reduceBars = (samples: readonly number[], count: number): number[] => {
+const reduceBars = (samples: readonly number[], count: number): number[] => {
   if (samples.length <= count) return [...samples];
   return Array.from({ length: count }, (_, i) => {
     const from = Math.floor((i * samples.length) / count);
