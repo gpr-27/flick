@@ -14,6 +14,7 @@ import * as m0011 from './0011_account.js';
 import * as m0012 from './0012_saved_and_scheduled.js';
 import * as m0013 from './0013_guide.js';
 import * as m0015 from './0015_chat_list.js';
+import * as m0016 from './0016_reminders.js';
 
 // Listed explicitly (instead of scanning the folder) so the same code works under tsx, vitest
 // and compiled dist/. Kysely applies them in name order.
@@ -32,4 +33,5 @@ export const migrations: Record<string, Migration> = {
   '0012_saved_and_scheduled': m0012,
   '0013_guide': m0013,
   '0015_chat_list': m0015,
+  '0016_reminders': m0016,
 };

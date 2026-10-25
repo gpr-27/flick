@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import {
   Archive,
   Bookmark,
+  AlarmClock,
   CalendarClock,
   MessageSquarePlus,
   MoreVertical,
@@ -21,6 +22,8 @@ import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CHAT_TABS, visibleChats, type ChatTab, type ChatView } from '../../organise/chatFilters';
 import { StarredPanel } from '../../organise/StarredPanel';
 import { SearchPanel } from '../../search/SearchPanel';
+import { RemindersDialog } from '@/features/reminders/RemindersDialog';
+import { useLoadReminders } from '@/features/reminders/useLoadReminders';
 import { ScheduledDialog } from '@/features/scheduled/ScheduledDialog';
 import { previewContent } from '../content/registry';
 import { SAVED_TITLE, conversationTitle } from '../conversationView';
@@ -133,6 +136,8 @@ export const Sidebar = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [starredOpen, setStarredOpen] = useState(false);
   const [scheduledOpen, setScheduledOpen] = useState(false);
+  const [remindersOpen, setRemindersOpen] = useState(false);
+  useLoadReminders();
   const listRef = useRef<HTMLUListElement>(null);
   const selecting = useSelection((s) => s.active);
   const selectedIds = useSelection((s) => s.ids);
@@ -293,6 +298,17 @@ export const Sidebar = () => {
               }}
             >
               <CalendarClock className="size-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="btn btn-circle btn-ghost btn-sm"
+              aria-label="Reminders"
+              title="Reminders"
+              onClick={() => {
+                setRemindersOpen(true);
+              }}
+            >
+              <AlarmClock className="size-5" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -484,6 +500,12 @@ export const Sidebar = () => {
         open={starredOpen}
         onClose={() => {
           setStarredOpen(false);
+        }}
+      />
+      <RemindersDialog
+        open={remindersOpen}
+        onClose={() => {
+          setRemindersOpen(false);
         }}
       />
       <ScheduledDialog

@@ -342,6 +342,24 @@ export interface ScheduledMessagesTable {
   created_at: CreatedAt;
 }
 
+export type ReminderStatus = 'pending' | 'sent' | 'cancelled';
+
+// "Remind me": the row stores only WHEN and WHAT (ids and an optional note). The message text is
+// never copied here; it is read when the reminder is shown or sent, so deleting a message also
+// removes it from its reminders.
+export interface RemindersTable {
+  id: Generated<string>;
+  user_id: string;
+  conversation_id: string;
+  // null = a reminder about the whole chat
+  message_id: string | null;
+  note: string | null;
+  remind_at: Timestamp;
+  status: Generated<ReminderStatus>;
+  created_at: CreatedAt;
+  sent_at: Timestamp | null;
+}
+
 export interface Database {
   users: UsersTable;
   user_settings: UserSettingsTable;
@@ -371,6 +389,7 @@ export interface Database {
   hidden_messages: HiddenMessagesTable;
   view_once_opens: ViewOnceOpensTable;
   scheduled_messages: ScheduledMessagesTable;
+  reminders: RemindersTable;
 }
 
 // Every application table; the seed truncates these and a test checks they all exist.
@@ -403,6 +422,7 @@ export const APP_TABLES: ReadonlyArray<keyof Database> = [
   'hidden_messages',
   'view_once_opens',
   'scheduled_messages',
+  'reminders',
 ];
 
 export type User = Selectable<UsersTable>;

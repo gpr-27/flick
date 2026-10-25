@@ -11,6 +11,7 @@ import * as Media from './media.js';
 import * as Msg from './messages.js';
 import * as Mod from './moderation.js';
 import * as Push from './push.js';
+import * as Reminders from './reminders.js';
 import * as Scheduled from './scheduled.js';
 import * as Users from './users.js';
 
@@ -565,6 +566,29 @@ export const ENDPOINTS = {
       path: '/scheduled/:scheduled_id',
       auth: true,
       params: Scheduled.ScheduledParams,
+      response: null,
+    },
+  },
+  reminders: {
+    create: {
+      method: 'POST',
+      path: '/reminders',
+      auth: true,
+      body: Reminders.CreateReminderRequest,
+      response: Reminders.Reminder,
+    },
+    list: {
+      method: 'GET',
+      path: '/reminders',
+      auth: true,
+      query: Reminders.ReminderListQuery,
+      response: Reminders.ReminderList,
+    },
+    cancel: {
+      method: 'DELETE',
+      path: '/reminders/:reminder_id',
+      auth: true,
+      params: Reminders.ReminderParams,
       response: null,
     },
   },

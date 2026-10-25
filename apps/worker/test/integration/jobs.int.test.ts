@@ -166,6 +166,7 @@ describe('notify', () => {
       logger,
       notify: { db, redis, provider },
       callPush: { db, redis, sender: null, logger },
+      reminderPush: { db, sender: null, logger },
       storage: undefined,
     });
     try {

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
+  AlarmClock,
   Copy,
   Flag,
   Forward,
@@ -39,6 +40,8 @@ export interface MessageMenuProps {
   onReport: () => void;
   /** Shown only when given: delivered/read details for my own message. */
   onInfo?: () => void;
+  /** Shown only when given: "Remind me" about this message. */
+  onRemind?: () => void;
   onDelete: (scope: 'me' | 'everyone') => void;
 }
 
@@ -172,6 +175,11 @@ export const MessageMenu = (props: MessageMenuProps) => {
                   onClick={run(props.onStar)}
                 >
                   {props.starred ? 'Unstar' : 'Star'}
+                </Item>
+              )}
+              {props.onRemind && (
+                <Item icon={<AlarmClock className="size-5" />} onClick={run(props.onRemind)}>
+                  Remind me
                 </Item>
               )}
               {props.canTranslate && (
