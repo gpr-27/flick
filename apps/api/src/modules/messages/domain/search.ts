@@ -41,7 +41,9 @@ export async function search(
 
   const items = page.flatMap((hit) => {
     const message = records.get(hit.id);
-    return message ? [{ message, snippet: toSnippet(hit.snippet) }] : [];
+    // A record without content is one the viewer may no longer read (a view-once message they
+    // opened). Its snippet would show the text the record hides, so it is not a hit.
+    return message?.content ? [{ message, snippet: toSnippet(hit.snippet) }] : [];
   });
   const last = page[page.length - 1];
   return {

@@ -1,10 +1,4 @@
-import type {
-  ChatPrefs,
-  ConversationSummary,
-  MessageContent,
-  MessageRecord,
-  UserSummary,
-} from '@chat/contracts';
+import type { ChatPrefs, ConversationSummary, MessageRecord, UserSummary } from '@chat/contracts';
 import { FLICK_BOT_USER_ID, MESSAGE_COLUMNS, buildChatListQuery, type MessageRow } from '@chat/db';
 import { sql } from 'kysely';
 import type { Config } from '../../../config.js';
@@ -13,7 +7,7 @@ import { notFound } from '../http/errors.js';
 import { mediaUrl } from '../../../avatars.js';
 import { USER_COLUMNS, toUserSummary } from './core.js';
 import { decodeCursor, encodeCursor } from './cursor.js';
-import { fromRow } from '../../messages/domain/content.js';
+import { toRecords } from '../../messages/domain/records.js';
 
 // The chat list is the DB helper's query (active memberships only, newest activity first,
 // unread = last_seq - read_seq) plus the extra columns the summary needs.
@@ -108,15 +102,24 @@ async function toSummaries(
   }
 
   const withMessages = rows.filter((r) => r.last_seq > 0);
-  const lastMessages = new Map<string, MessageRow>();
+  const lastMessages = new Map<string, MessageRecord>();
   if (withMessages.length > 0) {
-    const pairs = sql.join(withMessages.map((r) => sql`(${r.id}::uuid, ${r.last_seq}::bigint)`));
-    const messages = await db
-      .selectFrom('messages')
-      .select(MESSAGE_COLUMNS)
-      .where(sql<boolean>`(conversation_id, seq) in (${pairs})`)
-      .execute();
-    for (const m of messages) lastMessages.set(m.conversation_id, m);
+    // The newest MESSAGE of each chat. last_seq is not enough: an edit, a delete or a reaction
+    // takes a seq too (see message_events), so the row at last_seq may not exist in `messages`.
+    const columns = sql.raw(MESSAGE_COLUMNS.map((c) => `m.${c}`).join(', '));
+    const { rows: messages } = await sql<MessageRow>`
+      SELECT ${columns}
+      FROM unnest(${withMessages.map((r) => r.id)}::uuid[]) AS c(id)
+      CROSS JOIN LATERAL (
+        SELECT * FROM messages WHERE conversation_id = c.id ORDER BY seq DESC LIMIT 1
+      ) m
+    `.execute(db);
+    // The very same conversion the history and sync use, so the preview can never be a different
+    // (and possibly invalid) shape. A message the viewer deleted for themselves, or that has
+    // expired, shows as a tombstone instead of leaking its text.
+    for (const record of await toRecords(db, userId, messages, { hiddenAsTombstone: true })) {
+      lastMessages.set(record.conversation_id, record);
+    }
   }
 
   return rows.map((r) => {
@@ -132,7 +135,7 @@ async function toSummaries(
       last_seq: r.last_seq,
       read_seq: r.read_seq,
       unread_count: Math.max(0, Number(r.unread_count)),
-      last_message: last ? toMessageRecord(last) : null,
+      last_message: last ?? null,
       created_at: r.created_at.toISOString(),
       settings: {
         only_admins_send: r.admin_only_send,
@@ -162,32 +165,6 @@ export function toPrefs(r: {
     lock_hash: r.lock_hash,
     wallpaper: r.wallpaper,
   };
-}
-
-/** Enough of a message for the chat list preview. Reactions and stars are loaded with the history. */
-function toMessageRecord(m: MessageRow): MessageRecord {
-  const content = m.deleted_at || m.view_once ? null : storedContent(m);
-  return {
-    message_id: m.id,
-    conversation_id: m.conversation_id,
-    seq: m.seq,
-    sender_user_id: m.sender_id,
-    client_message_id: m.client_message_id,
-    content,
-    created_at: m.created_at.toISOString(),
-    edited_at: m.edited_at?.toISOString() ?? null,
-    deleted_at: m.deleted_at?.toISOString() ?? null,
-    expires_at: m.expire_at?.toISOString() ?? null,
-    reactions: [],
-    starred: false,
-    viewed: false,
-  };
-}
-
-// The same rebuild the history uses: the type, the attachment and the text live in their own
-// columns, so the stored JSON alone is not a complete message for a photo, file or voice note.
-function storedContent(m: MessageRow): MessageContent | null {
-  return fromRow(m);
 }
 
 // ------------------------------------------------------------------ members

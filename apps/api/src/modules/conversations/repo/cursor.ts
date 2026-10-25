@@ -5,6 +5,7 @@ export const encodeCursor = (key: string) => Buffer.from(key).toString('base64ur
 
 export function decodeCursor(cursor: string): string {
   const key = Buffer.from(cursor, 'base64url').toString();
-  if (!key) throw new ApiError('VALIDATION_FAILED', 'Invalid cursor');
+  // A NUL character cannot be stored or compared in Postgres text; refuse it here, not as a 500.
+  if (!key || key.includes('\u0000')) throw new ApiError('VALIDATION_FAILED', 'Invalid cursor');
   return key;
 }

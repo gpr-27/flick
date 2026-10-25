@@ -25,9 +25,17 @@ Redis has a narrow role and **never holds anything we cannot lose**:
 ## Trade-offs
 
 If Redis is down: cross-server live delivery pauses, presence is not updated, the auth cache is skipped, and the
-HTTP rate limiter lets requests through. **No message is lost.** Messages are in Postgres and clients recover through sync.
+HTTP rate limiter lets requests through (each request first waits up to one second for Redis, the client's
+`commandTimeout`). **No message is lost.** Messages are in Postgres and clients recover through sync.
 
 ## Consequences
 
 - No Redis persistence settings to tune.
-- Not yet tested: that a message sent while Redis is down is still stored and recovered. The code is written for it (Redis calls fail open), and the load-test plan includes a Redis-down run. This line becomes a test reference once that run passes.
+- Tested: [`apps/api/test/integration/failure-injection.int.test.ts`](../../apps/api/test/integration/failure-injection.int.test.ts)
+  part (a) stops a real Redis container while the API runs. Sends over REST and Socket.IO keep committing with dense
+  seqs, reads and sync keep working, and after Redis returns new messages are delivered live again and sync supplies
+  what was missed. The test found two faults in the "Redis calls fail open" code, both fixed: the Socket.IO adapter's
+  unawaited `publish()` became an unhandled rejection that would have ended the API process on the first broadcast, and
+  every request took about 10 s while Redis did not answer. Details and numbers are in
+  [`../testing.md`](../testing.md#failure-injection). Not tested: a dispatcher row that fails 20 times (a Redis outage
+  of more than about a minute) is dropped and left to sync, as described in the architecture overview.

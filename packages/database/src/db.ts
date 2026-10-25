@@ -31,6 +31,13 @@ export function createPool(
   // that client from the pool and the next query opens a new one; without a listener the event
   // would crash the whole process.
   pool.on('error', () => undefined);
+  // The pool's listener covers idle clients only. A client that is checked out (for example one
+  // holding a transaction while the code awaits something else) reports a cut connection by
+  // emitting 'error' on itself, and with no listener Node ends the process with an uncaught
+  // exception. Every query on it still fails normally; this only stops the crash.
+  pool.on('connect', (client) => {
+    client.on('error', () => undefined);
+  });
   return pool;
 }
 

@@ -43,7 +43,8 @@ const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 /**
  * Everyone on Flick, A to Z by display name (then username, so two equal names still page
  * correctly). Same rules as search: never the caller, inactive accounts, or people who blocked
- * the caller. `after` is the cursor: the (name, username) of the last row of the previous page.
+ * the caller. `after` is the cursor: the sort keys (name_key, username_key) of the last row of the
+ * previous page.
  */
 export async function listDirectory(
   db: Db,
@@ -54,7 +55,19 @@ export async function listDirectory(
   return (
     db
       .selectFrom('users')
-      .select(['id', 'username', 'display_name', 'avatar_object_key', 'avatar_url', 'is_bot'])
+      .select([
+        'id',
+        'username',
+        'display_name',
+        'avatar_object_key',
+        'avatar_url',
+        'is_bot',
+        // The sort keys as the DATABASE lower-cases them. The cursor carries these, never a
+        // JavaScript toLowerCase(): the two disagree for some characters (a Turkish dotted I, a
+        // Greek final sigma ...), and a mismatch lists someone twice or loops forever.
+        sql<string>`lower(display_name)`.as('name_key'),
+        sql<string>`lower(username)`.as('username_key'),
+      ])
       .where('id', '!=', callerId)
       .where('status', '=', 'active')
       .where((eb) =>
@@ -71,10 +84,10 @@ export async function listDirectory(
       .$if(after !== null, (qb) =>
         qb.where((eb) =>
           eb.or([
-            eb(sql`lower(display_name)`, '>', after!.name.toLowerCase()),
+            eb(sql`lower(display_name)`, '>', after!.name),
             eb.and([
-              eb(sql`lower(display_name)`, '=', after!.name.toLowerCase()),
-              eb(sql`lower(username)`, '>', after!.username.toLowerCase()),
+              eb(sql`lower(display_name)`, '=', after!.name),
+              eb(sql`lower(username)`, '>', after!.username),
             ]),
           ]),
         ),

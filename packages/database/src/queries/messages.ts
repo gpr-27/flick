@@ -129,11 +129,32 @@ export async function allocateSeqAndInsertMessage(
       }
 
       if (input.attachmentId) {
+        // The sender's own upload, or one already in a chat the sender is in: that is what
+        // forwarding a photo, voice note or file received from someone else sends.
         const attachment = await trx
           .updateTable('attachments')
           .set({ status: 'attached' })
           .where('id', '=', input.attachmentId)
-          .where('owner_id', '=', input.senderId)
+          .where((eb) =>
+            eb.or([
+              eb('owner_id', '=', input.senderId),
+              eb.exists(
+                eb
+                  .selectFrom('messages as src')
+                  .innerJoin(
+                    'conversation_members as cm',
+                    'cm.conversation_id',
+                    'src.conversation_id',
+                  )
+                  .select('src.id')
+                  .whereRef('src.attachment_id', '=', 'attachments.id')
+                  .where('src.id', '!=', inserted.id) // not the message being sent right now
+                  .where('src.deleted_at', 'is', null)
+                  .where('cm.user_id', '=', input.senderId)
+                  .where('cm.left_at', 'is', null),
+              ),
+            ]),
+          )
           .where('status', 'in', ['uploaded', 'attached'])
           .returning('id')
           .executeTakeFirst();

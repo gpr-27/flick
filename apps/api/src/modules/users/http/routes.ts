@@ -1,4 +1,4 @@
-import { ENDPOINTS } from '@chat/contracts';
+import { ENDPOINTS, Id } from '@chat/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../../../app.js';
 import { ApiError, handle, parse } from '../errors.js';
@@ -17,7 +17,8 @@ import {
 
 const { users, moderation } = ENDPOINTS;
 
-// The directory cursor carries the sort key of the last row: the name, then the username.
+// The directory cursor carries the sort key of the last row: the name, then the username, both
+// exactly as the database lower-cases them (see listDirectory).
 // Base64url, so it is safe in a query string; a bad value is a 400, never a server error.
 const encodeDirectoryCursor = (key: { name: string; username: string }): string =>
   Buffer.from(JSON.stringify(key)).toString('base64url');
@@ -31,7 +32,9 @@ function parseDirectoryCursor(cursor: string): { name: string; username: string 
       typeof (key as { name?: unknown }).name === 'string' &&
       typeof (key as { username?: unknown }).username === 'string'
     ) {
-      return key as { name: string; username: string };
+      const { name, username } = key as { name: string; username: string };
+      // U+0000 cannot go into a Postgres comparison; a cursor with one was not made by us.
+      if (!name.includes('\u0000') && !username.includes('\u0000')) return { name, username };
     }
   } catch {
     // fall through to the error below
@@ -101,7 +104,7 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
       const last = rows.at(-1);
       const next =
         rows.length === limit && last
-          ? encodeDirectoryCursor({ name: last.display_name, username: last.username })
+          ? encodeDirectoryCursor({ name: last.name_key, username: last.username_key })
           : null;
       return { items: rows.map((row) => toSummary(config, row)), next_cursor: next };
     }),
@@ -194,6 +197,8 @@ export function userRoutes(app: FastifyInstance, deps: AppDeps): void {
       }
       if (body.user_id === userId)
         throw new ApiError('VALIDATION_FAILED', 'You cannot report yourself');
+      if (body.user_id && !(await userExists(db, body.user_id)))
+        throw new ApiError('NOT_FOUND', 'User not found');
       const created = await createReport(db, userId, {
         userId: body.user_id,
         conversationId: body.conversation_id,
@@ -239,7 +244,14 @@ function decodeCursor(cursor: string | undefined) {
       string,
       string,
     ];
-    if (typeof blockedAt === 'string' && typeof blockedId === 'string')
+    // Both go into SQL casts (::timestamptz, ::uuid), so a value of the wrong form must be
+    // refused here instead of failing in the database.
+    if (
+      typeof blockedAt === 'string' &&
+      typeof blockedId === 'string' &&
+      /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:?\d{2})?|Z)?$/.test(blockedAt) &&
+      Id.safeParse(blockedId).success
+    )
       return { blockedAt, blockedId };
   } catch {
     // fall through to the error below

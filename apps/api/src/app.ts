@@ -2,11 +2,12 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import type { DependencyCheck } from '@chat/shared';
-import Fastify from 'fastify';
+import Fastify, { type FastifyReply } from 'fastify';
 import { type AuthContext, type Authenticate, rejectAll } from './auth-guard.js';
 import type { Config } from './config.js';
 import type { Db } from './db.js';
 import type { Logger } from './logger.js';
+import { containsNul, errorBodyForStatus, normalizeErrorPayload } from './http-error.js';
 import { httpRequestDuration, rateLimitRejections, registry } from './metrics.js';
 import { modules } from './modules/index.js';
 import type { AiService } from './modules/ai/service.js';
@@ -37,6 +38,15 @@ export async function buildApp(deps: AppDeps) {
   const app = Fastify({
     loggerInstance: deps.logger,
     trustProxy: config.TRUST_PROXY,
+    // Errors raised by the router itself (a path parameter longer than the limit, a bad URL)
+    // never reach the error handler below; answer them in the standard shape too.
+    frameworkErrors: (error, req, reply) => {
+      const status = error.statusCode ?? 400;
+      // (the reply type here carries the route generics, which have no meaning for an error body)
+      void (reply as FastifyReply)
+        .code(status)
+        .send({ error: errorBodyForStatus(status, error.message, req.id) });
+    },
   });
 
   await app.register(helmet);
@@ -75,13 +85,31 @@ export async function buildApp(deps: AppDeps) {
     if (status >= 500) req.log.error(error);
     // Never send internal details (SQL, stack traces) to clients.
     const message = status >= 500 ? 'Internal server error' : error.message;
-    return reply.code(status).send({ error: { message, requestId: req.id } });
+    return reply.code(status).send({ error: errorBodyForStatus(status, message, req.id) });
   });
 
   // Unknown URLs count against the rate limit too, so URL scanning gets throttled.
   app.setNotFoundHandler({ preHandler: app.rateLimit() }, (req, reply) =>
-    reply.code(404).send({ error: { message: 'Not found', requestId: req.id } }),
+    reply.code(404).send({ error: errorBodyForStatus(404, 'Not found', req.id) }),
   );
+
+  // U+0000 cannot be stored by Postgres, so it can only ever end in a 500; answer 400 instead.
+  app.addHook('preValidation', async (req, reply) => {
+    if (containsNul(req.query) || containsNul(req.body) || containsNul(req.params)) {
+      return reply
+        .code(400)
+        .send({ error: errorBodyForStatus(400, 'Text must not contain a NUL character.', req.id) });
+    }
+    return undefined;
+  });
+
+  // Whatever route produced an error body in another shape (a plugin with its own format, a guard),
+  // the client always gets { error: { code, message, retryable } }.
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (reply.statusCode < 400 || typeof payload !== 'string') return payload;
+    if (!String(reply.getHeader('content-type') ?? '').includes('json')) return payload;
+    return normalizeErrorPayload(reply.statusCode, payload, req.id) ?? payload;
+  });
 
   app.decorate('authenticate', deps.authenticate ?? rejectAll);
 
