@@ -3,7 +3,7 @@ import { AiConversationRequest, AskAiRequest, makeError, type ErrorCode } from '
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppDeps } from '../../app.js';
 import { rateLimitRejections } from '../../metrics.js';
-import { languageRule, preferredLanguage } from './bot.js';
+import { flickKnowledge, languageRule, preferredLanguage } from './bot.js';
 import { getMembership, loadLines, transcript, type ChatLine } from './context.js';
 import { AI_KEY_NAMES, createAiService } from './service.js';
 
@@ -15,6 +15,9 @@ const UNREAD = { messages: 200, perMessageChars: 1_500, totalChars: 40_000 };
 const FALLBACK_RECENT = { messages: 30, perMessageChars: 1_500, totalChars: 40_000 };
 const REPLY_CONTEXT = { messages: 15, perMessageChars: 500, totalChars: 8_000 };
 const ASK_CONTEXT = { messages: 20, perMessageChars: 500, totalChars: 6_000 };
+
+// The package accepts at most 8,000 characters per turn; the rules and language rule take the rest.
+const CHAT_KNOWLEDGE_CHARS = 6_500;
 
 function fail(reply: FastifyReply, status: number, code: ErrorCode, message: string) {
   return reply.code(status).send({ error: makeError(code, message) });
@@ -124,9 +127,19 @@ export function aiRoutesModule(app: FastifyInstance, deps: AppDeps): void {
     }
     // "Ask Flick" is the one-to-one chat with the assistant: honour the language chosen in Settings
     // with a first turn (the package owns the system prompt). Turns must keep alternating.
+    // The system prompt belongs to the package, so the live app knowledge goes in the same way:
+    // as a first turn, together with the language rule.
     const language = await preferredLanguage(db, req.auth!.userId);
-    if (language) {
-      const rule = { role: 'user' as const, content: languageRule(language) };
+    const knowledge = await flickKnowledge(
+      { db, redis, logger, config: deps.config, checks: deps.checks },
+      req.auth!.userId,
+      CHAT_KNOWLEDGE_CHARS,
+    );
+    const preamble = [language ? languageRule(language) : '', knowledge.trim()]
+      .filter(Boolean)
+      .join('\n\n');
+    if (preamble) {
+      const rule = { role: 'user' as const, content: preamble };
       history =
         history[0]!.role === 'user'
           ? [rule, { role: 'assistant', content: 'Understood.' }, ...history]

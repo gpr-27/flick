@@ -71,6 +71,10 @@ async function makeApp(chain: AiChain) {
   return built;
 }
 
+function testConfig() {
+  return loadConfig({ ...process.env, DATABASE_URL: dbUrl(), LOG_LEVEL: 'silent' });
+}
+
 function dbUrl() {
   const url = new URL(adminUrl);
   url.pathname = `/${dbName}`;
@@ -288,7 +292,14 @@ describe('@flick bot', () => {
     expect(CONTRACT_BOT_ID).toBe(FLICK_BOT_USER_ID);
   });
 
-  const deps = () => ({ db, redis, logger: createLogger('silent'), ai: aiServiceFromChain(chain) });
+  const deps = () => ({
+    db,
+    redis,
+    logger: createLogger('silent'),
+    ai: aiServiceFromChain(chain),
+    config: testConfig(),
+    checks: [],
+  });
   const chain = new AiChain({ adapters: [fake] });
 
   it('answers a reply to one of its own answers in a group, without another @flick', async () => {
@@ -488,6 +499,8 @@ describe('preferred reply language (Settings > AI)', () => {
     redis,
     logger: createLogger('silent'),
     ai: aiServiceFromChain(new AiChain({ adapters: [fake] })),
+    config: testConfig(),
+    checks: [],
   });
 
   it('is added to the @flick prompt only for people who chose one', async () => {
