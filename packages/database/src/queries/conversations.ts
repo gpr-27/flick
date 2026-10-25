@@ -87,31 +87,46 @@ export async function findOrCreateSavedConversation(
   return { conversationId: (await find())!.id, created: false };
 }
 
+// A chat the member deleted ("Delete chat") stays out of the list until a newer message arrives.
+// Filtered by the caller, not in SQL, so the query keeps its index-friendly shape.
+export const isHiddenByDelete = (r: {
+  deleted_at: Date | null;
+  last_seq: number;
+  cleared_seq: number;
+}): boolean => r.deleted_at !== null && r.last_seq <= r.cleared_seq;
+
 // The chat list for one user, most recent activity first, with unread counts computed from the
 // cursors (last_seq - read_seq) instead of counting messages. There is no index on
 // last_message_at on purpose: it changes on every message, and the sort only covers one
 // user's chats, which is a small set.
 export function buildChatListQuery(db: Kysely<Database>, userId: string) {
-  return db
-    .selectFrom('conversation_members as cm')
-    .innerJoin('conversations as c', 'c.id', 'cm.conversation_id')
-    .select([
-      'c.id',
-      'c.type',
-      'c.name',
-      'c.avatar_object_key',
-      'c.last_seq',
-      'c.last_message_at',
-      'cm.role',
-      'cm.read_seq',
-      'cm.muted_until',
-      'cm.archived',
-      'cm.pinned_at',
-      'cm.favourite',
-      sql<number>`c.last_seq - cm.read_seq`.as('unread_count'),
-    ])
-    .where('cm.user_id', '=', userId)
-    .where('cm.left_at', 'is', null)
-    .orderBy(sql`COALESCE(c.last_message_at, c.created_at)`, 'desc')
-    .limit(1000);
+  return (
+    db
+      .selectFrom('conversation_members as cm')
+      .innerJoin('conversations as c', 'c.id', 'cm.conversation_id')
+      .select([
+        'c.id',
+        'c.type',
+        'c.name',
+        'c.avatar_object_key',
+        'c.last_seq',
+        'c.last_message_at',
+        'cm.role',
+        'cm.read_seq',
+        'cm.muted_until',
+        'cm.archived',
+        'cm.pinned_at',
+        'cm.favourite',
+        'cm.cleared_seq',
+        'cm.deleted_at',
+        'cm.marked_unread',
+        sql<number>`c.last_seq - cm.read_seq`.as('unread_count'),
+      ])
+      .where('cm.user_id', '=', userId)
+      .where('cm.left_at', 'is', null)
+      // A chat the member deleted stays out of the list until a newer message arrives.
+      .where(sql<boolean>`(cm.deleted_at IS NULL OR c.last_seq > cm.cleared_seq)`)
+      .orderBy(sql`COALESCE(c.last_message_at, c.created_at)`, 'desc')
+      .limit(1000)
+  );
 }

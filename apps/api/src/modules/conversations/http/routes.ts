@@ -5,6 +5,7 @@ import type { AppDeps } from '../../../app.js';
 import { conversationChanges, inviteJoins } from '../../../metrics.js';
 import * as groups from '../repo/groups.js';
 import * as invites from '../repo/invites.js';
+import { deleteForMe } from '../repo/delete.js';
 import { updatePrefs } from '../repo/prefs.js';
 import { requireActiveMember } from '../repo/core.js';
 import { listShared } from '../repo/shared.js';
@@ -108,6 +109,11 @@ export function conversationRoutes(app: FastifyInstance, deps: AppDeps): void {
     route(E.updatePrefs, ({ userId, params, body }) =>
       updatePrefs(db, userId, params.conversation_id, body),
     );
+
+    route(E.deleteForMe, async ({ userId, params }) => {
+      await deleteForMe(db, userId, params.conversation_id);
+      conversationChanges.inc({ action: 'deleted_for_me' });
+    });
 
     route(E.leave, async ({ userId, params }) => {
       await groups.leaveGroup(db, userId, params.conversation_id);

@@ -18,7 +18,7 @@ const matchesTab = (c: ConversationSummary, tab: ChatTab): boolean => {
     case 'all':
       return true;
     case 'unread':
-      return c.unread_count > 0;
+      return c.unread_count > 0 || c.prefs.marked_unread;
     case 'favorites':
       return c.prefs.favorite;
     case 'groups':

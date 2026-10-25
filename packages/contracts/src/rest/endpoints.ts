@@ -184,6 +184,19 @@ export const ENDPOINTS = {
       body: Conv.UpdateChatPrefsRequest,
       response: Conv.ChatPrefs,
     },
+    /**
+     * "Delete chat" for me only: my copy of the messages is removed, the other members keep
+     * theirs. A direct chat disappears from my list until a newer message arrives (then it shows
+     * only the newer messages). Groups must be left first (409). For the assistant chat and
+     * Saved messages it only clears the history and the chat stays.
+     */
+    deleteForMe: {
+      method: 'DELETE',
+      path: '/conversations/:conversation_id',
+      auth: true,
+      params: Conv.ConversationParams,
+      response: null,
+    },
     leave: {
       method: 'POST',
       path: '/conversations/:conversation_id/leave',

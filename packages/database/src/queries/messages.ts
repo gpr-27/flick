@@ -221,9 +221,13 @@ export const HISTORY_MAX_LIMIT = 200;
 
 // SQL condition: the message has not expired and the user has not hidden it ("delete for me").
 // Expired rows stay in the table until the worker's cleanup runs, so reads must filter them.
+// It also leaves out everything the user removed with "Delete chat" / "Clear chat" (seq <=
+// the member's cleared_seq), so one condition covers history, search, shared media, pins and stars.
 export function visibleTo(userId: string) {
   return sql<boolean>`(messages.expire_at IS NULL OR messages.expire_at > now())
-    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = messages.id AND h.user_id = ${userId})`;
+    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = messages.id AND h.user_id = ${userId})
+    AND messages.seq > COALESCE((SELECT cm.cleared_seq FROM conversation_members cm
+      WHERE cm.conversation_id = messages.conversation_id AND cm.user_id = ${userId}), 0)`;
 }
 
 // Keyset pagination on (conversation_id, seq). It never uses OFFSET, so page 1,000 costs the
