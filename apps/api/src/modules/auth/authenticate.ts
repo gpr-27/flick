@@ -122,7 +122,12 @@ export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
       .onConflict((oc) =>
         oc
           .column('id')
-          .doUpdateSet((eb) => ({ last_active_at: eb.fn('now', []) }))
+          // The name comes from the browser each time: a device created before naming existed is
+          // fixed the next time it signs in, and a browser update is picked up.
+          .doUpdateSet((eb) => ({
+            last_active_at: eb.fn('now', []),
+            name: deviceName(userAgent),
+          }))
           .where('devices.user_id', '=', userId)
           .where('devices.revoked_at', 'is', null),
       )

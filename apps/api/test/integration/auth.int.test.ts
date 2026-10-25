@@ -142,6 +142,30 @@ describe('authenticate', () => {
     expect(stolen.status).toBe(403);
   });
 
+  it('names a device from its browser, and renames one that still has the old placeholder name', async () => {
+    const device = randomUUID();
+    const iphone =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+    await call('ben', 'GET', '/users/me', { device });
+    await db
+      .updateTable('devices')
+      .set({ name: 'Unnamed device' })
+      .where('id', '=', device)
+      .execute();
+
+    await app.inject({
+      method: 'GET',
+      url: '/users/me',
+      headers: { authorization: 'Bearer token-ben', 'x-device-id': device, 'user-agent': iphone },
+    });
+    const row = await db
+      .selectFrom('devices')
+      .select('name')
+      .where('id', '=', device)
+      .executeTakeFirstOrThrow();
+    expect(row.name).toBe('Safari on iOS');
+  });
+
   it('gives two users with the same Clerk username different local usernames', async () => {
     await db.insertInto('users').values({ username: 'dup', display_name: 'Existing' }).execute();
     const res = await call('dup', 'GET', '/users/me');
