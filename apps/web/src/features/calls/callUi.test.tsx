@@ -56,17 +56,25 @@ describe('incoming call dialog', () => {
   });
 
   it.each([
-    ['video', 'Incoming video call…', 'Video'],
-    ['audio', 'Incoming voice call…', 'Voice'],
-  ] as const)('shows the caller and the %s kind', (type, line, chip) => {
+    ['video', 'Incoming video call…'],
+    ['audio', 'Incoming voice call…'],
+  ] as const)('shows the caller and the %s kind', (type, line) => {
     render(<IncomingCallModal />);
     ringing(type);
     const dialog = screen.getByRole('alertdialog');
     expect(within(dialog).getByRole('heading', { name: 'Bob' })).toBeInTheDocument();
     expect(within(dialog).getByText(line)).toBeInTheDocument();
-    expect(within(dialog).getByText(chip)).toBeInTheDocument();
     expect(dialog).toHaveAccessibleName('Bob');
     expect(dialog).toHaveAccessibleDescription(line);
+  });
+
+  it('looks like a phone that is ringing: "Ringing…", spreading rings and a shaking phone', () => {
+    render(<IncomingCallModal />);
+    ringing('audio');
+    const dialog = screen.getByRole('alertdialog');
+    expect(within(dialog).getByText('Ringing…')).toBeInTheDocument();
+    expect(dialog.querySelectorAll('.animate-ring-ripple')).toHaveLength(3);
+    expect(dialog.querySelectorAll('.animate-ring-shake').length).toBeGreaterThanOrEqual(2);
   });
 
   it('puts focus on Accept so Enter answers', () => {

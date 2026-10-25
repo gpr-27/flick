@@ -21,7 +21,8 @@ describe('settings defaults', () => {
       ringtoneEnabled: true,
       theme: 'system',
       accent: 'violet',
-      fontSize: 'normal',
+      fontSize: 'small',
+      fontFamily: 'serif',
       density: 'comfortable',
       corners: 'rounded',
       enterSends: true,
@@ -65,6 +66,48 @@ describe('settings store', () => {
     useSettingsStore.getState().reset();
     expect(useSettingsStore.getState().enterSends).toBe(true);
     expect(useSettingsStore.getState().relayOnly).toBe(false);
+  });
+});
+
+describe('the small / serif defaults', () => {
+  it('a saved value that is still the old default moves to the new default, once', async () => {
+    localStorage.setItem(
+      'flick.settings.v1',
+      JSON.stringify({
+        version: 1,
+        state: { fontSize: 'normal', fontFamily: 'rounded', accent: 'teal' },
+      }),
+    );
+    vi.resetModules();
+    const { useSettingsStore: fresh } = await import('./useSettingsStore');
+    await fresh.persist.rehydrate();
+    expect(fresh.getState()).toMatchObject({
+      fontSize: 'small',
+      fontFamily: 'serif',
+      accent: 'teal',
+    });
+  });
+
+  it('a size or font the user picked on purpose is kept', async () => {
+    localStorage.setItem(
+      'flick.settings.v1',
+      JSON.stringify({ version: 1, state: { fontSize: 'large', fontFamily: 'mono' } }),
+    );
+    vi.resetModules();
+    const { useSettingsStore: fresh } = await import('./useSettingsStore');
+    await fresh.persist.rehydrate();
+    expect(fresh.getState()).toMatchObject({ fontSize: 'large', fontFamily: 'mono' });
+  });
+
+  it('a value saved by the current version is left alone, even normal / rounded', async () => {
+    localStorage.setItem(
+      'flick.settings.v1',
+      JSON.stringify({ version: 2, state: { fontSize: 'normal', fontFamily: 'rounded' } }),
+    );
+    vi.resetModules();
+    const { useSettingsStore: fresh } = await import('./useSettingsStore');
+    await fresh.persist.rehydrate();
+    expect(fresh.getState()).toMatchObject({ fontSize: 'normal', fontFamily: 'rounded' });
   });
 });
 

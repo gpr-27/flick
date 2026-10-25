@@ -28,15 +28,21 @@ export const IncomingCallModal = () => {
       closeOnBackdrop={false}
       className="glass-card mx-4 w-full max-w-sm rounded-3xl p-8 text-center animate-scale-in"
     >
-      <div className="relative mb-6 flex items-center justify-center" aria-hidden="true">
-        <span className="absolute size-32 animate-ping rounded-full bg-primary/20" />
-        <span className="absolute size-28 animate-pulse rounded-full bg-primary/15" />
+      {/* Rings spreading out from the avatar, like a phone that is ringing. */}
+      <div className="relative mb-8 flex h-40 items-center justify-center" aria-hidden="true">
+        {[0, 0.8, 1.6].map((delay) => (
+          <span
+            key={delay}
+            className="absolute size-28 animate-ring-ripple rounded-full border-2 border-success/60 bg-success/10"
+            style={{ animationDelay: `${String(delay)}s` }}
+          />
+        ))}
         <Avatar
           src={otherUser?.avatar_url}
           name=""
           size="lg"
           className="z-10"
-          imgClassName="relative shadow-lg ring-4 ring-primary/30"
+          imgClassName="relative shadow-lg ring-4 ring-success/40"
         />
       </div>
 
@@ -50,16 +56,14 @@ export const IncomingCallModal = () => {
         Incoming {isVideo ? 'video' : 'voice'} call…
       </p>
 
-      <div className="mb-8 flex justify-center">
-        <span className="chip flex items-center gap-1.5 text-xs">
-          {isVideo ? (
-            <Video className="size-3.5" aria-hidden="true" />
-          ) : (
-            <Phone className="size-3.5" aria-hidden="true" />
-          )}
-          {isVideo ? 'Video' : 'Voice'}
-        </span>
-      </div>
+      <p className="mb-8 flex items-center justify-center gap-2 text-sm font-semibold text-success">
+        {isVideo ? (
+          <Video className="size-4 animate-ring-shake" aria-hidden="true" />
+        ) : (
+          <Phone className="size-4 animate-ring-shake" aria-hidden="true" />
+        )}
+        Ringing…
+      </p>
 
       <div className="flex items-end justify-center gap-10">
         <div className="flex flex-col items-center gap-2">
@@ -67,7 +71,7 @@ export const IncomingCallModal = () => {
             type="button"
             onClick={rejectCall}
             aria-label="Decline call"
-            className="grid size-14 place-items-center rounded-full bg-error text-error-content shadow-lg transition-transform hover:opacity-90 active:scale-95"
+            className="grid size-16 place-items-center rounded-full bg-error text-error-content shadow-lg transition-transform hover:opacity-90 active:scale-95"
           >
             <PhoneOff className="size-6" aria-hidden="true" />
           </button>
@@ -82,12 +86,12 @@ export const IncomingCallModal = () => {
             type="button"
             onClick={() => void acceptCall()}
             aria-label="Accept call"
-            className="grid size-14 animate-bounce place-items-center rounded-full bg-success text-success-content shadow-lg transition-transform hover:opacity-90 active:scale-95"
+            className="grid size-16 place-items-center rounded-full bg-success text-success-content shadow-lg ring-4 ring-success/30 transition-transform hover:opacity-90 active:scale-95"
           >
             {isVideo ? (
-              <Video className="size-6" aria-hidden="true" />
+              <Video className="size-7 animate-ring-shake" aria-hidden="true" />
             ) : (
-              <Phone className="size-6" aria-hidden="true" />
+              <Phone className="size-7 animate-ring-shake" aria-hidden="true" />
             )}
           </button>
           <span className="text-xs text-base-content/60" aria-hidden="true">

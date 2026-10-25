@@ -1,13 +1,15 @@
 // The one place client-only preferences live. Saved in localStorage under `flick.settings.v1`;
-// the number in the key and `version` change together if the shape ever changes incompatibly
-// (then `migrate` turns the old shape into the new one). Whatever is read back goes through
+// the number in the key changes only if the shape changes incompatibly; `version` counts smaller
+// steps (`migrate` turns an older saved value into the current one). Whatever is read back goes through
 // sanitizeSettings, so a damaged value falls back to its default instead of breaking the app.
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_SETTINGS, sanitizeSettings, type Settings } from './settingsSchema';
 
 export const SETTINGS_KEY = 'flick.settings.v1';
-export const SETTINGS_VERSION = 1;
+// Version 2: the default text size became small and the default font serif. A saved value that is
+// still the OLD default (normal / rounded) moves to the new one; anything else the user chose stays.
+export const SETTINGS_VERSION = 2;
 
 /** Before this store, the theme and the message sound had a key each. Used once, on first run. */
 const readLegacy = (): Partial<Settings> => {
@@ -51,7 +53,14 @@ export const useSettingsStore = create<SettingsState>()(
       storage: createJSONStorage(() => localStorage),
       // Only the data is saved, not the functions.
       partialize: (state): Settings => sanitizeSettings(state),
-      migrate: (saved) => sanitizeSettings(saved),
+      migrate: (saved, version) => {
+        const old = (typeof saved === 'object' && saved !== null ? saved : {}) as Partial<Settings>;
+        if (version < 2) {
+          if (old.fontSize === 'normal') old.fontSize = 'small';
+          if (old.fontFamily === 'rounded') old.fontFamily = 'serif';
+        }
+        return sanitizeSettings(old);
+      },
       // Nothing saved yet (first run): keep what the store started with.
       merge: (saved, current) =>
         typeof saved === 'object' && saved !== null

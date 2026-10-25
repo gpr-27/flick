@@ -388,6 +388,8 @@
   }
   .animate-bounce,
   .animate-pulse,
+  .animate-ring-ripple,
+  .animate-ring-shake,
   .blobs::before,
   .blobs::after {
     animation: none !important;

@@ -39,6 +39,16 @@ const config: Config & { daisyui: Record<string, unknown> } = {
           from: { opacity: '0', transform: 'scale(0.94)' },
           to: { opacity: '1', transform: 'scale(1)' },
         },
+        // An incoming call: rings spreading out from the avatar, and a phone that shakes.
+        'ring-ripple': {
+          '0%': { transform: 'scale(0.85)', opacity: '0.55' },
+          '100%': { transform: 'scale(2.2)', opacity: '0' },
+        },
+        'ring-shake': {
+          '0%, 60%, 100%': { transform: 'rotate(0deg)' },
+          '10%, 30%, 50%': { transform: 'rotate(-16deg)' },
+          '20%, 40%': { transform: 'rotate(16deg)' },
+        },
         'blob-drift': {
           '0%, 100%': { transform: 'translate3d(0,0,0) scale(1)' },
           '33%': { transform: 'translate3d(4%, -6%, 0) scale(1.12)' },
@@ -50,6 +60,8 @@ const config: Config & { daisyui: Record<string, unknown> } = {
         'bubble-in': 'bubble-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both',
         'scale-in': 'scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both',
         'blob-drift': 'blob-drift 22s ease-in-out infinite',
+        'ring-ripple': 'ring-ripple 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite',
+        'ring-shake': 'ring-shake 1.6s ease-in-out infinite',
       },
     },
   },
