@@ -53,6 +53,41 @@ describe('pins', () => {
     expect(usePinsStore.getState().byConversation[CONV]).toEqual([m]);
   });
 
+  it('a pin from another member reloads the list, so the pinned bar updates live', async () => {
+    const old = makeMessage({ seq: 2 });
+    const fresh = makeMessage({ seq: 3 });
+    usePinsStore.setState({ byConversation: { [CONV]: [old] } });
+    api.call.mockResolvedValueOnce({ items: [fresh, old] });
+    usePinsStore
+      .getState()
+      .applyChange({ conversation_id: CONV, message_id: fresh.message_id, pinned: true });
+    await waitFor(() => {
+      expect(usePinsStore.getState().byConversation[CONV]).toEqual([fresh, old]);
+    });
+    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.messages.pins, {
+      params: { conversation_id: CONV },
+    });
+  });
+
+  it('an unpin from another member drops the message at once, without a request', () => {
+    const a = makeMessage({ seq: 2 });
+    const b = makeMessage({ seq: 3 });
+    usePinsStore.setState({ byConversation: { [CONV]: [b, a] } });
+    usePinsStore
+      .getState()
+      .applyChange({ conversation_id: CONV, message_id: b.message_id, pinned: false });
+    expect(usePinsStore.getState().byConversation[CONV]).toEqual([a]);
+    expect(api.call).not.toHaveBeenCalled();
+  });
+
+  it('a pin in a chat whose pins were never loaded is left for when the chat opens', () => {
+    usePinsStore
+      .getState()
+      .applyChange({ conversation_id: CONV, message_id: nextId(), pinned: true });
+    expect(api.call).not.toHaveBeenCalled();
+    expect(usePinsStore.getState().byConversation[CONV]).toBeUndefined();
+  });
+
   it('toggling a pinned message unpins it, then reloads', async () => {
     const m = makeMessage({ seq: 2 });
     usePinsStore.setState({ byConversation: { [CONV]: [m] } });

@@ -127,7 +127,12 @@ export async function completeUpload(
     );
   }
 
-  const { detected, sha256 } = await sniffAndHash(storage.client, storage.bucket, row.object_key);
+  const { detected, sha256 } = await sniffAndHash(
+    storage.client,
+    storage.bucket,
+    row.object_key,
+    row.declared_mime,
+  );
   if (!detected || !sameType(row.declared_mime, detected)) {
     await reject(
       db,
@@ -211,15 +216,40 @@ async function reject(
   throw new MediaError(code, message);
 }
 
-/** One pass over the object: hash all bytes, keep the first few to detect the real type. */
-async function sniffAndHash(client: S3Client, bucket: string, key: string) {
+/**
+ * One pass over the object: hash all bytes, keep the first few to detect the real type.
+ * Plain text has no magic bytes, so a file declared as text/plain is accepted only when no
+ * known binary signature is found and every byte is valid UTF-8 without a NUL byte.
+ */
+async function sniffAndHash(client: S3Client, bucket: string, key: string, declared: string) {
   const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   const hash = createHash('sha256');
+  const checkText = declared === 'text/plain';
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let validText = checkText;
   let head = Buffer.alloc(0);
   for await (const chunk of object.Body as Readable as AsyncIterable<Buffer>) {
     hash.update(chunk);
     if (head.length < SNIFF_BYTES) head = Buffer.concat([head, chunk]).subarray(0, SNIFF_BYTES);
+    if (validText) {
+      if (chunk.includes(0)) validText = false;
+      else {
+        try {
+          decoder.decode(chunk, { stream: true });
+        } catch {
+          validText = false;
+        }
+      }
+    }
   }
-  const detected = (await fileTypeFromBuffer(head))?.mime;
+  if (validText) {
+    try {
+      decoder.decode();
+    } catch {
+      validText = false;
+    }
+  }
+  let detected = (await fileTypeFromBuffer(head))?.mime;
+  if (!detected && validText) detected = 'text/plain';
   return { detected, sha256: hash.digest() };
 }

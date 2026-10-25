@@ -543,6 +543,39 @@ describe('loading the list and history', () => {
     expect(userName(store().users, null)).toBe('Someone');
   });
 
+  it('the peers cursors in the list give the right ticks after a reload', async () => {
+    const conv = makeConversation({
+      id: nextId(),
+      last_seq: 5,
+      peer_receipts: [{ user_id: BOB, delivered_seq: 5, read_seq: 3 }],
+    });
+    api.call
+      .mockResolvedValueOnce({ items: [conv], next_cursor: null })
+      .mockResolvedValueOnce({ items: [], next_cursor: null });
+    await store().loadConversations();
+    expect(store().receipts[conv.id]?.[BOB]).toEqual({ delivered_seq: 5, read_seq: 3 });
+  });
+
+  it('list cursors never move a newer live receipt back, and refresh and updates merge too', async () => {
+    const conv = makeConversation({ id: nextId(), last_seq: 5 });
+    useChatStore.setState({
+      conversations: { [conv.id]: conv },
+      receipts: { [conv.id]: { [BOB]: { delivered_seq: 5, read_seq: 5 } } },
+    });
+    api.call.mockResolvedValueOnce({
+      items: [{ ...conv, peer_receipts: [{ user_id: BOB, delivered_seq: 4, read_seq: 2 }] }],
+      next_cursor: null,
+    });
+    await store().refreshConversations();
+    expect(store().receipts[conv.id]?.[BOB]).toEqual({ delivered_seq: 5, read_seq: 5 });
+
+    store().conversationUpdated(conv.id, {
+      ...conv,
+      peer_receipts: [{ user_id: BOB, delivered_seq: 9, read_seq: 7 }],
+    });
+    expect(store().receipts[conv.id]?.[BOB]).toEqual({ delivered_seq: 9, read_seq: 7 });
+  });
+
   it('a failed load shows an error state with a message', async () => {
     api.call.mockRejectedValue(new Error('down'));
     await store().loadConversations();

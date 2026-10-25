@@ -16,6 +16,8 @@ interface PinsState {
   byConversation: Record<string, MessageRecord[]>;
   load: (conversationId: string) => Promise<void>;
   toggle: (message: MessageRecord) => Promise<void>;
+  /** Another member (or another device of ours) pinned or unpinned a message. */
+  applyChange: (change: { conversation_id: string; message_id: string; pinned: boolean }) => void;
 }
 
 export const usePinsStore = create<PinsState>()((set, get) => ({
@@ -30,6 +32,23 @@ export const usePinsStore = create<PinsState>()((set, get) => ({
     } catch (error) {
       logger.warn('Could not load pinned messages:', error);
     }
+  },
+
+  applyChange: ({ conversation_id, message_id, pinned }) => {
+    const known = get().byConversation[conversation_id];
+    if (!pinned) {
+      if (known)
+        set((s) => ({
+          byConversation: {
+            ...s.byConversation,
+            [conversation_id]: known.filter((m) => m.message_id !== message_id),
+          },
+        }));
+      return;
+    }
+    // A new pin: reload, because the record and the order come from the server. A chat whose
+    // pins were never loaded loads them when it opens.
+    if (known) void get().load(conversation_id);
   },
 
   toggle: async (message) => {

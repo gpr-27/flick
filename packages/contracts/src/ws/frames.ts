@@ -45,6 +45,7 @@ export const SERVER_PAYLOADS = {
   activity: E.ActivityRelayPayload,
   presence_update: E.PresenceUpdatePayload,
   conversation_updated: E.ConversationUpdatedPayload,
+  pins_changed: E.PinsChangedPayload,
   call_offer: E.RelayedCall.call_offer,
   call_answer: E.RelayedCall.call_answer,
   call_ice: E.RelayedCall.call_ice,

@@ -18,6 +18,7 @@ import {
 import { bindSignOutReset, resetChatSession, startChatSession } from './chatSession';
 import type { OutboxItem } from './outbox/outboxMachine';
 import { configureOutboxStorage, sendMessage, useOutboxStore } from './outbox/useOutboxStore';
+import { usePinsStore } from '../organise/messageActions';
 import { useChatStore } from './useChatStore';
 
 let transport: FakeTransport;
@@ -206,6 +207,18 @@ describe('every live event reaches the store', () => {
     expect(useChatStore.getState().conversations[CONV]?.title).toBe('Renamed');
     transport.fire('conversation_updated', { conversation_id: CONV, conversation: null });
     expect(useChatStore.getState().conversations[CONV]).toBeUndefined();
+  });
+
+  it('a pins_changed event updates the pinned list', () => {
+    const gone = makeMessage({ seq: 2 });
+    usePinsStore.setState({ byConversation: { [CONV]: [gone] } });
+    transport.fire('pins_changed', {
+      conversation_id: CONV,
+      message_id: gone.message_id,
+      pinned: false,
+      actor_user_id: BOB,
+    });
+    expect(usePinsStore.getState().byConversation[CONV]).toEqual([]);
   });
 
   it('edits, deletes and reactions arrive in seq order through the sync engine', () => {

@@ -483,6 +483,20 @@ describe('attachments', () => {
     expect(screen.queryByAltText('Selected image preview')).not.toBeInTheDocument();
   });
 
+  it('a .txt file can be picked and sent as text/plain, even when the browser gives no type', async () => {
+    mount();
+    pick(FILE_INPUT, new File(['hello'], 'notes.txt', { type: '' }));
+    expect(screen.getByText('notes.txt')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+    send();
+    await waitFor(() => {
+      expect(upload.uploadAttachment).toHaveBeenCalledWith(
+        expect.any(File),
+        expect.objectContaining({ purpose: 'message', mime: 'text/plain', fileName: 'notes.txt' }),
+      );
+    });
+  });
+
   it.each([
     ['image', IMAGE_INPUT, png, true],
     ['video', IMAGE_INPUT, mp4, true],

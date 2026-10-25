@@ -171,6 +171,7 @@ export const makeConversation = (
   read_seq: 0,
   unread_count: 0,
   last_message: null,
+  peer_receipts: [],
   created_at: '2026-01-01T00:00:00.000Z',
   settings: {
     only_admins_send: false,

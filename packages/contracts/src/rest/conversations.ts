@@ -50,6 +50,18 @@ export const ChatPrefs = z.object({
 
 export type ChatPrefs = z.infer<typeof ChatPrefs>;
 
+/**
+ * How far another member has got in the conversation, so the sender's ticks are right after a
+ * reload (live receipt_update events only cover what happens while connected).
+ * When either side turned read receipts off, read_seq is 0 and delivered_seq excludes reads.
+ */
+export const PeerReceipt = z.object({
+  user_id: Id,
+  delivered_seq: Seq,
+  read_seq: Seq,
+});
+export type PeerReceipt = z.infer<typeof PeerReceipt>;
+
 export const ConversationSummary = z.object({
   id: Id,
   type: ConversationType,
@@ -72,6 +84,12 @@ export const ConversationSummary = z.object({
   // A preview the client cannot read (for example a message type from a newer server) becomes
   // "no preview" instead of making the whole chat list fail to load.
   last_message: MessageRecord.nullable().catch(null),
+  /**
+   * The other members' receipt cursors. Sent for direct chats and for groups of up to
+   * LIMITS.INLINE_FANOUT_MAX_MEMBERS members; empty for bigger groups (their ticks come from
+   * live events only).
+   */
+  peer_receipts: z.array(PeerReceipt).default([]),
   created_at: IsoDateTime,
   settings: GroupSettings,
   prefs: ChatPrefs,

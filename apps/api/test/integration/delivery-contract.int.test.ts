@@ -428,6 +428,73 @@ describe('delivered and read cursors', () => {
   });
 });
 
+describe('receipts after a reload', () => {
+  const summaryOf = async (user: Parameters<typeof stack.call>[0], conv: string) =>
+    (await stack.call(user, 'GET', `/conversations/${conv}`)).body as {
+      peer_receipts: { user_id: string; delivered_seq: number; read_seq: number }[];
+    };
+
+  it('the chat summary carries the peers cursors, so read ticks survive a reload', async () => {
+    const [a, b] = await Promise.all([stack.user('a'), stack.user('b')]);
+    const conv = await direct(stack, a, b);
+    for (let i = 0; i < 4; i++) await send(stack, a, conv, { type: 'text', text: `m${String(i)}` });
+    await stack.call(b, 'POST', '/receipts/delivered', {
+      acks: [{ conversation_id: conv, seq: 4 }],
+    });
+    await stack.call(b, 'POST', `/conversations/${conv}/read`, { seq: 3 });
+
+    expect((await summaryOf(a, conv)).peer_receipts).toEqual([
+      { user_id: b.id, delivered_seq: 4, read_seq: 3 },
+    ]);
+    // the list endpoint carries the same
+    const list = (await stack.call(a, 'GET', '/conversations')).body as {
+      items: { id: string; peer_receipts: unknown[] }[];
+    };
+    expect(list.items.find((c) => c.id === conv)?.peer_receipts).toHaveLength(1);
+    // the reader's own view lists the sender, who has read nothing
+    expect((await summaryOf(b, conv)).peer_receipts).toEqual([
+      { user_id: a.id, delivered_seq: 0, read_seq: 0 },
+    ]);
+  });
+
+  it('a group lists every other member', async () => {
+    const [a, b, c] = await Promise.all([stack.user('a'), stack.user('b'), stack.user('c')]);
+    const conv = await group(stack, a, [b, c]);
+    const m = (await send(stack, a, conv, { type: 'text', text: 'hi' })).body;
+    await stack.call(c, 'POST', `/conversations/${conv}/read`, { seq: m.seq });
+    const got = (await summaryOf(a, conv)).peer_receipts;
+    expect(got.map((r) => r.user_id).sort()).toEqual([b.id, c.id].sort());
+    expect(got.find((r) => r.user_id === c.id)?.read_seq).toBe(m.seq);
+    expect(got.find((r) => r.user_id === b.id)?.read_seq).toBe(0);
+  });
+
+  it('hides a read position when either side turned read receipts off', async () => {
+    const [a, b] = await Promise.all([stack.user('a'), stack.user('b')]);
+    const conv = await direct(stack, a, b);
+    const m = (await send(stack, a, conv, { type: 'text', text: 'hi' })).body;
+    await stack.call(b, 'POST', '/receipts/delivered', {
+      acks: [{ conversation_id: conv, seq: m.seq }],
+    });
+    await stack.call(b, 'POST', `/conversations/${conv}/read`, { seq: m.seq });
+    expect((await summaryOf(a, conv)).peer_receipts[0]?.read_seq).toBe(m.seq);
+
+    // the reader turns receipts off: the sender sees delivery but no read
+    await stack.call(b, 'PATCH', '/users/me/privacy', { read_receipts: false });
+    expect((await summaryOf(a, conv)).peer_receipts).toEqual([
+      { user_id: b.id, delivered_seq: m.seq, read_seq: 0 },
+    ]);
+    // the reader's own view of the sender is hidden too (receipts work both ways)
+    await stack.call(a, 'POST', `/conversations/${conv}/read`, { seq: m.seq });
+    expect((await summaryOf(b, conv)).peer_receipts[0]?.read_seq).toBe(0);
+
+    // back on for the reader, off for the sender: still nothing
+    await stack.call(b, 'PATCH', '/users/me/privacy', { read_receipts: true });
+    await stack.call(a, 'PATCH', '/users/me/privacy', { read_receipts: false });
+    expect((await summaryOf(a, conv)).peer_receipts[0]?.read_seq).toBe(0);
+    expect((await summaryOf(b, conv)).peer_receipts[0]?.read_seq).toBe(0);
+  });
+});
+
 // ------------------------------------------------------------------ changes take seqs
 
 describe('edits, deletes and reactions', () => {
@@ -580,6 +647,29 @@ describe('edits, deletes and reactions', () => {
     });
     await stack.call(b, 'DELETE', `${path}?for=me`);
     expect(await logSeqs(conv)).toEqual([1, 2]);
+  });
+
+  it('a pin and an unpin reach the other members live, once, and not a repeated pin', async () => {
+    const [a, b, c] = await Promise.all([stack.user('a'), stack.user('b'), stack.user('c')]);
+    const conv = await group(stack, a, [b, c]);
+    const m = (await send(stack, a, conv, { type: 'text', text: 'pin me' })).body;
+    const bLive = await stack.connect(b);
+    const cLive = await stack.connect(c);
+    const pins = `/conversations/${conv}/pins`;
+
+    expect((await stack.call(a, 'POST', pins, { message_id: m.message_id })).status).toBe(204);
+    await stack.call(a, 'POST', pins, { message_id: m.message_id }); // already pinned: no event
+    await waitUntil(() => bLive.of('pins_changed').length >= 1, 8_000, 'b hears the pin');
+    await waitUntil(() => cLive.of('pins_changed').length >= 1, 8_000, 'c hears the pin');
+    expect(bLive.of('pins_changed')).toEqual([
+      { conversation_id: conv, message_id: m.message_id, pinned: true, actor_user_id: a.id },
+    ]);
+
+    await stack.call(b, 'DELETE', `${pins}/${m.message_id}`);
+    await waitUntil(() => cLive.of('pins_changed').length >= 2, 8_000, 'c hears the unpin');
+    expect(cLive.of('pins_changed')[1]).toMatchObject({ pinned: false, actor_user_id: b.id });
+    expect(bLive.of('pins_changed')).toHaveLength(2);
+    expect(await logSeqs(conv)).toEqual([1, 2]); // group-created line + the message; pins take no seq
   });
 
   it('a concurrent double delete takes exactly one seq', async () => {
