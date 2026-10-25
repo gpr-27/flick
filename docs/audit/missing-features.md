@@ -47,12 +47,14 @@ Method note: "API without UI" means no `ENDPOINTS.<group>.<name>` reference in `
 ## 2. Half-built or inconsistent
 
 API without UI (endpoint exists in contracts, never called from the web app):
+
 - `conversations.createInvite/previewInvite/joinInvite/revokeInvite`, `joinRequests`, `decideJoinRequest`. [M, H]
 - `users.updateMe`, `users.profile`, `users.directory`. [M, H]
 - `messages.info`. [S, M]
 - `messages.delivered` / `messages.read` / `messages.send` / `messages.sync` are not called via ENDPOINTS from the web; presumably done over the socket in `features/chat/sync/syncEngine.ts` and `lib/realtime/socketTransport.ts`. Not verified end to end; check that the REST fallbacks are exercised when the socket is down. [S, M]
 
 UI/behaviour without full backing or visible effect:
+
 - Privacy "About" audience controls a field with no editor in the web app. `PrivacySettings.tsx:22`. [S, L]
 - "Read receipts" toggle copy says you will not "send or see" receipts; verify the web UI actually hides received ticks when off (`MessageBubble.tsx`, `threadRows.ts`). [S, M]
 - `PrivacySettings` only offers Everyone/Nobody although the type is a shared `Audience` that may allow more; no "contacts" option. `PrivacySettings.tsx:12-18`. [S, L]
@@ -88,13 +90,14 @@ UI/behaviour without full backing or visible effect:
 - Poll voting (`PollView.tsx`): confirm radio/checkbox semantics and result announcements. [S, M]
 - Skip link and `main` landmark exist (`App.tsx`); there is a single `<html lang="en">` (`index.html:2`) with no per-message `lang` for Telugu/Hindi or translated text (`TranslateDialog.tsx`). [S, L]
 - Focus trap exists for modals (`useFocusTrap.ts`); not verified for bottom-sheet menus (`MessageMenu.tsx`) and `AnchoredPanel`. [S, M]
-- Pinch zoom is not disabled (no `user-scalable=no` found), good. Nothing to fix. 
+- Pinch zoom is not disabled (no `user-scalable=no` found), good. Nothing to fix.
 
 ## 5. Missing loading, empty and error states
 
 Present (so not gaps): conversation list loading/error/empty (`Sidebar.tsx:325-334`, `SidebarSkeleton.tsx`), thread loading/error (`ChatContainer.tsx:244`, `MessageSkeleton.tsx`), call log (`CallLogPage.tsx:131,142`), starred, search, and full-screen session error (`App.tsx`).
 
 Gaps:
+
 - Settings: `PrivacySettings.tsx` shows a bare "Loading..." text and an error with no retry button; `BlockedUsers.tsx` and `NotificationSettings.tsx` need the same check (no `ErrorState`/`Spinner` use). [S, M]
 - `ProfilePage.tsx` returns `null` if the session user is missing: a blank page instead of a loader or error. [S, M]
 - `CallLinkPage.tsx`: verify distinct states for expired, revoked, full and signed-out links (docs list friendly errors for the store; confirm the page shows them). [S, M]
