@@ -100,6 +100,7 @@ export const DisappearingMenu = ({
           className,
         )}
         aria-label={`Disappearing messages: ${timerLabel(conversation.settings.disappearing_timer_s)}`}
+        data-guide="chat.disappearing"
         title="Disappearing messages"
       >
         <Timer className="size-5" aria-hidden="true" />

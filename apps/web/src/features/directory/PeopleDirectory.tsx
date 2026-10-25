@@ -191,6 +191,7 @@ export const PeopleDirectory = ({
           {showList && (
             <div
               id="people-list"
+              data-guide="people.list"
               role="list"
               aria-label="People"
               className="relative w-full"

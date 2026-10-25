@@ -5,7 +5,10 @@ import {
   DeleteAccountRequest,
   DeviceItem,
   DeviceParams,
+  GUIDE_MAX_TOPICS,
+  GuideState,
   PrivacySettings,
+  UpdateGuideRequest,
   UpdateMeRequest,
   UpdateSettingsRequest,
   UserStats,
@@ -135,6 +138,25 @@ describe('account contracts', () => {
     expect(UpdateSettingsRequest.safeParse({ ai_language: 'x' }).success).toBe(false);
     expect(UpdateSettingsRequest.safeParse({ groups_add: 'nobody' }).success).toBe(true);
     expect(UpdateSettingsRequest.safeParse({ groups_add: 'contacts' }).success).toBe(false);
+  });
+
+  it('guide: ids are short lowercase names, times are ISO, at most 200 topics, reset only true', () => {
+    const at = '2026-01-01T10:00:00.000Z';
+    expect(UpdateGuideRequest.safeParse({}).success).toBe(true);
+    expect(UpdateGuideRequest.safeParse({ seen: { 'composer.attach': at } }).success).toBe(true);
+    expect(UpdateGuideRequest.safeParse({ seen: { 'Not OK': at } }).success).toBe(false);
+    expect(UpdateGuideRequest.safeParse({ seen: { ['a'.repeat(65)]: at } }).success).toBe(false);
+    expect(UpdateGuideRequest.safeParse({ used: { ok: 'today' } }).success).toBe(false);
+    expect(UpdateGuideRequest.safeParse({ reset: true }).success).toBe(true);
+    expect(UpdateGuideRequest.safeParse({ reset: false }).success).toBe(false);
+    const many = (n: number) =>
+      Object.fromEntries(Array.from({ length: n }, (_, i) => [`t${i}`, at]));
+    expect(UpdateGuideRequest.safeParse({ seen: many(GUIDE_MAX_TOPICS) }).success).toBe(true);
+    expect(UpdateGuideRequest.safeParse({ seen: many(GUIDE_MAX_TOPICS + 1) }).success).toBe(false);
+    expect(
+      GuideState.safeParse({ seen: {}, used: {}, welcome_done_at: null, enabled: true, version: 0 })
+        .success,
+    ).toBe(true);
   });
 
   it('the older privacy response is still the four privacy fields', () => {

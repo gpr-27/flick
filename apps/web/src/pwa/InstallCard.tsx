@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Download, X } from 'lucide-react';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { startInstall, useInstallMode } from './install';
 
 const KEY = 'flick.install_card_dismissed_at';
@@ -38,7 +39,11 @@ export const InstallCard = () => {
       <p className="min-w-0 flex-1 text-sm">Install Flick for a faster, full-screen app.</p>
       <button
         type="button"
-        onClick={() => void startInstall()}
+        data-guide="install"
+        onClick={() => {
+          markUsed('install.app');
+          void startInstall();
+        }}
         className="btn btn-primary btn-sm h-10 min-h-10"
       >
         Install

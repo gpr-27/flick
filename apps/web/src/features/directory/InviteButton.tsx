@@ -5,6 +5,7 @@ import { inviteFriends } from './inviteFriends';
 export const InviteButton = ({ className }: { className?: string }) => (
   <button
     type="button"
+    data-guide="people.invite"
     className={cn('btn btn-outline btn-primary btn-sm gap-2 rounded-full', className)}
     onClick={() => void inviteFriends()}
   >

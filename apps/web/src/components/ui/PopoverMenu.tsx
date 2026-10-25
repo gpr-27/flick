@@ -25,6 +25,8 @@ interface PopoverMenuProps {
   alignLeft?: boolean;
   /** Classes for the wrapper, e.g. `sm:hidden` to make it phone-only. */
   className?: string;
+  /** Puts `data-guide="<id>"` on the trigger so the in-app guide can point at it. */
+  guideId?: string;
 }
 
 const itemClass =
@@ -41,6 +43,7 @@ export const PopoverMenu = ({
   up = false,
   alignLeft = false,
   className,
+  guideId,
 }: PopoverMenuProps) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -67,6 +70,7 @@ export const PopoverMenu = ({
         }}
         className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px] text-base-content/70"
         aria-label={label}
+        data-guide={guideId}
         aria-haspopup="menu"
         aria-expanded={open}
       >

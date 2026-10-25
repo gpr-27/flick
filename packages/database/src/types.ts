@@ -64,6 +64,8 @@ export interface UserSettingsTable {
   /** Language Flick answers in; null = the language of the message. */
   ai_language: string | null;
   read_receipts: Generated<boolean>;
+  /** In-app guide progress (topic ids and times only). The shape is GuideState in contracts. */
+  guide: Generated<unknown>;
 }
 
 export interface DevicesTable {

@@ -13,6 +13,8 @@ import { conversationAvatar, conversationTitle, presenceLabel } from '../convers
 import { useChatStore } from '../useChatStore';
 import { DisappearingDialog, DisappearingMenu } from '@/features/content/DisappearingMenu';
 import { timerLabel } from '@/features/content/disappearing';
+import { useFeatureGuides, useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { useContactInfo } from './useContactInfo';
 import { GroupInfoModal } from './GroupInfoModal';
 
@@ -34,6 +36,17 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
   const isGroup = conversation.type === 'group';
   const isBot = isFlickChat(conversation);
   const busy = Object.values(activity ?? {})[0];
+
+  // First-open tips for what the header offers (see features/guide), dropped once used.
+  const hasPeer = Boolean(peer) && !isBot;
+  useFeatureGuides(['calls.voice', 'calls.video'], hasPeer && !conversation.is_saved);
+  useFeatureGuides(['calls.group', 'group.info'], isGroup);
+  useFeatureGuides(['ai.ask', 'chat.disappearing'], !isBot && !conversation.is_saved);
+  useFeatureGuides(['chat.options', 'chat.search']);
+  useMarkUsedWhen('group.info', infoOpen);
+  useMarkUsedWhen('chat.search', searchOpen);
+  useMarkUsedWhen('ai.ask', flickOpen);
+  useMarkUsedWhen('chat.disappearing', timerOpen);
   const subtitle = busy
     ? busy === 'typing'
       ? 'typing…'
@@ -69,7 +82,10 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
             label: 'Video call',
             icon: icon(Video),
             disabled: callsDisabled,
-            onClick: () => void initiateCall(conversation.id, peer, 'video'),
+            onClick: () => {
+              markUsed('calls.video');
+              void initiateCall(conversation.id, peer, 'video');
+            },
           },
         ]
       : []),
@@ -86,8 +102,10 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
             label: 'Start group call',
             icon: icon(Users),
             disabled: callsDisabled || groupCallActive,
-            onClick: () =>
-              void useGroupCallStore.getState().join({ conversation_id: conversation.id }),
+            onClick: () => {
+              markUsed('calls.group');
+              void useGroupCallStore.getState().join({ conversation_id: conversation.id });
+            },
           },
           {
             label: 'Group info',
@@ -168,7 +186,11 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           <>
             <button
               type="button"
-              onClick={() => void initiateCall(conversation.id, peer, 'audio')}
+              onClick={() => {
+                markUsed('calls.voice');
+                void initiateCall(conversation.id, peer, 'audio');
+              }}
+              data-guide="call.voice"
               disabled={callsDisabled}
               className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px] text-base-content/70 hover:text-primary disabled:opacity-40 sm:min-h-8 sm:min-w-8"
               aria-label={`Start voice call with ${title}`}
@@ -178,7 +200,11 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
             </button>
             <button
               type="button"
-              onClick={() => void initiateCall(conversation.id, peer, 'video')}
+              onClick={() => {
+                markUsed('calls.video');
+                void initiateCall(conversation.id, peer, 'video');
+              }}
+              data-guide="call.video"
               disabled={callsDisabled}
               className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary disabled:opacity-40 max-sm:hidden"
               aria-label={`Start video call with ${title}`}
@@ -195,6 +221,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           }}
           className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary max-sm:hidden"
           aria-label="Ask Flick"
+          data-guide="ai.ask"
           title="Ask Flick"
         >
           <Sparkles className="size-5" aria-hidden="true" />
@@ -202,9 +229,11 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
         {isGroup && (
           <button
             type="button"
-            onClick={() =>
-              void useGroupCallStore.getState().join({ conversation_id: conversation.id })
-            }
+            onClick={() => {
+              markUsed('calls.group');
+              void useGroupCallStore.getState().join({ conversation_id: conversation.id });
+            }}
+            data-guide="call.group"
             disabled={callsDisabled || groupCallActive}
             className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary disabled:opacity-40 max-sm:hidden"
             aria-label="Start group call"
@@ -221,6 +250,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
             }}
             className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary max-sm:hidden"
             aria-label="Group info"
+            data-guide="group.info"
             title="Group info"
           >
             <Info className="size-5" aria-hidden="true" />

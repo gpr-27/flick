@@ -42,6 +42,7 @@ export const ComposerExtras = ({
           gifs ? 'text-primary' : 'text-base-content/60',
         )}
         aria-label="GIFs and stickers"
+        data-guide="composer.gif"
         aria-expanded={gifs}
         aria-haspopup="dialog"
       >
@@ -55,6 +56,7 @@ export const ComposerExtras = ({
         disabled={disabled}
         className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
         aria-label="Create poll"
+        data-guide="composer.poll"
       >
         <BarChart3 className="size-5" aria-hidden="true" />
       </button>

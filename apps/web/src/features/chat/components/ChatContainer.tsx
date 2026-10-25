@@ -6,6 +6,7 @@ import { ErrorState, Modal } from '@/components/ui';
 import { formatDateSeparator, isNewDay } from '@/lib/time';
 import { useConnectionState } from '@/lib/realtime';
 import { useSessionStore } from '@/features/auth/useSessionStore';
+import { useFeatureGuides } from '@/features/guide/useFeatureGuide';
 import { FlickThinking } from '@/features/ai/FlickThinking';
 import { FlickPromptChips, FlickWelcome } from '@/features/ai/FlickWelcome';
 import { useFlickThinking } from '@/features/ai/useFlickThinking';
@@ -191,6 +192,11 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   // The conversation is "in view" when it is open, loaded and the window is focused. Then
   // incoming messages are read: send read_ack (again when the connection comes back).
   const ready = thread?.status === 'ready';
+  // First-open tips about reading a chat (see features/guide). The ticks only exist on your own messages.
+  const hasMessages = ready && (messages?.length ?? 0) > 0;
+  const hasMine = hasMessages && (messages ?? []).some((m) => m.sender_user_id === myId);
+  useFeatureGuides(['message.menu', 'message.dates'], hasMessages);
+  useFeatureGuides(['message.ticks'], hasMine);
   const inView = ready && focused;
   useEffect(() => {
     useChatStore.getState().setInView(inView);

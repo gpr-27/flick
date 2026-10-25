@@ -54,6 +54,12 @@ import {
   useShortcodeAutocomplete,
 } from '@/features/content/shortcodes';
 import { readVideoMeta } from '@/features/content/videoMeta';
+import {
+  useFeatureGuide,
+  useFeatureGuides,
+  useMarkUsedWhen,
+} from '@/features/guide/useFeatureGuide';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { ScheduleDialog } from '@/features/scheduled/ScheduleDialog';
 import { MentionList } from '../../organise/MentionViews';
 import { MENTION_LIST_ID, mentionOptionId, useMentionAutocomplete } from '../../organise/mentions';
@@ -243,6 +249,37 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   // Selection to restore after the toolbar changed the text.
   const selectionRef = useRef<[number, number] | null>(null);
 
+  // First-open tips for the composer's tools (see features/guide). Each is dropped for good once
+  // the person has used the tool (markUsed below).
+  useFeatureGuides(
+    [
+      'composer.basics',
+      'composer.attach',
+      'composer.camera',
+      'composer.voice',
+      'composer.format',
+      'composer.schedule',
+      'composer.gif',
+      'composer.poll',
+      'composer.emoji',
+    ],
+    !editing,
+  );
+  useFeatureGuide('ai.group', conversation.type === 'group' && !editing);
+  useFeatureGuide(
+    'composer.viewonce',
+    Boolean(
+      attachment &&
+      (attachment.file.type.startsWith('image/') || attachment.file.type.startsWith('video/')),
+    ),
+  );
+  useMarkUsedWhen('composer.emoji', showEmojis);
+  useMarkUsedWhen('composer.gif', showGifs);
+  useMarkUsedWhen('composer.poll', showPoll);
+  useMarkUsedWhen('composer.format', showFormat);
+  useMarkUsedWhen('composer.camera', showCamera);
+  useMarkUsedWhen('composer.schedule', showSchedule);
+
   // Keep the draft up to date (not while editing: that text belongs to a sent message).
   useEffect(() => {
     if (!editing) setDraft(id, text);
@@ -319,6 +356,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
 
   /** Every way of getting a file in (picker, camera, paste, drop) ends up here. */
   const attachFile = (file: File): void => {
+    markUsed('composer.attach');
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
     previewUrlRef.current = previewUrl;
@@ -524,6 +562,8 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       return;
     }
     if (sendQueued || !myId || (!trimmed && !attachment)) return;
+    markUsed('composer.basics');
+    if (/@flick\b/i.test(trimmed) || replyingToBot) markUsed('ai.group');
 
     clearTimeout(typingTimerRef.current);
     notifyStopTyping(id);
@@ -803,13 +843,14 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       {attachment &&
         (attachment.file.type.startsWith('image/') ||
           attachment.file.type.startsWith('video/')) && (
-          <label className="mb-2 flex items-center gap-2 text-sm">
+          <label className="mb-2 flex items-center gap-2 text-sm" data-guide="composer.viewonce">
             <input
               type="checkbox"
               className="checkbox checkbox-sm"
               checked={viewOnce}
               onChange={(e) => {
                 setViewOnce(e.target.checked);
+                if (e.target.checked) markUsed('composer.viewonce');
               }}
             />
             <Eye className="size-4" aria-hidden="true" />
@@ -907,6 +948,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           up
           alignLeft
           className="sm:hidden"
+          guideId="composer.attach composer.camera composer.emoji composer.gif composer.poll composer.format composer.schedule"
         />
         <button
           type="button"
@@ -918,6 +960,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
             showEmojis ? 'text-primary' : 'text-base-content/60',
           )}
           aria-label="Insert emoji"
+          data-guide="composer.emoji"
           aria-expanded={showEmojis}
           aria-haspopup="dialog"
         >
@@ -930,6 +973,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           disabled={Boolean(editing)}
           className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
           aria-label="Attach photo or video"
+          data-guide="composer.attach"
         >
           <ImagePlus className="size-5" aria-hidden="true" />
         </button>
@@ -941,6 +985,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           disabled={Boolean(editing)}
           className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
           aria-label="Open camera"
+          data-guide="composer.camera"
         >
           <Camera className="size-5" aria-hidden="true" />
         </button>
@@ -985,6 +1030,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         </label>
         <textarea
           id="composer-input"
+          data-guide="composer"
           rows={1}
           enterKeyHint="send"
           ref={textInputRef}
@@ -1021,6 +1067,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           )}
           aria-label="Formatting"
           aria-pressed={showFormat}
+          data-guide="composer.format"
         >
           <Type className="size-5" aria-hidden="true" />
         </button>
@@ -1032,6 +1079,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
           aria-label="Schedule send"
           title="Schedule send"
+          data-guide="composer.schedule"
         >
           <CalendarClock className="size-5" aria-hidden="true" />
         </button>
@@ -1050,6 +1098,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
             !hasContent && 'max-sm:hidden',
           )}
           aria-label={editing ? 'Save edit' : 'Send message'}
+          data-guide="composer.send"
         >
           {editing ? (
             <Check className="size-5" aria-hidden="true" />
