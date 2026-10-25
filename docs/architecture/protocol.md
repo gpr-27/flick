@@ -110,6 +110,7 @@ a `seq` it already has.
 
 Other server events: `receipt_update` (delivered or read cursor of a member),
 `conversation_updated` (the conversation changed; `conversation` is `null` if you lost access),
+`pins_changed` (a message was pinned or unpinned; it takes no seq, so sync does not replay it),
 `presence_update`, `typing_start` / `typing_stop` / `activity` (with `user_id`, ephemeral),
 and the 1:1 call events below.
 

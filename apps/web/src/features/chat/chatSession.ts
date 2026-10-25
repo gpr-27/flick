@@ -5,6 +5,7 @@
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import type { Unsubscribe } from '@/lib/realtime';
 import { getTransport } from '@/lib/services';
+import { usePinsStore } from '../organise/messageActions';
 import { useOutboxStore } from './outbox/useOutboxStore';
 import { onSynced, syncEngine, useChatStore } from './useChatStore';
 
@@ -79,6 +80,9 @@ export function startChatSession(userId: string): Unsubscribe {
     }),
     transport.on('presence_update', ({ user_id, online, last_seen_at }) => {
       chat().presenceUpdate(user_id, online, last_seen_at);
+    }),
+    transport.on('pins_changed', (change) => {
+      usePinsStore.getState().applyChange(change);
     }),
     transport.on('conversation_updated', ({ conversation_id, conversation }) => {
       chat().conversationUpdated(conversation_id, conversation);

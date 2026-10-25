@@ -65,6 +65,7 @@ export const ConversationEvent = z.discriminatedUnion('type', [
   }),
   event('conversation.member_removed', { actor_user_id: Id.nullable(), user_id: Id }),
   event('conversation.role_changed', { actor_user_id: Id, user_id: Id, role: MemberRole }),
+  event('conversation.pins_changed', { actor_user_id: Id, message_id: Id, pinned: z.boolean() }),
 ]);
 
 // chat.fanout.v1: big groups are split into batches of recipients, processed in parallel.

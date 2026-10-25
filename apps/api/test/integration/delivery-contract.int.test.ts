@@ -582,6 +582,29 @@ describe('edits, deletes and reactions', () => {
     expect(await logSeqs(conv)).toEqual([1, 2]);
   });
 
+  it('a pin and an unpin reach the other members live, once, and not a repeated pin', async () => {
+    const [a, b, c] = await Promise.all([stack.user('a'), stack.user('b'), stack.user('c')]);
+    const conv = await group(stack, a, [b, c]);
+    const m = (await send(stack, a, conv, { type: 'text', text: 'pin me' })).body;
+    const bLive = await stack.connect(b);
+    const cLive = await stack.connect(c);
+    const pins = `/conversations/${conv}/pins`;
+
+    expect((await stack.call(a, 'POST', pins, { message_id: m.message_id })).status).toBe(204);
+    await stack.call(a, 'POST', pins, { message_id: m.message_id }); // already pinned: no event
+    await waitUntil(() => bLive.of('pins_changed').length >= 1, 8_000, 'b hears the pin');
+    await waitUntil(() => cLive.of('pins_changed').length >= 1, 8_000, 'c hears the pin');
+    expect(bLive.of('pins_changed')).toEqual([
+      { conversation_id: conv, message_id: m.message_id, pinned: true, actor_user_id: a.id },
+    ]);
+
+    await stack.call(b, 'DELETE', `${pins}/${m.message_id}`);
+    await waitUntil(() => cLive.of('pins_changed').length >= 2, 8_000, 'c hears the unpin');
+    expect(cLive.of('pins_changed')[1]).toMatchObject({ pinned: false, actor_user_id: b.id });
+    expect(bLive.of('pins_changed')).toHaveLength(2);
+    expect(await logSeqs(conv)).toEqual([1, 2]); // group-created line + the message; pins take no seq
+  });
+
   it('a concurrent double delete takes exactly one seq', async () => {
     const [a, b] = await Promise.all([stack.user('a'), stack.user('b')]);
     const conv = await direct(stack, a, b);

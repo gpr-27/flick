@@ -48,7 +48,7 @@ interface Payload {
   read_seq?: number;
   sender_id?: string | null;
   sender_device_id?: string | null;
-  data?: { user_id?: string };
+  data?: { user_id?: string; actor_user_id?: string; message_id?: string; pinned?: boolean };
 }
 
 export async function dispatchRow(row: OutboxRow, ctx: DispatchContext): Promise<void> {
@@ -213,6 +213,16 @@ async function receipt(p: Payload, ctx: DispatchContext): Promise<void> {
 
 /** Each member gets their own view of the conversation; a removed user gets `null`. */
 async function conversationChanged(p: Payload, ctx: DispatchContext): Promise<void> {
+  if (p.type === 'conversation.pins_changed') {
+    // Current members only: someone removed since hears nothing about the group.
+    const members = (await activeMembers(ctx.db, p.conversation_id)).map((m) => m.user_id);
+    return emitToUsers(ctx, members, 'pins_changed', {
+      conversation_id: p.conversation_id,
+      message_id: p.data?.message_id,
+      pinned: p.data?.pinned,
+      actor_user_id: p.data?.actor_user_id,
+    });
+  }
   const users = new Set((await activeMembers(ctx.db, p.conversation_id)).map((m) => m.user_id));
   if (p.type === 'conversation.member_removed' && p.data?.user_id) users.add(p.data.user_id);
   await inBatches([...users], async (batch) => {

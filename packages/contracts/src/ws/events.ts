@@ -140,6 +140,14 @@ export const ConversationUpdatedPayload = z.object({
   conversation: ConversationSummary.nullable(),
 });
 
+/** A message was pinned or unpinned. Pins take no seq, so they are not replayed by sync. */
+export const PinsChangedPayload = z.object({
+  conversation_id: Id,
+  message_id: Id,
+  pinned: z.boolean(),
+  actor_user_id: Id,
+});
+
 /** Sync replays exactly the events the device would have seen live, in seq order. */
 export const SyncEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('new_message'), payload: NewMessagePayload }),

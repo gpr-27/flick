@@ -1,7 +1,9 @@
-import type { MessageRecord } from '@chat/contracts';
+import { randomUUID } from 'node:crypto';
+import { ConversationEvent, TOPICS, type MessageRecord } from '@chat/contracts';
 import { MESSAGE_COLUMNS, visibleTo } from '@chat/db';
 import { sql } from 'kysely';
 import type { AuthContext } from '../../../auth-guard.js';
+import type { Db } from '../../../db.js';
 import { ApiError } from '../errors.js';
 import type { MessageDeps } from '../deps.js';
 import { loadMessage, requireMember } from '../repo/access.js';
@@ -15,29 +17,77 @@ interface Target {
 
 // ------------------------------------------------------------------ pin / star
 
+/** Tells every member's devices, through the outbox, that the pinned list changed. */
+async function announcePinChange(
+  trx: Db,
+  conversationId: string,
+  data: { actor_user_id: string; message_id: string; pinned: boolean },
+): Promise<void> {
+  // Parsing here means a malformed event fails the transaction instead of reaching the outbox.
+  const event = ConversationEvent.parse({
+    event_id: randomUUID(),
+    schema_version: 1,
+    occurred_at: new Date().toISOString(),
+    key: conversationId,
+    type: 'conversation.pins_changed',
+    conversation_id: conversationId,
+    data,
+  });
+  await trx
+    .insertInto('outbox')
+    .values({
+      event_id: event.event_id,
+      topic: TOPICS.CONVERSATION,
+      partition_key: conversationId,
+      payload: event,
+    })
+    .execute();
+}
+
 /** Any member can pin. A pinned message is shown to everyone in the conversation. */
 export async function pinMessage(deps: MessageDeps, auth: AuthContext, target: Target) {
   await requireMember(deps.db, target.conversationId, auth.userId);
   const message = await loadMessage(deps.db, target.conversationId, target.messageId);
   if (message.deleted_at) throw new ApiError('CONFLICT', 'This message was deleted.');
-  await deps.db
-    .insertInto('pinned_messages')
-    .values({
-      message_id: message.id,
-      conversation_id: target.conversationId,
-      pinned_by: auth.userId,
-    })
-    .onConflict((oc) => oc.doNothing())
-    .execute();
+  await deps.db.transaction().execute(async (trx) => {
+    const inserted = await trx
+      .insertInto('pinned_messages')
+      .values({
+        message_id: message.id,
+        conversation_id: target.conversationId,
+        pinned_by: auth.userId,
+      })
+      .onConflict((oc) => oc.doNothing())
+      .returning('message_id')
+      .executeTakeFirst();
+    // Pinning what is already pinned changes nothing, so nobody is told.
+    if (inserted) {
+      await announcePinChange(trx, target.conversationId, {
+        actor_user_id: auth.userId,
+        message_id: message.id,
+        pinned: true,
+      });
+    }
+  });
 }
 
 export async function unpinMessage(deps: MessageDeps, auth: AuthContext, target: Target) {
   await requireMember(deps.db, target.conversationId, auth.userId);
-  await deps.db
-    .deleteFrom('pinned_messages')
-    .where('message_id', '=', target.messageId)
-    .where('conversation_id', '=', target.conversationId)
-    .execute();
+  await deps.db.transaction().execute(async (trx) => {
+    const removed = await trx
+      .deleteFrom('pinned_messages')
+      .where('message_id', '=', target.messageId)
+      .where('conversation_id', '=', target.conversationId)
+      .returning('message_id')
+      .executeTakeFirst();
+    if (removed) {
+      await announcePinChange(trx, target.conversationId, {
+        actor_user_id: auth.userId,
+        message_id: target.messageId,
+        pinned: false,
+      });
+    }
+  });
 }
 
 export async function listPins(
