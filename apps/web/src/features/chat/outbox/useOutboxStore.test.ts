@@ -165,6 +165,22 @@ describe('send -> accepted / failed -> retry', () => {
     expect(useOutboxStore.getState().items[0]).toMatchObject({ status: 'pending' });
   });
 
+  it('sends a queue written offline one message at a time, in order, per chat', async () => {
+    const first = sendMessage(ME, CONV, { type: 'text', text: 'one' });
+    vi.advanceTimersByTime(5);
+    const second = sendMessage(ME, CONV, { type: 'text', text: 'two' });
+    vi.advanceTimersByTime(5);
+    const third = sendMessage(ME, CONV, { type: 'text', text: 'three' });
+
+    useOutboxStore.getState().setReady(true);
+    // Only the oldest is on the wire; the others wait for its answer.
+    expect(sends().map((s) => s.client_message_id)).toEqual([first]);
+    await transport.reply('send_message', ok(accepted(first, 1)));
+    expect(sends().map((s) => s.client_message_id)).toEqual([first, second]);
+    await transport.reply('send_message', ok(accepted(second, 2)));
+    expect(sends().map((s) => s.client_message_id)).toEqual([first, second, third]);
+  });
+
   it('a duplicate answer to a retry is harmless', () => {
     useOutboxStore.getState().setReady(true);
     const id = sendMessage(ME, CONV, { type: 'text', text: 'hello' });

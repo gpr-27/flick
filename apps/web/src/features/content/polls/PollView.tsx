@@ -104,7 +104,7 @@ export const PollView = ({
                   aria-hidden="true"
                 />
                 <span className="relative flex justify-between gap-2">
-                  <span className="break-words">{option.text}</span>
+                  <span className="[overflow-wrap:anywhere]">{option.text}</span>
                   <span className="font-semibold tabular-nums">{count}</span>
                 </span>
               </button>

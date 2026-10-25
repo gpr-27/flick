@@ -1,4 +1,5 @@
 import {
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -47,6 +48,24 @@ export const SelfView = ({
     const b = bounds();
     setPos({ x: clamp(x, b.width - el.offsetWidth), y: clamp(y, b.height - el.offsetHeight) });
   };
+
+  // A bigger picture, or a window that got smaller (a phone turned sideways), must not push a
+  // picture that sits at an edge out of the screen: pull it back in.
+  useLayoutEffect(() => {
+    const reclamp = (): void => {
+      const el = box.current;
+      if (!el || !pos) return;
+      const b = bounds();
+      const x = clamp(pos.x, b.width - el.offsetWidth);
+      const y = clamp(pos.y, b.height - el.offsetHeight);
+      if (x !== pos.x || y !== pos.y) setPos({ x, y });
+    };
+    reclamp();
+    window.addEventListener('resize', reclamp);
+    return () => {
+      window.removeEventListener('resize', reclamp);
+    };
+  }, [size, pos]);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>): void => {
     const el = box.current;
@@ -108,7 +127,10 @@ export const SelfView = ({
         pos ? '' : 'right-3 top-16 sm:bottom-28 sm:right-4 sm:top-auto',
       )}
     >
-      {placeholder ? null : (
+      {placeholder ? (
+        // Pointer-transparent, so a press on the placeholder still lands on the box and drags it.
+        <div className="pointer-events-none h-full w-full">{placeholder}</div>
+      ) : (
         <video
           ref={videoRef}
           autoPlay
@@ -121,7 +143,6 @@ export const SelfView = ({
           )}
         />
       )}
-      {placeholder && <div className="pointer-events-none absolute inset-0">{placeholder}</div>}
       <button
         type="button"
         onClick={() => {

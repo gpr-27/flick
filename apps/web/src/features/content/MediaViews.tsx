@@ -6,7 +6,9 @@ import { useMediaGate } from '@/features/settings/useMediaGate';
 
 const Caption = ({ text }: { text?: string | undefined }) =>
   text ? (
-    <p className="mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{text}</p>
+    <p className="mt-1.5 whitespace-pre-wrap [overflow-wrap:anywhere] text-[15px] leading-relaxed">
+      {text}
+    </p>
   ) : null;
 
 export const VideoView = ({

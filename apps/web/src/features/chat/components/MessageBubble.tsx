@@ -249,7 +249,7 @@ const MessageBubbleImpl = ({
                 aria-label="Go to the original message"
               >
                 <span className="block font-semibold">{quotedName}</span>
-                <span className="line-clamp-2 break-words">
+                <span className="line-clamp-2 [overflow-wrap:anywhere]">
                   {quoted ? previewContent(quoted.content) : 'Message'}
                 </span>
               </button>

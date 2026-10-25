@@ -12,9 +12,12 @@ export type VoiceContent = Extract<MessageContent, { type: 'voice' }>;
 export const VoiceComposer = ({
   disabled,
   onSend,
+  buttonClassName,
 }: {
   disabled: boolean;
   onSend: (content: VoiceContent) => void;
+  /** Extra classes for the mic button. */
+  buttonClassName?: string | undefined;
 }) => {
   const { state, error, start, stop, cancel } = useVoiceRecorder();
   const [elapsed, setElapsed] = useState(0);
@@ -79,7 +82,10 @@ export const VoiceComposer = ({
           void start();
         }}
         disabled={disabled || active}
-        className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:order-1 max-sm:min-h-11 max-sm:min-w-11"
+        className={cn(
+          'btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:order-1 max-sm:min-h-11 max-sm:min-w-11',
+          buttonClassName,
+        )}
         aria-label="Record voice message"
       >
         <Mic className="size-5" aria-hidden="true" />

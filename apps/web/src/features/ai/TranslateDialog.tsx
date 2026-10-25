@@ -32,7 +32,7 @@ export const TranslateDialog = ({
       open={open}
       onClose={onClose}
       label="Translate message"
-      overlayClassName="items-end p-0 sm:items-center sm:p-4"
+      overlayClassName="max-sm:items-end sm:p-4"
       className="w-full sm:w-80"
     >
       <div className="glass-card flex flex-col gap-3 rounded-t-3xl border border-base-content/10 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-sm shadow-2xl sm:rounded-2xl">

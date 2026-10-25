@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test';
-import { bubble, openChat, send, signIn, startDirectChat, tick, uniqueName } from './support';
+import {
+  bubble,
+  closeChat,
+  openChat,
+  send,
+  signIn,
+  startDirectChat,
+  tick,
+  uniqueName,
+} from './support';
 
 // Journey (b): the tick on my message follows what the other person has done.
 //   one tick  = the server has it
@@ -23,7 +32,7 @@ test('ticks go from sent, to delivered, to read', async ({ browser }) => {
 
   // Bob reconnects: his device catches up, so the message is delivered. He is looking at the
   // chat, so it is read at once; to see "Delivered" on its own he must be somewhere else.
-  await bob.page.getByRole('button', { name: 'Close conversation' }).click();
+  await closeChat(bob.page);
   await bob.context.setOffline(false);
   await expect(tick(alice.page, 'are you there?')).toHaveAccessibleName('Delivered');
 

@@ -17,6 +17,7 @@ import { useMediaGate } from '@/features/settings/useMediaGate';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { VoicePlayer } from '@/features/content/voice/VoicePlayer';
 import { RichText } from '@/features/content/richText/RichText';
+import { useSessionStore } from '@/features/auth/useSessionStore';
 import { MentionText } from '../../organise/MentionViews';
 import { useChatStore, userName } from '../useChatStore';
 import { getAttachmentUrl, refreshAttachmentUrl, useAttachmentUrl } from './attachments';
@@ -137,7 +138,7 @@ const ImageView = ({ content, context }: { content: Of<'image'>; context: Conten
         </div>
       )}
       {content.caption && (
-        <p className="mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+        <p className="mt-1.5 whitespace-pre-wrap [overflow-wrap:anywhere] text-[15px] leading-relaxed">
           {content.caption}
         </p>
       )}
@@ -186,7 +187,7 @@ const FileView = ({ content }: { content: Of<'file'> }) => {
         </p>
       )}
       {content.caption && (
-        <p className="mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+        <p className="mt-1.5 whitespace-pre-wrap [overflow-wrap:anywhere] text-[15px] leading-relaxed">
           {content.caption}
         </p>
       )}
@@ -256,15 +257,26 @@ const SYSTEM_TEXT: Record<Of<'system'>['event'], string> = {
   timer_changed: 'changed the disappearing-messages timer',
 };
 
-const systemText = (c: Of<'system'>, users: Parameters<typeof userName>[0]): string => {
-  const actor = userName(users, c.actor_user_id);
-  const targets = c.target_user_ids.map((id) => userName(users, id)).join(', ');
+const systemText = (
+  c: Of<'system'>,
+  users: Parameters<typeof userName>[0],
+  myId: string | undefined,
+): string => {
+  // The user cache holds other people, not me, so my own part would read "Someone".
+  const actor =
+    c.actor_user_id && c.actor_user_id === myId ? 'You' : userName(users, c.actor_user_id);
+  const targets = c.target_user_ids
+    .map((id) => (id === myId ? 'you' : userName(users, id)))
+    .join(', ');
   return `${actor} ${SYSTEM_TEXT[c.event]}${targets ? ` ${targets}` : ''}`;
 };
 
 const SystemView = ({ content }: { content: Of<'system'> }) => {
   const users = useChatStore((s) => s.users);
-  return <p className="text-center text-xs italic opacity-80">{systemText(content, users)}</p>;
+  const myId = useSessionStore((s) => s.user?.id);
+  return (
+    <p className="text-center text-xs italic opacity-80">{systemText(content, users, myId)}</p>
+  );
 };
 
 const system: ContentRenderer<'system'> = {

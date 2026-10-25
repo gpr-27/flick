@@ -77,7 +77,7 @@ export const InstallGuide = () => {
       open={open}
       onClose={closeInstallGuide}
       label="Install Flick"
-      overlayClassName="items-end p-0 sm:items-center sm:p-4"
+      overlayClassName="max-sm:items-end sm:p-4"
       className="w-full sm:w-96"
     >
       <div className="glass-card flex flex-col gap-4 rounded-t-3xl border border-base-content/10 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl">

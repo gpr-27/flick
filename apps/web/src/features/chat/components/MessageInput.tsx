@@ -617,6 +617,9 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const counter = counterState(text.length);
   const sendDisabled =
     uploading || Boolean(counter?.over) || (!text.trim() && (!attachment || Boolean(editing)));
+  // On a phone the bar has room for the box only if it shows one of microphone / Send, not both:
+  // the microphone while there is nothing to send, Send once there is.
+  const hasContent = text.trim() !== '' || attachment !== null || Boolean(editing);
   const title = conversationTitle(conversation);
   const replyAuthor =
     replyingTo?.sender_user_id === myId
@@ -885,6 +888,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         />
         <ComposerExtras
           disabled={Boolean(editing) || uploading}
+          micClassName={hasContent ? 'max-sm:hidden' : undefined}
           onSend={sendContent}
           gifs={showGifs}
           onGifsChange={setShowGifs}
@@ -965,7 +969,10 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
             e.preventDefault();
             if (!sendDisabled) openSchedule();
           }}
-          className="btn-grad grid size-11 place-items-center rounded-full max-sm:order-2 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className={cn(
+            'btn-grad grid size-11 place-items-center rounded-full transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 max-sm:order-2',
+            !hasContent && 'max-sm:hidden',
+          )}
           aria-label={editing ? 'Save edit' : 'Send message'}
         >
           {editing ? (
