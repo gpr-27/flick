@@ -73,6 +73,18 @@ describe('migrations', () => {
       ).rows.length;
     expect(await aiLanguageColumn()).toBe(1);
 
+    const memberColumn = async (name: string) =>
+      (
+        await sql<{ column_name: string }>`
+          SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'conversation_members' AND column_name = ${name}`.execute(t.db)
+      ).rows.length;
+    expect(await memberColumn('cleared_seq')).toBe(1);
+
+    await migrateDown(t.db); // undoes 0015 (chat list: delete for me, mark as unread)
+    expect(await memberColumn('cleared_seq')).toBe(0);
+    expect(await memberColumn('marked_unread')).toBe(0);
+
     await migrateDown(t.db); // undoes 0012 (saved and scheduled messages)
     expect(await tables()).not.toContain('scheduled_messages');
 

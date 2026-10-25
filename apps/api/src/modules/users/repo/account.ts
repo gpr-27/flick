@@ -99,7 +99,7 @@ export async function* exportChunks(db: Db, userId: string): AsyncGenerator<stri
   const chats = await db
     .selectFrom('conversation_members as cm')
     .innerJoin('conversations as c', 'c.id', 'cm.conversation_id')
-    .select(['c.id', 'c.type', 'c.name', 'cm.joined_at'])
+    .select(['c.id', 'c.type', 'c.name', 'cm.joined_at', 'cm.cleared_seq'])
     .where('cm.user_id', '=', userId)
     .where('cm.left_at', 'is', null)
     .orderBy('cm.joined_at')
@@ -118,7 +118,8 @@ export async function* exportChunks(db: Db, userId: string): AsyncGenerator<stri
     yield `${firstChat ? '' : ','}{"id":${JSON.stringify(chat.id)},"type":${JSON.stringify(chat.type)},"name":${JSON.stringify(chat.name)},"members":${JSON.stringify(members)},"messages":[`;
     firstChat = false;
 
-    let afterSeq = 0;
+    // Messages the member removed with "Delete chat" are not part of their data any more.
+    let afterSeq = chat.cleared_seq;
     let firstMessage = true;
     for (;;) {
       const rows = await db

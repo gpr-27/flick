@@ -15,6 +15,7 @@ export interface PrefsPatch {
   wallpaper?: string | null;
   locked?: boolean;
   lock_hash?: string | null;
+  marked_unread?: boolean;
 }
 
 /**
@@ -41,6 +42,7 @@ export async function updatePrefs(
       set.muted_until = patch.muted_until ? new Date(patch.muted_until) : null;
     }
     if (patch.wallpaper !== undefined) set.wallpaper = patch.wallpaper;
+    if (patch.marked_unread !== undefined) set.marked_unread = patch.marked_unread;
 
     if (patch.locked === false) set.lock_hash = null;
     else if (patch.locked === true || patch.lock_hash) {

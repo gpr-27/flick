@@ -113,6 +113,12 @@ export interface ConversationMembersTable {
   favourite: Generated<boolean>;
   wallpaper: string | null;
   lock_hash: string | null;
+  // "Delete chat" (for me only): messages up to cleared_seq are gone from this member's view.
+  cleared_seq: Int8Default;
+  // Set when the chat was deleted (not just cleared); a newer message brings the chat back.
+  deleted_at: Timestamp | null;
+  // "Mark as unread": the list shows a dot until the chat is opened.
+  marked_unread: Generated<boolean>;
 }
 
 export interface MessagesTable {

@@ -323,6 +323,11 @@ const SCENARIOS: Record<string, Scenario> = {
     conforms(def, await call(f.alice, def, { params: C(f), body: { title: 'Renamed' } })),
   'conversations.updatePrefs': async (f, def) =>
     conforms(def, await call(f.alice, def, { params: C(f), body: { archived: true } })),
+  'conversations.deleteForMe': async (f, def) => {
+    const temp = await stack.user('chatdeleter');
+    const conversation = await direct(stack, temp, f.alice);
+    conforms(def, await call(temp, def, { params: { conversation_id: conversation } }));
+  },
   'conversations.leave': async (f, def) => {
     const g = await group(stack, f.alice, [f.bob, f.carol], 'to leave');
     conforms(def, await call(f.carol, def, { params: { conversation_id: g } }));

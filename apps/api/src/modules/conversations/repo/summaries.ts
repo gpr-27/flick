@@ -10,6 +10,7 @@ import {
   FLICK_BOT_USER_ID,
   MESSAGE_COLUMNS,
   buildChatListQuery,
+  isHiddenByDelete,
   peerCursors,
   type MessageRow,
 } from '@chat/db';
@@ -60,7 +61,9 @@ export async function listConversations(
   userId: string,
   query: { filter: ListFilter; cursor?: string; limit: number },
 ) {
-  const rows = (await chatListRows(db, userId).execute()).filter(FILTERS[query.filter]);
+  const rows = (await chatListRows(db, userId).execute())
+    .filter((r) => !isHiddenByDelete(r))
+    .filter(FILTERS[query.filter]);
   // Array.sort is stable, so equal pin times keep the helper's activity order.
   rows.sort((a, b) => (b.pinned_at?.getTime() ?? 0) - (a.pinned_at?.getTime() ?? 0));
 
@@ -80,7 +83,9 @@ export async function getConversation(
   userId: string,
   conversationId: string,
 ): Promise<ConversationSummary> {
-  const rows = await chatListRows(db, userId).where('c.id', '=', conversationId).execute();
+  const rows = (await chatListRows(db, userId).where('c.id', '=', conversationId).execute()).filter(
+    (r) => !isHiddenByDelete(r),
+  );
   if (rows.length === 0) throw notFound();
   return (await toSummaries(db, config, userId, rows))[0]!;
 }
@@ -122,7 +127,8 @@ async function toSummaries(
     rows.filter((r) => (memberCount.get(r.id) ?? 0) <= LIMITS.INLINE_FANOUT_MAX_MEMBERS),
   );
 
-  const withMessages = rows.filter((r) => r.last_seq > 0);
+  // Nothing newer than the member's "Delete chat" / "Clear chat" point means no preview.
+  const withMessages = rows.filter((r) => r.last_seq > r.cleared_seq);
   const lastMessages = new Map<string, MessageRecord>();
   if (withMessages.length > 0) {
     // The newest MESSAGE of each chat. last_seq is not enough: an edit, a delete or a reaction
@@ -130,9 +136,12 @@ async function toSummaries(
     const columns = sql.raw(MESSAGE_COLUMNS.map((c) => `m.${c}`).join(', '));
     const { rows: messages } = await sql<MessageRow>`
       SELECT ${columns}
-      FROM unnest(${withMessages.map((r) => r.id)}::uuid[]) AS c(id)
+      FROM unnest(${withMessages.map((r) => r.id)}::uuid[], ${withMessages.map((r) => r.cleared_seq)}::bigint[])
+        AS c(id, cleared_seq)
       CROSS JOIN LATERAL (
-        SELECT * FROM messages WHERE conversation_id = c.id ORDER BY seq DESC LIMIT 1
+        SELECT * FROM messages
+        WHERE conversation_id = c.id AND seq > c.cleared_seq
+        ORDER BY seq DESC LIMIT 1
       ) m
     `.execute(db);
     // The very same conversion the history and sync use, so the preview can never be a different
@@ -218,6 +227,7 @@ export function toPrefs(r: {
   muted_until: Date | null;
   lock_hash: string | null;
   wallpaper: string | null;
+  marked_unread: boolean;
 }): ChatPrefs {
   return {
     archived: r.archived,
@@ -227,6 +237,7 @@ export function toPrefs(r: {
     locked: r.lock_hash !== null,
     lock_hash: r.lock_hash,
     wallpaper: r.wallpaper,
+    marked_unread: r.marked_unread,
   };
 }
 
