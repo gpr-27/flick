@@ -36,7 +36,7 @@ const DialogHeader = ({
   </div>
 );
 
-const MuteModal = ({
+export const MuteModal = ({
   conversationId,
   open,
   onClose,
