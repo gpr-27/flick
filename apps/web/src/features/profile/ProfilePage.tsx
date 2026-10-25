@@ -5,6 +5,7 @@ import { ENDPOINTS, type UpdateMeRequest, type UserStats } from '@chat/contracts
 import type { z } from 'zod';
 import { Avatar, ErrorState, Modal, PopoverMenu, cn } from '@/components/ui';
 import { notify } from '@/components/ui/notify';
+import { pushProfileToClerk } from '@/features/auth/clerkProfileSync';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { uploadAttachment } from '@/features/chat/upload';
 import { CameraCapture } from '@/features/content/camera/CameraCapture';
@@ -166,6 +167,20 @@ export const ProfilePage = () => {
       setAbout(me.about ?? '');
       setAvatar({ kind: 'unchanged' });
       notify.success('Profile saved.');
+      // Flick is the source of truth: the sign-in account follows. A failure there never undoes
+      // the save; it only gets a small note.
+      const photo =
+        avatar.kind === 'new' ? avatar.blob : avatar.kind === 'removed' ? null : undefined;
+      const synced = await pushProfileToClerk(me.id, {
+        name: me.display_name,
+        username: me.username,
+        photo,
+      });
+      if (synced === 'failed') {
+        notify.info(
+          "Saved on Flick, but your sign-in account couldn't be updated. Your name there may look different.",
+        );
+      }
     } catch (error) {
       setUser(previous);
       if (error instanceof ApiError && error.status === 409) {
@@ -335,6 +350,9 @@ export const ProfilePage = () => {
               )}
             >
               {nameError ?? `${String(name.trim().length)}/${String(DISPLAY_NAME_MAX)}`}
+            </span>
+            <span className="mt-1 block text-xs font-normal text-base-content/60">
+              Changing your name here also updates your sign-in account.
             </span>
           </div>
 
