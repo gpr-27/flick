@@ -106,7 +106,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
         <button
           type="button"
           onClick={close}
-          className="btn btn-circle btn-ghost btn-sm min-h-11 min-w-11 sm:hidden"
+          className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px] sm:hidden"
           aria-label="Back to chats"
         >
           <ArrowLeft className="size-5" aria-hidden="true" />
@@ -170,7 +170,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
               type="button"
               onClick={() => void initiateCall(conversation.id, peer, 'audio')}
               disabled={callsDisabled}
-              className="btn btn-circle btn-ghost btn-sm min-h-11 min-w-11 text-base-content/70 hover:text-primary disabled:opacity-40 sm:min-h-8 sm:min-w-8"
+              className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px] text-base-content/70 hover:text-primary disabled:opacity-40 sm:min-h-8 sm:min-w-8"
               aria-label={`Start voice call with ${title}`}
               title="Voice call"
             >

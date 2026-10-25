@@ -39,7 +39,7 @@ export interface MessageMenuProps {
 }
 
 const row =
-  'flex min-h-12 w-full items-center gap-4 rounded-xl px-4 text-left text-base active:bg-base-200 hover:bg-base-200';
+  'flex min-h-[48px] w-full items-center gap-4 rounded-xl px-4 text-left text-base active:bg-base-200 hover:bg-base-200';
 
 const Item = ({
   icon,

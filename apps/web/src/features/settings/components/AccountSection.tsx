@@ -69,7 +69,7 @@ export const DevicesList = () => {
       {!devices && !error && <p className="text-sm text-base-content/60">Loading...</p>}
       <ul className="mt-2 space-y-2">
         {devices?.map((d) => (
-          <li key={d.id} className="flex min-h-11 items-center justify-between gap-3">
+          <li key={d.id} className="flex min-h-[44px] items-center justify-between gap-3">
             <span className="min-w-0">
               <span className="block truncate font-semibold">
                 {d.name}
@@ -134,7 +134,7 @@ const DeleteAccount = () => {
   };
 
   return (
-    <div className="flex min-h-11 items-center justify-between gap-4 py-1">
+    <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
       <span>
         <span className="block font-semibold text-error">Delete my account</span>
         <span className="block text-sm text-base-content/60">
@@ -165,7 +165,7 @@ const DeleteAccount = () => {
           Type {username} to confirm
           <input
             ref={inputRef}
-            className="input-soft mt-1 min-h-11 w-full"
+            className="input-soft mt-1 min-h-[44px] w-full"
             autoComplete="off"
             value={typed}
             onChange={(e) => {
@@ -176,7 +176,7 @@ const DeleteAccount = () => {
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            className="btn btn-ghost min-h-11 rounded-2xl"
+            className="btn btn-ghost min-h-[44px] rounded-2xl"
             disabled={busy}
             onClick={close}
           >
@@ -184,7 +184,7 @@ const DeleteAccount = () => {
           </button>
           <button
             type="button"
-            className="btn btn-error min-h-11 rounded-2xl"
+            className="btn btn-error min-h-[44px] rounded-2xl"
             disabled={!matches || busy}
             onClick={() => void confirm()}
           >
@@ -213,19 +213,19 @@ export const AccountSection = () => {
 
   return (
     <Card title="Account">
-      <div className="flex min-h-11 items-center justify-between gap-4 py-1">
+      <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
         <span className="min-w-0">
           <span className="block font-semibold">{user?.display_name}</span>
           <span className="block truncate text-sm text-base-content/60">
             {user?.email ?? `@${user?.username ?? ''}`}
           </span>
         </span>
-        <Link to="/profile" className="btn btn-outline btn-sm min-h-11 rounded-2xl">
+        <Link to="/profile" className="btn btn-outline btn-sm min-h-[44px] rounded-2xl">
           Edit profile
         </Link>
       </div>
       <DevicesList />
-      <div className="flex min-h-11 items-center justify-between gap-4 py-1">
+      <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
         <span>
           <span className="block font-semibold">Download my data</span>
           <span className="block text-sm text-base-content/60">

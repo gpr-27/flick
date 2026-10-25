@@ -28,7 +28,7 @@ export const AboutSection = () => {
     <>
       <KeyboardShortcuts />
       <Card title="About Flick">
-        <p className="min-h-11 py-1 text-sm">
+        <p className="min-h-[44px] py-1 text-sm">
           <span className="font-semibold">Version</span>{' '}
           <span data-testid="app-version">{__APP_VERSION__}</span>
         </p>
@@ -37,7 +37,7 @@ export const AboutSection = () => {
             href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-outline btn-sm min-h-11 rounded-2xl"
+            className="btn btn-outline btn-sm min-h-[44px] rounded-2xl"
           >
             Flick on GitHub
           </a>
@@ -48,7 +48,7 @@ export const AboutSection = () => {
           >
             Report a problem
           </ActionButton>
-          <InstallButton className="min-h-11" />
+          <InstallButton className="min-h-[44px]" />
         </div>
         <ReportDialog
           target={reporting ? { user_id: FLICK_BOT_USER_ID } : null}

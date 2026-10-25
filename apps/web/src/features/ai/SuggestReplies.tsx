@@ -45,7 +45,7 @@ export const SuggestReplies = ({
         onClick={load}
         disabled={enabled !== true || state.status === 'loading'}
         title={enabled === false ? 'AI is not set up on this server' : 'Suggest 3 replies'}
-        className="btn btn-xs btn-ghost shrink-0 gap-1 text-base-content/70 max-sm:min-h-11"
+        className="btn btn-xs btn-ghost shrink-0 gap-1 text-base-content/70 max-sm:min-h-[44px]"
       >
         {state.status === 'loading' ? (
           <Spinner size="xs" label="Getting suggestions" />
@@ -69,7 +69,7 @@ export const SuggestReplies = ({
               onPick(reply);
               setState({ status: 'idle' });
             }}
-            className="chip shrink-0 cursor-pointer whitespace-nowrap hover:bg-primary/15 max-sm:min-h-11"
+            className="chip shrink-0 cursor-pointer whitespace-nowrap hover:bg-primary/15 max-sm:min-h-[44px]"
           >
             {reply}
           </button>

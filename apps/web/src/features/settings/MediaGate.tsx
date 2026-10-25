@@ -14,7 +14,7 @@ export const TapToDownload = ({
   <button
     type="button"
     onClick={onClick}
-    className={`flex min-h-11 items-center gap-2 rounded-xl bg-black/10 px-3 py-2 text-sm font-semibold ${className}`}
+    className={`flex min-h-[44px] items-center gap-2 rounded-xl bg-black/10 px-3 py-2 text-sm font-semibold ${className}`}
   >
     <Download className="size-4" aria-hidden="true" />
     Download {noun}

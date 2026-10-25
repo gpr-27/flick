@@ -70,7 +70,7 @@ const ProfileView = ({ username }: { username: string }) => {
             {profile.id !== myId && (
               <button
                 type="button"
-                className="btn btn-primary mt-2 min-h-11 rounded-2xl px-8"
+                className="btn btn-primary mt-2 min-h-[44px] rounded-2xl px-8"
                 onClick={() => void message()}
               >
                 Message

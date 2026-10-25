@@ -257,14 +257,14 @@ export const ProfilePage = () => {
               <div className="mt-1 flex flex-wrap justify-center gap-2">
                 <button
                   type="button"
-                  className="btn btn-primary btn-sm min-h-11 gap-2 rounded-2xl"
+                  className="btn btn-primary btn-sm min-h-[44px] gap-2 rounded-2xl"
                   onClick={() => void share()}
                 >
                   <Share2 className="size-4" aria-hidden="true" /> Share profile
                 </button>
                 <button
                   type="button"
-                  className="btn btn-outline btn-sm min-h-11 gap-2 rounded-2xl"
+                  className="btn btn-outline btn-sm min-h-[44px] gap-2 rounded-2xl"
                   onClick={() => void copyUsername()}
                 >
                   <Copy className="size-4" aria-hidden="true" /> Copy @username
@@ -317,7 +317,7 @@ export const ProfilePage = () => {
             <label htmlFor="name-input">Display name</label>
             <input
               id="name-input"
-              className="input-soft mt-1 min-h-11 w-full"
+              className="input-soft mt-1 min-h-[44px] w-full"
               value={name}
               maxLength={DISPLAY_NAME_MAX + 10}
               onChange={(e) => {
@@ -342,7 +342,7 @@ export const ProfilePage = () => {
             <label htmlFor="username-input">Username</label>
             <input
               id="username-input"
-              className="input-soft mt-1 min-h-11 w-full"
+              className="input-soft mt-1 min-h-[44px] w-full"
               value={username}
               maxLength={USERNAME_MAX + 10}
               autoCapitalize="none"
@@ -398,7 +398,7 @@ export const ProfilePage = () => {
                 <button
                   key={status}
                   type="button"
-                  className="chip min-h-11 rounded-full px-3 text-sm"
+                  className="chip min-h-[44px] rounded-full px-3 text-sm"
                   onClick={() => {
                     setAbout(status);
                   }}
@@ -430,7 +430,7 @@ export const ProfilePage = () => {
             </p>
             <button
               type="submit"
-              className="btn btn-primary min-h-11 rounded-2xl px-8"
+              className="btn btn-primary min-h-[44px] rounded-2xl px-8"
               disabled={!canSave}
             >
               {saving ? 'Saving...' : 'Save'}
@@ -467,12 +467,16 @@ export const ProfilePage = () => {
         </h2>
         <p className="text-sm">You have changes that are not saved.</p>
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn btn-ghost min-h-11 rounded-2xl" onClick={guard.stay}>
+          <button
+            type="button"
+            className="btn btn-ghost min-h-[44px] rounded-2xl"
+            onClick={guard.stay}
+          >
             Keep editing
           </button>
           <button
             type="button"
-            className="btn btn-error min-h-11 rounded-2xl"
+            className="btn btn-error min-h-[44px] rounded-2xl"
             onClick={guard.leave}
           >
             Discard

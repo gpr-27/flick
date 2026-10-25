@@ -23,7 +23,7 @@ export const StorageSection = () => {
 
   return (
     <Card title="Storage and data">
-      <div className="min-h-11 py-1">
+      <div className="min-h-[44px] py-1">
         <p className="font-semibold">Used on this device</p>
         <p className="text-sm text-base-content/60" data-testid="storage-usage">
           {usage === undefined
@@ -33,7 +33,7 @@ export const StorageSection = () => {
               : `${formatBytes(usage.usage)} of ${formatBytes(usage.quota)} available`}
         </p>
       </div>
-      <div className="flex min-h-11 items-center justify-between gap-4 py-1">
+      <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
         <span>
           <span className="block font-semibold">Clear local cache</span>
           <span className="block text-sm text-base-content/60">

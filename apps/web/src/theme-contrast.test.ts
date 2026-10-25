@@ -99,4 +99,24 @@ describe('phone and motion rules in index.css', () => {
     expect(rule).toContain('.btn-xs::after');
     expect(rule).toContain('max(100%, 2.75rem)');
   });
+
+  it('text fields are at least 16px on touch screens, so iPhone Safari never zooms in on focus', () => {
+    const rule = css.slice(css.lastIndexOf('@media (pointer: coarse)'));
+    expect(rule).toMatch(/textarea,\s*select\s*{\s*font-size: 16px !important/);
+    expect(rule).toContain("input:not([type='checkbox'])");
+    expect(rule).toMatch(/touch-action: manipulation/);
+  });
+
+  it('thumb-sized buttons and menu rows keep a pixel floor, whatever the text size is', () => {
+    const rule = css.slice(css.lastIndexOf('@media (pointer: coarse)'));
+    expect(rule).toMatch(/\.size-11\s*{\s*width: max\(2\.75rem, 44px\)/);
+    expect(rule).toMatch(/\.min-h-12\s*{\s*min-height: max\(3rem, 48px\)/);
+  });
+
+  it('the page does not switch pinch zoom off (that would be an accessibility problem)', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    const viewport = /name="viewport"\s+content="([^"]*)"/.exec(html)?.[1] ?? '';
+    expect(viewport).toContain('width=device-width');
+    expect(viewport).not.toMatch(/maximum-scale|user-scalable\s*=\s*no/);
+  });
 });

@@ -25,11 +25,11 @@ const TimeField = ({
   value: string;
   onChange: (v: string) => void;
 }) => (
-  <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
+  <label className="flex min-h-[44px] items-center gap-2 text-sm font-semibold">
     {label}
     <input
       type="time"
-      className="input input-bordered input-sm min-h-11"
+      className="input input-bordered input-sm min-h-[44px]"
       value={value}
       onChange={(e) => {
         if (e.target.value) onChange(e.target.value);
@@ -105,7 +105,7 @@ export const NotificationsSection = () => {
         </div>
       )}
 
-      <div className="flex min-h-11 items-center justify-between gap-4 py-1">
+      <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
         <p>
           <span className="block font-semibold">Browser permission</span>
           <span className="block text-sm text-base-content/60" data-testid="permission-status">
@@ -145,7 +145,7 @@ export const NotificationsSection = () => {
         <button
           ref={closeRef}
           type="button"
-          className="btn btn-primary btn-sm min-h-11 w-full rounded-2xl"
+          className="btn btn-primary btn-sm min-h-[44px] w-full rounded-2xl"
           onClick={() => {
             setHelpOpen(false);
           }}

@@ -135,7 +135,7 @@ const Item = ({
     role="menuitem"
     onClick={onClick}
     disabled={disabled}
-    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none disabled:opacity-40 max-sm:min-h-11"
+    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none disabled:opacity-40 max-sm:min-h-[44px]"
   >
     {children}
   </button>
@@ -206,7 +206,7 @@ export const ChatOptionsMenu = ({
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary max-sm:min-h-11 max-sm:min-w-11"
+        className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary max-sm:min-h-[44px] max-sm:min-w-[44px]"
         aria-label="Chat options"
         aria-haspopup="menu"
         aria-expanded={open}

@@ -1008,7 +1008,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           aria-autocomplete="list"
           // 16px on phones: iOS Safari zooms the page when a smaller field gets focus.
           // About 8 lines tall at most, then it scrolls. Spaces and line breaks are kept as typed.
-          className="input-soft max-h-48 min-w-0 flex-1 resize-none overflow-y-auto whitespace-pre-wrap leading-6 max-sm:min-h-11 max-sm:text-base"
+          className="input-soft max-h-48 min-w-0 flex-1 resize-none overflow-y-auto whitespace-pre-wrap leading-6 max-sm:min-h-[44px] max-sm:text-base"
         />
         <button
           type="button"

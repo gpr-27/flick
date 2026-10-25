@@ -1,5 +1,5 @@
 // The few building blocks every settings section is made of. Each row is a label, so the whole
-// row is clickable, and at least 44px tall (min-h-11) so it is easy to hit on a phone.
+// row is clickable, and at least 44px tall (min-h-[44px]) so it is easy to hit on a phone.
 import { useId, type ReactNode } from 'react';
 import { cn } from '@/components/ui';
 
@@ -47,7 +47,7 @@ export const ToggleRow = ({
   onChange: (checked: boolean) => void;
   disabled?: boolean;
 }) => (
-  <label className="flex min-h-11 items-center justify-between gap-4 py-1">
+  <label className="flex min-h-[44px] items-center justify-between gap-4 py-1">
     <Text label={label} hint={hint} />
     <input
       type="checkbox"
@@ -76,10 +76,10 @@ export const SelectRow = <T extends string | number>({
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
 }) => (
-  <label className="flex min-h-11 items-center justify-between gap-4 py-1">
+  <label className="flex min-h-[44px] items-center justify-between gap-4 py-1">
     <Text label={label} hint={hint} />
     <select
-      className="select select-bordered select-sm min-h-11 max-w-[55%] shrink-0"
+      className="select select-bordered select-sm min-h-[44px] max-w-[55%] shrink-0"
       aria-label={label}
       value={String(value)}
       onChange={(e) => {
@@ -128,7 +128,7 @@ export const ChoiceRow = <T extends string>({
               onChange(o.value);
             }}
             className={cn(
-              'min-h-11 min-w-11 rounded-2xl border px-4 text-sm font-semibold transition-colors',
+              'min-h-[44px] min-w-[44px] rounded-2xl border px-4 text-sm font-semibold transition-colors',
               value === o.value
                 ? 'border-primary bg-primary/15 text-primary'
                 : 'border-base-content/15 hover:bg-base-content/5',
@@ -155,7 +155,7 @@ export const SliderRow = ({
   /** A button next to the slider (for example "Test"). */
   action?: ReactNode;
 }) => (
-  <div className="flex min-h-11 items-center justify-between gap-4 py-1">
+  <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
     <label className="flex min-w-0 flex-1 items-center gap-3">
       <span className="font-semibold">{label}</span>
       <input
@@ -163,7 +163,7 @@ export const SliderRow = ({
         min={0}
         max={100}
         step={5}
-        className="range range-primary range-sm min-h-11 flex-1"
+        className="range range-primary range-sm min-h-[44px] flex-1"
         aria-label={label}
         value={Math.round(value * 100)}
         onChange={(e) => {
@@ -191,7 +191,7 @@ export const ActionButton = ({
     onClick={onClick}
     disabled={disabled}
     className={cn(
-      'btn btn-sm min-h-11 rounded-2xl',
+      'btn btn-sm min-h-[44px] rounded-2xl',
       tone === 'danger' ? 'btn-outline btn-error' : 'btn-outline',
     )}
   >

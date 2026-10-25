@@ -167,12 +167,12 @@ describe('chat header', () => {
     expect(on('laptop', byName('Back to chats'))).toBe(false);
   });
 
-  it('phone targets are at least 44px (min-h-11 / min-w-11) for the controls that stay', () => {
+  it('phone targets are at least 44px (min-h-[44px] / min-w-[44px]) for the controls that stay', () => {
     renderHeader();
     for (const name of ['Back to chats', 'Start voice call with Bob']) {
-      expect(byName(name)).toHaveClass('min-h-11', 'min-w-11');
+      expect(byName(name)).toHaveClass('min-h-[44px]', 'min-w-[44px]');
     }
-    expect(byName('Chat options')).toHaveClass('max-sm:min-h-11', 'max-sm:min-w-11');
+    expect(byName('Chat options')).toHaveClass('max-sm:min-h-[44px]', 'max-sm:min-w-[44px]');
   });
 
   it('a group: group call and info are inline on laptops, in the menu on phones', () => {
@@ -227,7 +227,7 @@ describe('composer', () => {
     renderComposer();
     expect(screen.getByRole('textbox', { name: /^Message / })).toHaveClass(
       'max-sm:text-base',
-      'max-sm:min-h-11',
+      'max-sm:min-h-[44px]',
     );
   });
 
@@ -270,7 +270,7 @@ describe('message action sheet', () => {
 
   it('every action is at least 48px tall for thumbs', () => {
     render(<MessageMenu {...props} />);
-    for (const item of screen.getAllByRole('menuitem')) expect(item).toHaveClass('min-h-12');
+    for (const item of screen.getAllByRole('menuitem')) expect(item).toHaveClass('min-h-[48px]');
   });
 });
 

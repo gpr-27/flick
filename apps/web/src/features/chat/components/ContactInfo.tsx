@@ -30,7 +30,7 @@ const Action = ({
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-semibold hover:bg-base-200 active:bg-base-200 disabled:opacity-40 ${danger ? 'text-error' : ''}`}
+    className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-semibold hover:bg-base-200 active:bg-base-200 disabled:opacity-40 ${danger ? 'text-error' : ''}`}
   >
     <span aria-hidden="true">{icon}</span>
     {label}
@@ -133,7 +133,7 @@ export const ContactInfo = ({
             <button
               type="button"
               onClick={onClose}
-              className="btn btn-circle btn-ghost btn-sm min-h-11 min-w-11"
+              className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px]"
               aria-label="Close"
             >
               <X className="size-5" aria-hidden="true" />

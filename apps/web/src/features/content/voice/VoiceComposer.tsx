@@ -83,7 +83,7 @@ export const VoiceComposer = ({
         }}
         disabled={disabled || active}
         className={cn(
-          'btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:order-1 max-sm:min-h-11 max-sm:min-w-11',
+          'btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:order-1 max-sm:min-h-[44px] max-sm:min-w-[44px]',
           buttonClassName,
         )}
         aria-label="Record voice message"

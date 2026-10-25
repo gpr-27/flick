@@ -62,11 +62,11 @@ const CropBody = ({
   }, [image, view]);
 
   const slider = (label: string, key: keyof CropView, min: number, max: number, step: number) => (
-    <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
+    <label className="flex min-h-[44px] items-center gap-3 text-sm font-semibold">
       <span className="w-24 shrink-0">{label}</span>
       <input
         type="range"
-        className="range range-primary range-sm min-h-11 flex-1"
+        className="range range-primary range-sm min-h-[44px] flex-1"
         min={min}
         max={max}
         step={step}
@@ -101,12 +101,12 @@ const CropBody = ({
       {slider('Left / right', 'panX', -1, 1, 0.05)}
       {slider('Up / down', 'panY', -1, 1, 0.05)}
       <div className="flex justify-end gap-2">
-        <button type="button" className="btn btn-ghost min-h-11 rounded-2xl" onClick={onCancel}>
+        <button type="button" className="btn btn-ghost min-h-[44px] rounded-2xl" onClick={onCancel}>
           Cancel
         </button>
         <button
           type="button"
-          className="btn btn-primary min-h-11 rounded-2xl"
+          className="btn btn-primary min-h-[44px] rounded-2xl"
           disabled={!image}
           onClick={() => {
             if (image) void cropToSquare(image, view).then(onDone);

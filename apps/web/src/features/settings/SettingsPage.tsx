@@ -101,7 +101,7 @@ export const SettingsPage = () => {
                         setActive(s.id);
                       }}
                       className={cn(
-                        'flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left font-semibold transition-colors',
+                        'flex min-h-[44px] w-full items-center gap-3 rounded-2xl px-3 text-left font-semibold transition-colors',
                         shown === s.id ? 'bg-primary/15 text-primary' : 'hover:bg-base-content/5',
                       )}
                     >

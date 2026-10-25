@@ -19,7 +19,7 @@ export const FlickWelcome = ({ onPick }: { onPick: (prompt: string) => void }) =
             onClick={() => {
               onPick(prompt);
             }}
-            className="chip min-h-11 px-4 text-sm font-medium hover:bg-primary/10"
+            className="chip min-h-[44px] px-4 text-sm font-medium hover:bg-primary/10"
           >
             {prompt}
           </button>

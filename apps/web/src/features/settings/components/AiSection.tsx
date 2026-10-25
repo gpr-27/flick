@@ -88,7 +88,7 @@ export const AiSection = () => {
           <input
             id="ai-language"
             list="ai-language-options"
-            className="input-soft min-h-11 min-w-0 flex-1"
+            className="input-soft min-h-[44px] min-w-0 flex-1"
             maxLength={40}
             value={language}
             disabled={!settings}
@@ -103,7 +103,7 @@ export const AiSection = () => {
           </datalist>
           <button
             type="submit"
-            className="btn btn-primary min-h-11 rounded-2xl"
+            className="btn btn-primary min-h-[44px] rounded-2xl"
             disabled={!settings}
           >
             Save
@@ -116,7 +116,7 @@ export const AiSection = () => {
         )}
       </form>
 
-      <div className="flex min-h-11 items-center justify-between gap-4 py-1">
+      <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
         <span>
           <span className="block font-semibold">Clear my chat with Flick</span>
           <span className="block text-sm text-base-content/60">
@@ -150,7 +150,7 @@ export const AiSection = () => {
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            className="btn btn-ghost min-h-11 rounded-2xl"
+            className="btn btn-ghost min-h-[44px] rounded-2xl"
             onClick={() => {
               setConfirmClear(false);
             }}
@@ -159,7 +159,7 @@ export const AiSection = () => {
           </button>
           <button
             type="button"
-            className="btn btn-error min-h-11 rounded-2xl"
+            className="btn btn-error min-h-[44px] rounded-2xl"
             onClick={() => void clearChat()}
           >
             Clear chat

@@ -99,7 +99,7 @@ export const MessageInfoDialog = ({
         <button
           type="button"
           onClick={onClose}
-          className="btn btn-circle btn-ghost btn-sm min-h-11 min-w-11"
+          className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px]"
           aria-label="Close"
         >
           <X className="size-5" aria-hidden="true" />

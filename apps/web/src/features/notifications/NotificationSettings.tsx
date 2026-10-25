@@ -76,7 +76,7 @@ export const PushToggle = () => {
 
   return (
     <div>
-      <label className="flex min-h-11 items-center justify-between gap-4">
+      <label className="flex min-h-[44px] items-center justify-between gap-4">
         <span>
           <span className="block font-semibold">Push notifications</span>
           <span className="block text-sm text-base-content/60">

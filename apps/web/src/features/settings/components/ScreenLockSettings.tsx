@@ -57,7 +57,7 @@ export const ScreenLockSettings = () => {
         inputMode="numeric"
         autoComplete="off"
         maxLength={8}
-        className="input-soft mt-1 min-h-11 w-full"
+        className="input-soft mt-1 min-h-[44px] w-full"
         value={value}
         onChange={(e) => {
           set(e.target.value.replace(/\D/g, ''));
@@ -113,10 +113,14 @@ export const ScreenLockSettings = () => {
             </p>
           )}
           <div className="flex gap-2">
-            <button type="submit" className="btn btn-primary min-h-11 rounded-2xl">
+            <button type="submit" className="btn btn-primary min-h-[44px] rounded-2xl">
               Save
             </button>
-            <button type="button" className="btn btn-ghost min-h-11 rounded-2xl" onClick={close}>
+            <button
+              type="button"
+              className="btn btn-ghost min-h-[44px] rounded-2xl"
+              onClick={close}
+            >
               Cancel
             </button>
           </div>

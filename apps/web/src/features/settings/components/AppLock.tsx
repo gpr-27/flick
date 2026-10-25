@@ -47,7 +47,7 @@ export const AppLock = () => {
             inputMode="numeric"
             autoComplete="off"
             maxLength={8}
-            className="input-soft mt-1 min-h-11 w-full text-center tracking-widest"
+            className="input-soft mt-1 min-h-[44px] w-full text-center tracking-widest"
             value={pin}
             onChange={(e) => {
               setPin(e.target.value.replace(/\D/g, ''));
@@ -59,7 +59,7 @@ export const AppLock = () => {
             That PIN is not right.
           </p>
         )}
-        <button type="submit" className="btn btn-primary min-h-11 w-full rounded-2xl">
+        <button type="submit" className="btn btn-primary min-h-[44px] w-full rounded-2xl">
           Unlock
         </button>
       </form>

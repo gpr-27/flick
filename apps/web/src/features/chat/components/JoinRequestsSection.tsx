@@ -83,7 +83,7 @@ export const JoinRequestsSection = ({ conversationId }: { conversationId: string
               <span className="min-w-0 flex-1 truncate font-semibold">{r.user.display_name}</span>
               <button
                 type="button"
-                className="btn btn-primary btn-sm min-h-11 sm:min-h-8"
+                className="btn btn-primary btn-sm min-h-[44px] sm:min-h-8"
                 disabled={busyId === r.id}
                 aria-label={`Approve ${r.user.display_name}`}
                 onClick={() => void decide(r, true)}
@@ -92,7 +92,7 @@ export const JoinRequestsSection = ({ conversationId }: { conversationId: string
               </button>
               <button
                 type="button"
-                className="btn btn-ghost btn-sm min-h-11 text-error sm:min-h-8"
+                className="btn btn-ghost btn-sm min-h-[44px] text-error sm:min-h-8"
                 disabled={busyId === r.id}
                 aria-label={`Deny ${r.user.display_name}`}
                 onClick={() => void decide(r, false)}

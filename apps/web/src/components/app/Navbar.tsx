@@ -81,7 +81,7 @@ export const Navbar = () => {
           <ThemeToggle className="max-sm:hidden" />
           <Link
             to="/calls"
-            className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:min-h-11 max-sm:min-w-11"
+            className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:min-h-[44px] max-sm:min-w-[44px]"
           >
             <Phone className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Calls</span>

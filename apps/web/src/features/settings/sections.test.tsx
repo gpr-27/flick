@@ -369,16 +369,16 @@ describe('accessibility', () => {
     expect(controls.length).toBeGreaterThan(15);
     for (const control of controls) {
       expect(control.getAttribute('aria-label'), control.outerHTML).toBeTruthy();
-      const row = control.closest('[class*="min-h-11"]');
+      const row = control.closest('[class*="min-h-[44px]"]');
       expect(row, control.getAttribute('aria-label') ?? '').not.toBeNull();
     }
     for (const radio of container.querySelectorAll('[role="radio"]')) {
-      expect(radio.className).toMatch(/min-h-11|size-11/);
+      expect(radio.className).toMatch(/min-h-\[44px\]|size-11/);
     }
     for (const button of container.querySelectorAll('button')) {
-      expect(button.className.includes('min-h-11') || button.className.includes('size-11')).toBe(
-        true,
-      );
+      expect(
+        button.className.includes('min-h-[44px]') || button.className.includes('size-11'),
+      ).toBe(true);
     }
   });
 });

@@ -28,7 +28,7 @@ interface PopoverMenuProps {
 }
 
 const itemClass =
-  'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none disabled:opacity-40';
+  'flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none disabled:opacity-40';
 
 /**
  * A small "⋮"/"+" menu: a 44px trigger and a popover of actions. Used on phones to
@@ -65,7 +65,7 @@ export const PopoverMenu = ({
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className="btn btn-circle btn-ghost btn-sm min-h-11 min-w-11 text-base-content/70"
+        className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px] text-base-content/70"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}

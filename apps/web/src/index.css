@@ -419,3 +419,35 @@
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
 }
+
+/* iPhone Safari zooms into any text box whose text is under 16px, and does not zoom back out. So on
+   touch screens every text field is at least 16px, whatever the text-size setting says. Pinch zoom
+   stays available; only the double-tap zoom is turned off. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not(
+      [type='button']
+    ):not([type='submit']):not([type='color']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  html {
+    touch-action: manipulation;
+  }
+  /* Sizes here are in rem, so a smaller text size (Settings > Appearance) shrinks them with it.
+     Round buttons and menu rows keep a thumb-sized floor in pixels. */
+  .size-11 {
+    width: max(2.75rem, 44px);
+    height: max(2.75rem, 44px);
+  }
+  .size-12 {
+    width: max(3rem, 48px);
+    height: max(3rem, 48px);
+  }
+  .min-h-11 {
+    min-height: max(2.75rem, 44px);
+  }
+  .min-h-12 {
+    min-height: max(3rem, 48px);
+  }
+}
