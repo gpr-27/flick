@@ -83,6 +83,10 @@ export const SUMMARY = {
   read_seq: 40,
   unread_count: 2,
   last_message: RECORD,
+  peer_receipts: [
+    { user_id: BOB, delivered_seq: 42, read_seq: 41 },
+    { user_id: ALICE, delivered_seq: 0, read_seq: 0 },
+  ],
   created_at: NOW,
   settings: {
     only_admins_send: false,

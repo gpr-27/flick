@@ -180,7 +180,32 @@ export const useChatStore = create<ChatState>()((set, get) => {
     });
   };
 
+  /**
+   * The other members' cursors that came with the chat list, so ticks are right after a reload.
+   * Cursors only move forward, so a live receipt that is already newer is kept.
+   */
+  const mergePeerReceipts = (list: readonly ConversationSummary[]): void => {
+    if (!list.some((c) => c.peer_receipts.length > 0)) return;
+    set((s) => {
+      const receipts = { ...s.receipts };
+      for (const c of list) {
+        if (c.peer_receipts.length === 0) continue;
+        const per = { ...receipts[c.id] };
+        for (const r of c.peer_receipts) {
+          const old = per[r.user_id] ?? { delivered_seq: 0, read_seq: 0 };
+          per[r.user_id] = {
+            delivered_seq: Math.max(old.delivered_seq, r.delivered_seq),
+            read_seq: Math.max(old.read_seq, r.read_seq),
+          };
+        }
+        receipts[c.id] = per;
+      }
+      return { receipts };
+    });
+  };
+
   const addConversations = (list: readonly ConversationSummary[]): void => {
+    mergePeerReceipts(list);
     for (const c of list) syncEngine.baseline(c.id, c.last_seq);
     // A conversation that appears while we are connected (someone's first message) is delivered
     // now; when we are not connected yet, start() reports it on connect.
@@ -253,6 +278,7 @@ export const useChatStore = create<ChatState>()((set, get) => {
         const known = get().conversations;
         const fresh = res.items.filter((c) => !known[c.id]);
         addConversations(fresh);
+        mergePeerReceipts(res.items);
         // Known conversations keep what events built (last message, unread); only settings change.
         set((s) => ({
           conversations: Object.fromEntries(
@@ -489,6 +515,7 @@ export const useChatStore = create<ChatState>()((set, get) => {
         addConversations([summary]);
         return;
       }
+      mergePeerReceipts([summary]);
       // Settings, title, members and role come from the server; the message-derived fields stay.
       patchConversation(conversationId, (c) => ({
         ...summary,

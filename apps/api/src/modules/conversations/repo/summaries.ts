@@ -1,5 +1,18 @@
-import type { ChatPrefs, ConversationSummary, MessageRecord, UserSummary } from '@chat/contracts';
-import { FLICK_BOT_USER_ID, MESSAGE_COLUMNS, buildChatListQuery, type MessageRow } from '@chat/db';
+import {
+  LIMITS,
+  type ChatPrefs,
+  type ConversationSummary,
+  type MessageRecord,
+  type PeerReceipt,
+  type UserSummary,
+} from '@chat/contracts';
+import {
+  FLICK_BOT_USER_ID,
+  MESSAGE_COLUMNS,
+  buildChatListQuery,
+  peerCursors,
+  type MessageRow,
+} from '@chat/db';
 import { sql } from 'kysely';
 import type { Config } from '../../../config.js';
 import type { Db } from '../../../db.js';
@@ -103,6 +116,12 @@ async function toSummaries(
     for (const p of peerRows) peers.set(p.conversation_id, toUserSummary(config, p));
   }
 
+  const receipts = await loadPeerReceipts(
+    db,
+    userId,
+    rows.filter((r) => (memberCount.get(r.id) ?? 0) <= LIMITS.INLINE_FANOUT_MAX_MEMBERS),
+  );
+
   const withMessages = rows.filter((r) => r.last_seq > 0);
   const lastMessages = new Map<string, MessageRecord>();
   if (withMessages.length > 0) {
@@ -140,6 +159,7 @@ async function toSummaries(
       read_seq: r.read_seq,
       unread_count: Math.max(0, Number(r.unread_count)),
       last_message: last ?? null,
+      peer_receipts: receipts.get(r.id) ?? [],
       created_at: r.created_at.toISOString(),
       settings: {
         only_admins_send: r.admin_only_send,
@@ -150,6 +170,45 @@ async function toSummaries(
       prefs: toPrefs(r),
     };
   });
+}
+
+/**
+ * The other members' cursors per conversation. Read positions follow the read-receipt rule used
+ * everywhere else: if the viewer or that member turned receipts off, read_seq is 0 and the
+ * delivered_seq is the devices' alone, so a read cannot be inferred from it.
+ */
+async function loadPeerReceipts(
+  db: Db,
+  viewerId: string,
+  rows: { id: string }[],
+): Promise<Map<string, PeerReceipt[]>> {
+  const out = new Map<string, PeerReceipt[]>();
+  const cursors = await peerCursors(
+    db,
+    rows.map((r) => r.id),
+    viewerId,
+  );
+  if (cursors.length === 0) return out;
+  const off = await db
+    .selectFrom('user_settings')
+    .select('user_id')
+    .where('read_receipts', '=', false)
+    .where('user_id', 'in', [viewerId, ...new Set(cursors.map((c) => c.user_id))])
+    .execute();
+  const hidden = new Set(off.map((r) => r.user_id));
+  for (const c of cursors) {
+    const showRead = !hidden.has(viewerId) && !hidden.has(c.user_id);
+    const list = out.get(c.conversation_id) ?? [];
+    list.push({
+      user_id: c.user_id,
+      delivered_seq: showRead
+        ? Math.max(c.device_delivered_seq, c.read_seq)
+        : c.device_delivered_seq,
+      read_seq: showRead ? c.read_seq : 0,
+    });
+    out.set(c.conversation_id, list);
+  }
+  return out;
 }
 
 export function toPrefs(r: {

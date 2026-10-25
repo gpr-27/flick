@@ -88,3 +88,37 @@ export function receiptWatermarks(cursors: RecipientCursor[]): {
     readSeq: Math.min(...cursors.map((c) => c.read_seq)),
   };
 }
+
+export interface PeerCursorRow {
+  conversation_id: string;
+  user_id: string;
+  /** Best delivered_seq over the user's active devices (reads are NOT folded in). */
+  device_delivered_seq: number;
+  read_seq: number;
+}
+
+// The cursors of every other active member in each of the given conversations, in one query.
+// Callers apply the read-receipt privacy rule before showing read_seq to anyone.
+export async function peerCursors(
+  db: Kysely<Database>,
+  conversationIds: string[],
+  viewerId: string,
+): Promise<PeerCursorRow[]> {
+  if (conversationIds.length === 0) return [];
+  const result = await sql<PeerCursorRow>`
+    SELECT cm.conversation_id, cm.user_id, cm.read_seq,
+           COALESCE(MAX(dc.delivered_seq), 0) AS device_delivered_seq
+    FROM conversation_members cm
+    LEFT JOIN devices d ON d.user_id = cm.user_id AND d.revoked_at IS NULL
+    LEFT JOIN device_cursors dc ON dc.device_id = d.id AND dc.conversation_id = cm.conversation_id
+    WHERE cm.conversation_id = ANY(${conversationIds}::uuid[])
+      AND cm.left_at IS NULL AND cm.user_id <> ${viewerId}
+    GROUP BY cm.conversation_id, cm.user_id, cm.read_seq
+    ORDER BY cm.conversation_id, cm.user_id
+  `.execute(db);
+  return result.rows.map((r) => ({
+    ...r,
+    device_delivered_seq: Number(r.device_delivered_seq),
+    read_seq: Number(r.read_seq),
+  }));
+}
