@@ -25,6 +25,8 @@ import type { RowStatus, ThreadRow } from '../threadRows';
 import { useLongPress } from '../useLongPress';
 import { MessageMenu } from './MessageMenu';
 import { MessageInfoDialog } from './MessageInfoDialog';
+import { ReminderDialog } from '@/features/reminders/ReminderDialog';
+import { ReminderMark } from '@/features/reminders/ReminderMark';
 import { useContactInfo } from './useContactInfo';
 
 export interface MessageBubbleProps {
@@ -115,6 +117,7 @@ const MessageBubbleImpl = ({
   const [translateOpen, setTranslateOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [remindOpen, setRemindOpen] = useState(false);
   const contact = useContactInfo();
   const isMine = message.sender_user_id === myId;
   const isSystem = message.content?.type === 'system';
@@ -338,6 +341,7 @@ const MessageBubbleImpl = ({
               <Star className="size-3 fill-current text-warning" aria-label="Starred" role="img" />
             )}
             {pinned && <Pin className="size-3 text-primary" aria-label="Pinned" role="img" />}
+            {!deleted && <ReminderMark messageId={message.message_id} />}
             {isMine && (
               <span data-guide="message.status" className="inline-flex">
                 <StatusMark status={status} />
@@ -443,6 +447,9 @@ const MessageBubbleImpl = ({
           onReport={() => {
             setReportOpen(true);
           }}
+          onRemind={() => {
+            setRemindOpen(true);
+          }}
           onInfo={
             isMine
               ? () => {
@@ -455,6 +462,15 @@ const MessageBubbleImpl = ({
           }}
         />
       )}
+
+      <ReminderDialog
+        open={remindOpen}
+        target={{ conversationId: message.conversation_id, messageId: message.message_id }}
+        preview={message.content?.type === 'text' ? message.content.text : 'This message'}
+        onClose={() => {
+          setRemindOpen(false);
+        }}
+      />
 
       {infoOpen && (
         <MessageInfoDialog

@@ -6,6 +6,8 @@ import { AnchoredPanel, Modal, cn, useFocusTrap, type PopoverMenuItem } from '@/
 import { isFlickChat } from '@/features/ai/isFlickBot';
 import { useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { useChatStore } from '../chat/useChatStore';
+import { ReminderDialog } from '@/features/reminders/ReminderDialog';
+import { conversationTitle } from '../chat/conversationView';
 import { LockModal } from './ChatLock';
 import { useLockStore } from './lock';
 import { MUTE_OPTIONS, isMuted, mutedUntilFor, updatePrefs } from './prefs';
@@ -120,7 +122,7 @@ const WallpaperModal = ({
   );
 };
 
-type Dialog = 'mute' | 'wallpaper' | 'lock-set' | 'lock-remove';
+type Dialog = 'mute' | 'wallpaper' | 'lock-set' | 'lock-remove' | 'remind';
 
 const Item = ({
   onClick,
@@ -285,6 +287,7 @@ export const ChatOptionsMenu = ({
               <Item onClick={dialogItem('lock-set')}>Lock chat…</Item>
             )}
             <Item onClick={act(onSearch)}>Search in chat</Item>
+            <Item onClick={dialogItem('remind')}>Remind me about this chat</Item>
           </div>
         </AnchoredPanel>
       )}
@@ -298,6 +301,14 @@ export const ChatOptionsMenu = ({
       <WallpaperModal
         conversation={conversation}
         open={dialog === 'wallpaper'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <ReminderDialog
+        open={dialog === 'remind'}
+        target={{ conversationId: id }}
+        preview={`Chat with ${conversationTitle(conversation)}`}
         onClose={() => {
           setDialog(null);
         }}

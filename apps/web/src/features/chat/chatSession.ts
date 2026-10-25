@@ -5,6 +5,7 @@
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import type { Unsubscribe } from '@/lib/realtime';
 import { getTransport } from '@/lib/services';
+import { useReminderStore } from '@/features/reminders/reminderStore';
 import { usePinsStore } from '../organise/messageActions';
 import { useOutboxStore } from './outbox/useOutboxStore';
 import { onSynced, syncEngine, useChatStore } from './useChatStore';
@@ -145,6 +146,7 @@ export function startChatSession(userId: string): Unsubscribe {
 /** Sign-out: forget the previous user's chats and unsent messages. */
 export function resetChatSession(): void {
   useChatStore.getState().reset();
+  useReminderStore.getState().reset();
   void useOutboxStore.getState().clear();
 }
 

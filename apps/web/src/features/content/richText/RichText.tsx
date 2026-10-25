@@ -4,6 +4,8 @@
 import { Fragment, createElement, useMemo, useState, type ReactNode } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { cn } from '@/components/ui';
+import { ChatLink } from './ChatLink';
+import { chatLinkId } from './chatLinkId';
 import { safeHref } from './safeHref';
 import { parseBlocks, type Align, type Block } from './parse';
 
@@ -72,8 +74,11 @@ const renderInline = (
       );
     } else if (m[3] !== undefined && m[4] !== undefined) {
       const href = links ? safeHref(m[4]) : null;
+      const chatId = links ? chatLinkId(m[4]) : null;
       // An unsafe or nested link stays visible as the text the sender typed.
-      node = href ? (
+      node = chatId ? (
+        <ChatLink id={chatId}>{renderInline(m[3], renderText, false, `${key}l`)}</ChatLink>
+      ) : href ? (
         <Link href={href}>{renderInline(m[3], renderText, false, `${key}l`)}</Link>
       ) : (
         m[0]

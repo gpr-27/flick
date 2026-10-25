@@ -4,6 +4,7 @@ import {
   Archive,
   BellOff,
   Bookmark,
+  AlarmClock,
   CalendarClock,
   Lock,
   MessageSquarePlus,
@@ -28,6 +29,8 @@ import { useIsHidden } from '../../organise/lock';
 import { isMuted } from '../../organise/prefs';
 import { StarredPanel } from '../../organise/StarredPanel';
 import { SearchPanel } from '../../search/SearchPanel';
+import { RemindersDialog } from '@/features/reminders/RemindersDialog';
+import { useLoadReminders } from '@/features/reminders/useLoadReminders';
 import { ScheduledDialog } from '@/features/scheduled/ScheduledDialog';
 import { previewContent } from '../content/registry';
 import { SAVED_TITLE, conversationAvatar, conversationTitle } from '../conversationView';
@@ -213,6 +216,8 @@ export const Sidebar = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [starredOpen, setStarredOpen] = useState(false);
   const [scheduledOpen, setScheduledOpen] = useState(false);
+  const [remindersOpen, setRemindersOpen] = useState(false);
+  useLoadReminders();
   const listRef = useRef<HTMLUListElement>(null);
 
   // Saved messages has its own row at the top, so it is not part of the filtered list.
@@ -352,6 +357,17 @@ export const Sidebar = () => {
               }}
             >
               <CalendarClock className="size-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="btn btn-circle btn-ghost btn-sm"
+              aria-label="Reminders"
+              title="Reminders"
+              onClick={() => {
+                setRemindersOpen(true);
+              }}
+            >
+              <AlarmClock className="size-5" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -510,6 +526,12 @@ export const Sidebar = () => {
         open={starredOpen}
         onClose={() => {
           setStarredOpen(false);
+        }}
+      />
+      <RemindersDialog
+        open={remindersOpen}
+        onClose={() => {
+          setRemindersOpen(false);
         }}
       />
       <ScheduledDialog
