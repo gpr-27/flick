@@ -5,6 +5,9 @@ import { ENDPOINTS, type UploadPurpose } from '@chat/contracts';
 import type { z } from 'zod';
 import { getApi } from '@/lib/services';
 
+/** Longest a single file may take to reach storage before we give up and say so. */
+const UPLOAD_TIMEOUT_MS = 120_000;
+
 /** fetch has no upload progress, so XMLHttpRequest is used when the caller wants a progress bar. */
 const postWithProgress = (
   url: string,
@@ -23,6 +26,11 @@ const postWithProgress = (
         : reject(new Error(`Upload failed (${xhr.status})`));
     xhr.onerror = () => {
       reject(new Error('Upload failed. Check your connection.'));
+    };
+    // A stuck upload must end with a message and a Retry, not a spinner that never stops.
+    xhr.timeout = UPLOAD_TIMEOUT_MS;
+    xhr.ontimeout = () => {
+      reject(new Error('The upload took too long. Check your connection and try again.'));
     };
     xhr.send(form);
   });
@@ -51,7 +59,11 @@ export const uploadAttachment = async (
   if (options.onProgress) {
     await postWithProgress(presign.url, form, options.onProgress);
   } else {
-    const res = await fetch(presign.url, { method: 'POST', body: form });
+    const res = await fetch(presign.url, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+    });
     if (!res.ok) throw new Error(`Upload failed (${res.status})`);
   }
   await api.call(ENDPOINTS.media.complete, { params: { attachment_id: presign.attachment_id } });

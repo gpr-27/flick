@@ -17,7 +17,11 @@ import { USERNAME_DEBOUNCE_MS } from './useUsernameCheck';
 vi.mock('@/components/ui/notify', () => ({
   notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
-vi.mock('@clerk/clerk-react', () => ({ UserButton: () => <span>Account menu</span> }));
+vi.mock('@clerk/clerk-react', () => ({
+  UserButton: () => <span>Account menu</span>,
+  // No sign-in photo in these tests: the photo menu only offers "Use my sign-in photo" with one.
+  useUser: () => ({ user: { hasImage: false, imageUrl: '' } }),
+}));
 
 const me: Me = {
   id: ME,

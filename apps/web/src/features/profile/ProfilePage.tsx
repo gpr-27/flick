@@ -1,3 +1,4 @@
+import { useUser } from '@clerk/clerk-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { UserButton } from '@clerk/clerk-react';
 import { Camera, Copy, Image as ImageIcon, Share2, Trash2 } from 'lucide-react';
@@ -13,6 +14,7 @@ import { CameraCapture } from '@/features/content/camera/CameraCapture';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
 import { AvatarCropper } from './AvatarCropper';
+import { squareJpegFromUrl } from './signInPhoto';
 import {
   ABOUT_MAX,
   DISPLAY_NAME_MAX,
@@ -54,6 +56,12 @@ export const ProfilePage = () => {
   const [username, setUsername] = useState(user?.username ?? '');
   const [about, setAbout] = useState(user?.about ?? '');
   const [avatar, setAvatar] = useState<AvatarDraft>({ kind: 'unchanged' });
+  // The photo on the sign-in account (set in Clerk's menu). Flick keeps its own copy, so this
+  // copies it across when Flick has no photo yet; Save then uploads it like any other photo.
+  const { user: signInUser } = useUser();
+  const signInPhotoUrl = signInUser?.hasImage ? signInUser.imageUrl : null;
+  const [copyingPhoto, setCopyingPhoto] = useState(false);
+
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -141,6 +149,20 @@ export const ProfilePage = () => {
     if (avatar.kind === 'new') URL.revokeObjectURL(avatar.previewUrl);
     setAvatar({ kind: 'new', blob, previewUrl: URL.createObjectURL(blob) });
     setCropFile(null);
+  };
+
+  const copySignInPhoto = async (): Promise<void> => {
+    if (!signInPhotoUrl) return;
+    setCopyingPhoto(true);
+    try {
+      const blob = await squareJpegFromUrl(signInPhotoUrl);
+      if (avatar.kind === 'new') URL.revokeObjectURL(avatar.previewUrl);
+      setAvatar({ kind: 'new', blob, previewUrl: URL.createObjectURL(blob) });
+    } catch (error) {
+      setServerError(getErrorMessage(error, "Couldn't copy your sign-in photo."));
+    } finally {
+      setCopyingPhoto(false);
+    }
   };
 
   const save = async (): Promise<void> => {
@@ -240,6 +262,18 @@ export const ProfilePage = () => {
                       icon: <ImageIcon className="size-5" aria-hidden="true" />,
                       onClick: () => fileRef.current?.click(),
                     },
+                    ...(signInPhotoUrl
+                      ? [
+                          {
+                            label: 'Use my sign-in photo',
+                            icon: <ImageIcon className="size-5" aria-hidden="true" />,
+                            disabled: copyingPhoto,
+                            onClick: () => {
+                              void copySignInPhoto();
+                            },
+                          },
+                        ]
+                      : []),
                     {
                       label: 'Take a photo',
                       icon: <Camera className="size-5" aria-hidden="true" />,
