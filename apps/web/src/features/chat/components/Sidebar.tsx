@@ -60,6 +60,7 @@ const SavedRow = ({
     <div className="group relative mb-2">
       <button
         type="button"
+        data-guide="saved-row"
         aria-current={isActive}
         onClick={() => {
           if (conversation) select(conversation.id);

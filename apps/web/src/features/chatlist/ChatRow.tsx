@@ -25,6 +25,7 @@ import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, Badge, cn, formatCount } from '@/components/ui';
 import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
 import { isFlickChat } from '@/features/ai/isFlickBot';
+import { markUsed } from '@/features/guide/useGuideStore';
 import { formatRelativeTime } from '@/lib/time';
 import { previewContent } from '../chat/content/registry';
 import { conversationAvatar, conversationTitle } from '../chat/conversationView';
@@ -127,7 +128,10 @@ export const ChatRow = ({
 
   const activate = (): void => {
     if (selecting) useSelection.getState().toggle(c.id);
-    else onSelect(c.id);
+    else {
+      if (bot) markUsed('ai.flickchat');
+      onSelect(c.id);
+    }
   };
 
   const onKeyDown = (e: KeyboardEvent): void => {
@@ -176,6 +180,7 @@ export const ChatRow = ({
       aria-selected={selecting ? ticked : isActive}
       tabIndex={isFocusTarget ? 0 : -1}
       data-conversation-id={c.id}
+      data-guide={bot ? 'flick-chat' : undefined}
       onClick={activate}
       onFocus={onFocus}
       onKeyDown={onKeyDown}
