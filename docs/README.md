@@ -6,6 +6,7 @@ Start with the [architecture overview](architecture/overview.md), then the
 ## Architecture
 
 - [`architecture/overview.md`](architecture/overview.md): folders, packages, the gateway, dispatcher and worker, how to run and test.
+- [`testing.md`](testing.md): how to run each test suite, what each one proves, coverage numbers, failure-injection results.
 - [`architecture/system-design.md`](architecture/system-design.md): components, sequences, failure boundaries, scaling.
 - [`architecture/delivery-guarantees.md`](architecture/delivery-guarantees.md): the contract for sending, ordering, receipts, sync.
 - [`architecture/protocol.md`](architecture/protocol.md): Socket.IO events and payloads.

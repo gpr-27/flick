@@ -12,5 +12,7 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     exclude: ['test/**/*.int.test.ts'],
     environment: 'node',
+    // `npx vitest run --coverage`: which lines of src/ the tests run (numbers in docs/testing.md).
+    coverage: { provider: 'v8', include: ['src/**/*.ts'], reporter: ['text', 'text-summary'] },
   },
 });

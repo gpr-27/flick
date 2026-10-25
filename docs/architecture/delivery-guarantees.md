@@ -119,18 +119,18 @@ them.
 
 ## 9. Failure scenarios
 
-| Scenario                                         | Result                                                                      |
-| ------------------------------------------------ | --------------------------------------------------------------------------- |
-| Client sends twice (ack lost)                    | Second send returns the same message. One row                               |
-| Two clients send at the same moment              | Unique, ordered `seq` values                                                |
-| API crashes before commit                        | No ack. The client retries. No message exists, or the retry creates it once |
-| API crashes after commit, before dispatch        | Outbox row is unsent; dispatched after the restart. Sync also covers it     |
-| Dispatcher emits but crashes before marking done | Event sent again. Clients drop by `seq`                                     |
-| Socket drops                                     | Socket.IO reconnects; the client runs sync                                  |
-| Redis down                                       | Other servers' rooms are not reached; sync recovers. Messages are stored    |
-| Recipient offline for days                       | Sync returns all missed messages, in pages                                  |
-| Member removed, then a message is sent           | Not dispatched to them; their sync is refused                               |
-| Postgres down                                    | Send fails, no ack, the client keeps it in its outbox and retries           |
+| Scenario                                         | Result                                                                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Client sends twice (ack lost)                    | Second send returns the same message. One row                                                                                             |
+| Two clients send at the same moment              | Unique, ordered `seq` values                                                                                                              |
+| API crashes before commit                        | No ack. The client retries. No message exists, or the retry creates it once                                                               |
+| API crashes after commit, before dispatch        | Outbox row is unsent; dispatched after the restart. Sync also covers it                                                                   |
+| Dispatcher emits but crashes before marking done | Event sent again. Clients drop by `seq`                                                                                                   |
+| Socket drops                                     | Socket.IO reconnects; the client runs sync                                                                                                |
+| Redis down                                       | Other servers' rooms are not reached; sync recovers. Messages are stored (tested, see [`../testing.md`](../testing.md#failure-injection)) |
+| Recipient offline for days                       | Sync returns all missed messages, in pages                                                                                                |
+| Member removed, then a message is sent           | Not dispatched to them; their sync is refused                                                                                             |
+| Postgres down                                    | Send fails, no ack, the client keeps it in its outbox and retries                                                                         |
 
 ## 10. History, visibility and edit rules
 

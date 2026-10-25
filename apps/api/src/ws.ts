@@ -14,8 +14,30 @@ import type { Redis } from './redis.js';
 // The adapter's subscriber connection, kept so closeIo can end it (the adapter leaves it open).
 const subscribers = new WeakMap<Server, Redis>();
 
+const patched = new WeakSet<Redis>();
+
+/**
+ * The Redis adapter calls `publish()` on every emit and neither awaits nor catches it. While Redis
+ * is down that promise rejects with nobody listening, and Node ends the process for an unhandled
+ * rejection: one broadcast would take the whole API down (ADR-0005 says Redis down must not do
+ * that). Marking the promise as handled keeps the failure where it belongs: callers that await it
+ * (the adapter's own requests, such as fetchSockets) still see the error, and the dispatcher's
+ * retry logic handles it. Emits still reach this server's own sockets.
+ */
+function publishNeverCrashes(redis: Redis): void {
+  if (patched.has(redis)) return;
+  patched.add(redis);
+  const publish = redis.publish.bind(redis) as (...args: unknown[]) => Promise<number>;
+  redis.publish = (...args: unknown[]) => {
+    const result = publish(...args);
+    result.catch(() => undefined);
+    return result;
+  };
+}
+
 /** Socket.IO on an HTTP server. The Redis adapter makes a room emit reach every API replica. */
 export function createIo(httpServer: HttpServer, redis: Redis, origins: string[]): Server {
+  publishNeverCrashes(redis);
   const io = new Server(httpServer, {
     cors: { origin: origins, credentials: true },
     maxHttpBufferSize: LIMITS.MAX_FRAME_BYTES,

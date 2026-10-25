@@ -11,6 +11,7 @@ export default defineConfig(
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/coverage/**',
       'tests/e2e/.web-dist/**',
       'tests/e2e/.report/**',
       'tests/e2e/.results/**',

@@ -55,9 +55,14 @@ running the commands in the last column.
 | Load tests (k6)                                                                       | planned  | `npm run load` expects scenarios in `tests/load/scenarios`; none exist yet                                                 |
 | Deployment (Vercel, Render, Supabase, S3)                                             | built    | Configuration is in the repo and described in [`operations/deployment.md`](operations/deployment.md). No run recorded here |
 
-Not run in the gate or the merge check: `app.int.test.ts`, behaviour with two API replicas under load, a Redis outage
-during traffic, real Clerk, real Web Push, the live AI chain, real GIPHY and link-preview fetches, and the Grafana
+Not run in the gate or the merge check: `app.int.test.ts`, behaviour with two API replicas under load, real Clerk, real Web Push, the live AI chain, real GIPHY and link-preview fetches, and the Grafana
 dashboards in a running Grafana.
+
+## Backend tests added 2026-10-25
+
+The content-type matrix, contract conformance, authorization, validation, delivery contract, failure injection (Redis
+outage, Postgres connection kill, two dispatchers), directory paging and security suites are described, with their
+coverage numbers, in [`testing.md`](testing.md).
 
 ## Known gaps
 

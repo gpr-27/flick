@@ -70,7 +70,10 @@ client A -- send_message --> API replica 1 -- one transaction --> Postgres
   it. If the process dies in between, the row is emitted again and clients drop a `seq` they already have. If an emit
   throws, the row stays, `attempts` goes up, the loop backs off, and later rows of that conversation wait so order is
   kept. After 20 failed attempts a row is logged and skipped.
-- **Several replicas** can run the dispatcher: `SKIP LOCKED` gives each a different batch.
+- **Several replicas** can run the dispatcher: `SKIP LOCKED` gives each a different batch. One replica emits a
+  conversation in `seq` order, but a later batch handled by a fast replica can overtake an earlier one still being
+  handled by a slow replica, so live order across replicas is **not guaranteed**. The client repairs it: a jump in `seq`
+  makes it run sync, and it drops repeats by `seq` ([`../testing.md`](../testing.md#failure-injection) shows both).
 - **Wake-up** is polling every 200 ms (again at once when a full batch was found). `LISTEN/NOTIFY` would need a
   trigger in a migration, so it is not used.
 - **Big groups** (more than 256 members) are emitted in batches of 500 with a yield to the event loop between them.

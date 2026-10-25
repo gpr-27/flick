@@ -1,6 +1,7 @@
 import { ERROR_CODES, makeError, type ErrorBody, type ErrorCode } from '@chat/contracts';
 import { DbError } from '@chat/db';
 import { ZodError } from 'zod';
+import { codeForStatus } from '../../http-error.js';
 
 /** A failure the client should see, with one of the contract's error codes. */
 export class ApiError extends Error {
@@ -37,6 +38,12 @@ export function toApiError(err: unknown): ApiError {
   if (err instanceof DbError) return new ApiError(DB_ERROR_CODES[err.code], err.message);
   if (err instanceof ZodError) {
     return new ApiError('VALIDATION_FAILED', 'Invalid request.', { issues: err.issues });
+  }
+  // Fastify's own client errors (malformed JSON, a body over the limit, an unsupported content
+  // type) carry the right 4xx status; keep it instead of calling them server errors.
+  const status = (err as { statusCode?: unknown } | null)?.statusCode;
+  if (typeof status === 'number' && status >= 400 && status < 500) {
+    return new ApiError(codeForStatus(status), (err as Error).message);
   }
   const internal = new ApiError('INTERNAL', 'Something went wrong.');
   internal.cause = err; // for the server log; never sent to the client
