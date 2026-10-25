@@ -3,6 +3,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { ENDPOINTS } from '@chat/contracts';
 
 vi.mock('@clerk/clerk-react', () => ({
@@ -30,8 +31,7 @@ vi.mock('@clerk/clerk-react', () => ({
 import { notify } from '@/components/ui/notify';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { SignInPage } from '@/features/auth/components/SignInPage';
-import { NotificationSettings } from '@/features/notifications/NotificationSettings';
-import { useNotificationPrefs } from '@/features/notifications/useNotificationPrefs';
+import { PushToggle } from '@/features/notifications/NotificationSettings';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { InstallButton } from '@/pwa/InstallButton';
 import { useInstallStore } from '@/pwa/install';
@@ -66,7 +66,7 @@ beforeEach(() => {
   ({ api } = installFakeServices());
   api.call.mockImplementation((endpoint: unknown) =>
     Promise.resolve(
-      endpoint === ENDPOINTS.users.privacy
+      endpoint === ENDPOINTS.users.settings
         ? privacy
         : endpoint === ENDPOINTS.moderation.blocks
           ? { items: [], next_cursor: null }
@@ -88,19 +88,29 @@ afterEach(() => {
 });
 
 describe('settings page', () => {
-  it('has one h1 and the four sections', async () => {
+  const page = () => (
+    <MemoryRouter>
+      <SettingsPage />
+    </MemoryRouter>
+  );
+
+  it('has one h1 and a list of sections, and the chosen section opens', async () => {
     installFakePush({ permission: 'default' });
-    render(<SettingsPage />);
+    const user = userEvent.setup();
+    render(page());
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
-    for (const name of ['Notifications', 'Privacy', 'Blocked users']) {
-      expect(screen.getByRole('region', { name })).toBeInTheDocument();
-    }
+    // On a phone the sections are an accordion; open Privacy.
+    await user.click(screen.getByRole('button', { name: /Privacy/ }));
+    expect(screen.getByRole('region', { name: 'Privacy' })).toBeInTheDocument();
     await screen.findByRole('combobox', { name: 'About' });
+    expect(screen.getByRole('region', { name: 'Blocked users' })).toBeInTheDocument();
   });
 
   it('has no accessibility violations once loaded', async () => {
     installFakePush({ permission: 'default' });
-    const { container } = render(<SettingsPage />);
+    const user = userEvent.setup();
+    const { container } = render(page());
+    await user.click(screen.getByRole('button', { name: /Privacy/ }));
     await screen.findByRole('combobox', { name: 'About' });
     await screen.findByText('You have not blocked anyone.');
     await expectNoA11yViolations(container);
@@ -113,7 +123,7 @@ describe('privacy toggles', () => {
       Promise.resolve({ ...privacy, last_seen: 'nobody', read_receipts: false }),
     );
     render(<PrivacySettings />);
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.getByText('Loading your privacy settings')).toBeInTheDocument();
     expect(await screen.findByRole('combobox', { name: 'Last seen and online' })).toHaveValue(
       'nobody',
     );
@@ -123,9 +133,7 @@ describe('privacy toggles', () => {
   it('shows an error when the settings cannot load', async () => {
     api.call.mockRejectedValue(new Error('x'));
     render(<PrivacySettings />);
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      "Couldn't load your privacy settings.",
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load your settings.");
   });
 
   it.each([
@@ -136,7 +144,7 @@ describe('privacy toggles', () => {
     const user = userEvent.setup();
     render(<PrivacySettings />);
     await user.selectOptions(await screen.findByRole('combobox', { name: label }), 'nobody');
-    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.users.updatePrivacy, {
+    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.users.updateSettings, {
       body: { [key]: 'nobody' },
     });
   });
@@ -204,7 +212,7 @@ describe('notification permission flow', () => {
   it('asks the browser only after the click, subscribes and tells the server', async () => {
     const user = userEvent.setup();
     const push = installFakePush({ permission: 'default', answer: 'granted' });
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     const toggle = screen.getByRole('switch', { name: 'Push notifications' });
     await waitFor(() => {
       expect(toggle).toBeEnabled();
@@ -224,7 +232,7 @@ describe('notification permission flow', () => {
   it('refusing the prompt shows the blocked message and disables the switch', async () => {
     const user = userEvent.setup();
     installFakePush({ permission: 'default', answer: 'denied' });
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     const toggle = screen.getByRole('switch', { name: 'Push notifications' });
     await waitFor(() => {
       expect(toggle).toBeEnabled();
@@ -237,7 +245,7 @@ describe('notification permission flow', () => {
   it('a server failure while subscribing is reported, and the switch stays off', async () => {
     const user = userEvent.setup();
     installFakePush({ permission: 'default', answer: 'granted' });
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     const toggle = screen.getByRole('switch', { name: 'Push notifications' });
     await waitFor(() => {
       expect(toggle).toBeEnabled();
@@ -258,7 +266,7 @@ describe('notification permission flow', () => {
   it('turning it off unsubscribes at the server and in the browser', async () => {
     const user = userEvent.setup();
     const push = installFakePush({ permission: 'granted', subscribed: true });
-    render(<NotificationSettings />);
+    render(<PushToggle />);
     const toggle = screen.getByRole('switch', { name: 'Push notifications' });
     await waitFor(() => {
       expect(toggle).toBeChecked();
@@ -273,19 +281,9 @@ describe('notification permission flow', () => {
     expect(push.subscription.unsubscribe).toHaveBeenCalled();
   });
 
-  it('the message-sound switch is saved on this device', async () => {
-    const user = userEvent.setup();
-    installFakePush({ permission: 'default' });
-    useNotificationPrefs.setState({ sound: true });
-    render(<NotificationSettings />);
-    await user.click(screen.getByRole('switch', { name: 'Message sound' }));
-    expect(useNotificationPrefs.getState().sound).toBe(false);
-    expect(JSON.parse(localStorage.getItem('flick-notification-prefs')!)).toEqual({ sound: false });
-  });
-
   it('has no accessibility violations', async () => {
     installFakePush({ permission: 'default' });
-    const { container } = render(<NotificationSettings />);
+    const { container } = render(<PushToggle />);
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: 'Push notifications' })).toBeEnabled();
     });
@@ -294,10 +292,14 @@ describe('notification permission flow', () => {
 });
 
 describe('profile', () => {
-  it('shows nothing until the profile is loaded', () => {
+  it('shows a loading status until the profile is loaded', () => {
     useSessionStore.setState({ user: null, status: 'booting' });
-    const { container } = render(<ProfilePage />);
-    expect(container).toBeEmptyDOMElement();
+    render(
+      <MemoryRouter>
+        <ProfilePage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   it('shows the name, handle and the account menu, and passes accessibility checks', async () => {
@@ -305,7 +307,11 @@ describe('profile', () => {
       user: { id: BOB, username: 'bob', display_name: 'Bob B', avatar_url: null } as never,
       status: 'authenticated',
     });
-    const { container } = render(<ProfilePage />);
+    const { container } = render(
+      <MemoryRouter>
+        <ProfilePage />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole('heading', { level: 1, name: 'Bob B' })).toBeInTheDocument();
     expect(screen.getByText('@bob')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Account menu' })).toBeInTheDocument();

@@ -132,7 +132,7 @@
   }
 
   body {
-    font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--app-font, 'Nunito', ui-sans-serif, system-ui, sans-serif);
     color: var(--body-color);
     background-color: var(--page-bg);
     -webkit-font-smoothing: antialiased;
@@ -146,7 +146,7 @@
   h2,
   h3,
   .font-display {
-    font-family: 'Quicksand', 'Nunito', sans-serif;
+    font-family: var(--display-font, 'Quicksand', 'Nunito', sans-serif);
     letter-spacing: -0.015em;
   }
 }
@@ -234,7 +234,12 @@
 
   /* Signature gradient pill button (primary CTA). */
   .btn-grad {
-    background-image: linear-gradient(135deg, #7c6cf0 0%, #9d7bf5 50%, #ff9e80 130%);
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--p)) 0%,
+      hsl(var(--p) / 0.85) 50%,
+      #ff9e80 130%
+    );
     color: #ffffff;
     border: none;
     box-shadow: 0 14px 30px -10px rgba(124, 108, 240, 0.55);
@@ -387,4 +392,28 @@
   .blobs::after {
     animation: none !important;
   }
+}
+
+/* Appearance settings (Settings > Appearance). features/settings/appearance.ts puts these
+   attributes on <html>; the script in index.html does the same before the first paint. */
+[data-corners='sharp'] .bubble-sent,
+[data-corners='sharp'] .bubble-recv {
+  border-radius: 0.375rem;
+}
+[data-density='compact'] .bubble-sent,
+[data-density='compact'] .bubble-recv {
+  padding: 0.375rem 0.625rem;
+}
+[data-density='compact'] [data-conversation-id] {
+  padding: 0.375rem 0.625rem;
+  margin-bottom: 0;
+}
+/* The "Reduce motion" setting, and the operating system's own request for less motion. */
+[data-motion='reduce'] *,
+[data-motion='reduce'] *::before,
+[data-motion='reduce'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }

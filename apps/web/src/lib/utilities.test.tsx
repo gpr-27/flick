@@ -28,7 +28,6 @@ import {
   shouldNotify,
 } from '@/features/notifications/rules';
 import { playMessageSound } from '@/features/notifications/sound';
-import { useNotificationPrefs } from '@/features/notifications/useNotificationPrefs';
 import { useOpenPendingConversation } from '@/features/notifications/useOpenPendingConversation';
 import {
   conversationIdFromUrl,
@@ -715,7 +714,7 @@ describe('notification rules', () => {
 describe('message sound', () => {
   it('a browser that refuses audio just stays silent', () => {
     vi.stubGlobal('AudioContext', undefined);
-    expect(playMessageSound(99_000_000)).toBe(false);
+    expect(playMessageSound(0.5, 99_000_000)).toBe(false);
   });
 
   it('plays two notes, then stays quiet for a second, then plays again', () => {
@@ -742,25 +741,12 @@ describe('message sound', () => {
     }
     vi.stubGlobal('AudioContext', FakeAudioContext);
     const t0 = 200_000_000;
-    expect(playMessageSound(t0)).toBe(true);
+    expect(playMessageSound(0.5, t0)).toBe(true);
     expect(oscillators).toHaveLength(2);
-    expect(playMessageSound(t0 + 500)).toBe(false);
+    expect(playMessageSound(0.5, t0 + 500)).toBe(false);
     expect(oscillators).toHaveLength(2);
-    expect(playMessageSound(t0 + 1000)).toBe(true);
+    expect(playMessageSound(0.5, t0 + 1000)).toBe(true);
     expect(oscillators).toHaveLength(4);
-  });
-});
-
-describe('notification preferences storage', () => {
-  it('starts with sound on, and survives blocked storage when saving', () => {
-    useNotificationPrefs.setState({ sound: true });
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
-    expect(() => {
-      useNotificationPrefs.getState().setSound(false);
-    }).not.toThrow();
-    expect(useNotificationPrefs.getState().sound).toBe(false);
   });
 });
 

@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
 import { MessageSquare, MoreVertical, Moon, Phone, Settings, Sun, User, Users } from 'lucide-react';
-import { PopoverMenu, cn, type PopoverMenuItem } from '@/components/ui';
+import { Avatar, PopoverMenu, cn, type PopoverMenuItem } from '@/components/ui';
+import { useSessionStore } from '@/features/auth/useSessionStore';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { InstallButton } from '@/pwa/InstallButton';
 import { startInstall, useInstallMode } from '@/pwa/install';
@@ -49,6 +50,7 @@ export const Navbar = () => {
   const chatOpen = useChatStore((s) => s.selectedId !== null);
   const onHome = useLocation().pathname === '/';
   const hideOnPhone = chatOpen && onHome;
+  const me = useSessionStore((s) => s.user);
   return (
     // The top padding keeps the bar below the iPhone notch / status bar.
     <header
@@ -103,7 +105,13 @@ export const Navbar = () => {
             to="/profile"
             className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:hidden"
           >
-            <User className="size-4" aria-hidden="true" />
+            <Avatar
+              src={me?.avatar_url}
+              name=""
+              size="xs"
+              className="!size-6"
+              imgClassName="size-6 rounded-full object-cover"
+            />
             <span className="hidden sm:inline">Profile</span>
             <span className="sr-only sm:hidden">Profile</span>
           </Link>

@@ -1,5 +1,6 @@
 // Unsent text per conversation: in memory for the UI, and in localStorage so a reload keeps it.
 import { create } from 'zustand';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 
 const KEY = 'flick:drafts';
 
@@ -14,7 +15,9 @@ const read = (): Record<string, string> => {
 
 const write = (drafts: Record<string, string>): void => {
   try {
-    localStorage.setItem(KEY, JSON.stringify(drafts));
+    // Settings > Storage: with "Save drafts on this device" off they live in memory only.
+    if (useSettingsStore.getState().saveDrafts) localStorage.setItem(KEY, JSON.stringify(drafts));
+    else localStorage.removeItem(KEY);
   } catch {
     // Private mode or a full disk: the draft still lives in memory.
   }

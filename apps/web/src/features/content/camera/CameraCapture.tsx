@@ -15,16 +15,19 @@ interface Taken {
 /**
  * Take a photo or record a video with the camera, right inside the chat. After the shot you
  * can retake or use it; "use" hands the file to the normal attachment flow (caption, send).
- * Photo mode never asks for the microphone; video mode does.
+ * Photo mode never asks for the microphone; video mode does. `photoOnly` hides video mode and
+ * starts on the front camera (a profile photo).
  */
 export const CameraCapture = ({
   open,
   onClose,
   onCapture,
+  photoOnly = false,
 }: {
   open: boolean;
   onClose: () => void;
   onCapture: (file: File) => void;
+  photoOnly?: boolean;
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -33,13 +36,13 @@ export const CameraCapture = ({
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [mode, setMode] = useState<Mode>('photo');
-  const [facing, setFacing] = useState<Facing>('environment');
+  const [facing, setFacing] = useState<Facing>(photoOnly ? 'user' : 'environment');
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [taken, setTaken] = useState<Taken | null>(null);
-  const canRecord = pickVideoMime() !== undefined;
+  const canRecord = !photoOnly && pickVideoMime() !== undefined;
   const message =
     error ??
     (hasMediaSupport()

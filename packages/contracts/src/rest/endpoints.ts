@@ -1,10 +1,11 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import { PageQuery } from '../common.js';
 import { MessageAccepted } from '../message.js';
 import { SyncPagePayload, SyncRequestPayload } from '../ws/events.js';
 import * as Ai from './ai.js';
 import * as Calls from './calls.js';
 import * as Conv from './conversations.js';
+import * as Devices from './devices.js';
 import * as Extras from './extras.js';
 import * as Media from './media.js';
 import * as Msg from './messages.js';
@@ -58,6 +59,45 @@ export const ENDPOINTS = {
       params: Users.UserParams,
       response: Users.UserProfile,
     },
+    usernameAvailable: {
+      method: 'GET',
+      path: '/users/username-available',
+      auth: true,
+      query: Users.UsernameAvailableQuery,
+      response: Users.UsernameAvailability,
+    },
+    byUsername: {
+      method: 'GET',
+      path: '/users/by-username/:username',
+      auth: true,
+      params: Users.UsernameParams,
+      response: Users.UserProfile,
+    },
+    stats: { method: 'GET', path: '/users/me/stats', auth: true, response: Users.UserStats },
+    settings: {
+      method: 'GET',
+      path: '/users/me/settings',
+      auth: true,
+      response: Users.AccountSettings,
+    },
+    updateSettings: {
+      method: 'PATCH',
+      path: '/users/me/settings',
+      auth: true,
+      body: Users.UpdateSettingsRequest,
+      response: Users.AccountSettings,
+    },
+    /** Streams a JSON file (Content-Disposition: attachment); the web client saves it as a file. */
+    export: { method: 'GET', path: '/users/me/export', auth: true, response: z.unknown() },
+    deleteAccount: {
+      method: 'POST',
+      path: '/users/me/delete',
+      auth: true,
+      body: Users.DeleteAccountRequest,
+      response: null,
+    },
+    /** Deletes my chat with the Flick assistant for me only. */
+    clearFlickChat: { method: 'DELETE', path: '/users/me/flick-chat', auth: true, response: null },
     privacy: {
       method: 'GET',
       path: '/users/me/privacy',
@@ -71,6 +111,17 @@ export const ENDPOINTS = {
       body: Users.UpdatePrivacyRequest,
       response: Users.PrivacySettings,
     },
+  },
+  devices: {
+    list: { method: 'GET', path: '/devices', auth: true, response: Devices.DeviceList },
+    revoke: {
+      method: 'DELETE',
+      path: '/devices/:device_id',
+      auth: true,
+      params: Devices.DeviceParams,
+      response: null,
+    },
+    revokeOthers: { method: 'POST', path: '/devices/revoke-others', auth: true, response: null },
   },
   conversations: {
     list: {

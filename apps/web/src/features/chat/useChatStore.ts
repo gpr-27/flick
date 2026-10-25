@@ -24,6 +24,8 @@ import { useSessionStore } from '@/features/auth/useSessionStore';
 import { useMentions } from '@/features/notifications/mentions';
 import { notifyIncoming } from '@/features/notifications/notifyIncoming';
 import { mentionsUser } from '@/features/notifications/rules';
+import { applyDefaultTimer } from '@/features/settings/newChatDefaults';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import type { OutboxItem } from './outbox/outboxMachine';
 import { createSyncEngine, type SyncEngine } from './sync/syncEngine';
 import {
@@ -441,6 +443,8 @@ export const useChatStore = create<ChatState>()((set, get) => {
     },
 
     setActivity: (conversationId, userId, activity) => {
+      // Settings > Chats: with typing indicators off, nobody's typing is shown.
+      if (activity && !useSettingsStore.getState().showTyping) return;
       const key = `${conversationId}:${userId}`;
       clearTimeout(typingTimers.get(key));
       typingTimers.delete(key);
@@ -528,6 +532,7 @@ export const useChatStore = create<ChatState>()((set, get) => {
     },
 
     notifyTyping: (conversationId) => {
+      if (!useSettingsStore.getState().showTyping) return; // and nobody sees yours either
       const now = Date.now();
       if (now - (lastTypingSent.get(conversationId) ?? 0) < TYPING.THROTTLE_MS) return;
       if (getTransport().send('typing_start', { conversation_id: conversationId })) {
@@ -605,7 +610,10 @@ export const useChatStore = create<ChatState>()((set, get) => {
         const summary = await getApi().call(ENDPOINTS.conversations.createDirect, {
           body: { user_id: userId },
         });
-        if (!get().conversations[summary.id]) addConversations([summary]);
+        if (!get().conversations[summary.id]) {
+          addConversations([summary]);
+          void applyDefaultTimer(summary);
+        }
         get().select(summary.id);
       } catch (error) {
         notify.error(getErrorMessage(error, "Couldn't start the chat."));
@@ -627,7 +635,10 @@ export const useChatStore = create<ChatState>()((set, get) => {
         const summary = await getApi().call(ENDPOINTS.conversations.createGroup, {
           body: { title, member_ids: memberIds },
         });
-        if (!get().conversations[summary.id]) addConversations([summary]);
+        if (!get().conversations[summary.id]) {
+          addConversations([summary]);
+          void applyDefaultTimer(summary);
+        }
         get().select(summary.id);
         return true;
       } catch (error) {

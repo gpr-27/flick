@@ -118,7 +118,10 @@ describe('outgoing call order', () => {
 
   it('uses TURN credentials for the peer connection', async () => {
     await dial();
-    expect(peer().config).toEqual({ iceServers: [{ urls: ['turn:t'] }] });
+    expect(peer().config).toEqual({
+      iceServers: [{ urls: ['turn:t'] }],
+      iceTransportPolicy: 'all',
+    });
   });
 
   it('sends local ICE candidates with the call id, and ignores the end-of-candidates marker', async () => {

@@ -1,6 +1,8 @@
 import { ImageOff } from 'lucide-react';
 import { ReloadButton, Spinner } from '@/components/ui';
 import { useAttachmentUrl } from '@/features/chat/content/attachments';
+import { TapToDownload } from '@/features/settings/MediaGate';
+import { useMediaGate } from '@/features/settings/useMediaGate';
 
 const Caption = ({ text }: { text?: string | undefined }) =>
   text ? (
@@ -18,10 +20,13 @@ export const VideoView = ({
   height: number;
   caption?: string | undefined;
 }) => {
-  const { url, failed, fail, reload } = useAttachmentUrl(attachmentId);
+  const gate = useMediaGate();
+  const { url, failed, fail, reload } = useAttachmentUrl(attachmentId, gate.go);
   return (
     <div>
-      {url ? (
+      {!gate.go ? (
+        <TapToDownload noun="video" onClick={gate.load} />
+      ) : url ? (
         <video
           src={url}
           controls

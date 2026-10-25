@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { Pause, Play } from 'lucide-react';
 import { ReloadButton, Spinner } from '@/components/ui';
 import { useAttachmentUrl } from '@/features/chat/content/attachments';
+import { TapToDownload } from '@/features/settings/MediaGate';
+import { useMediaGate } from '@/features/settings/useMediaGate';
 import { formatClock } from '../format';
 
 const SPEEDS = [1, 1.5, 2] as const;
@@ -44,7 +46,8 @@ export const VoicePlayer = ({
   durationMs: number;
   waveform: readonly number[];
 }) => {
-  const { url, failed, fail, reload } = useAttachmentUrl(attachmentId);
+  const gate = useMediaGate();
+  const { url, failed, fail, reload } = useAttachmentUrl(attachmentId, gate.go);
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -70,6 +73,7 @@ export const VoicePlayer = ({
         <ReloadButton onClick={reload} label="Reload voice message" />
       </div>
     );
+  if (!gate.go) return <TapToDownload noun="voice message" onClick={gate.load} />;
 
   return (
     // min-w-0 lets the waveform shrink, so the time and speed always keep their room on the right.

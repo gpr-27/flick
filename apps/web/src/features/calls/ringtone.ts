@@ -4,6 +4,8 @@
 // Both repeat until stopped. A browser only lets a page play sound after the person has touched
 // the page once; in a chat app that has always happened by the time a call comes in.
 
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
+
 export type Tone = 'ring' | 'ringback';
 
 interface Beep {
@@ -32,6 +34,9 @@ const PATTERNS: Record<Tone, { beeps: Beep[]; gaps: number[]; pause: number; vol
   },
 };
 
+// The volume setting's default; at that value the sounds play at the loudness designed above.
+const DEFAULT_VOLUME = 0.6;
+
 // Vibration on phones: buzz, pause, buzz. Only for the person being called.
 const VIBRATION_MS = [400, 200, 400, 2000];
 
@@ -45,8 +50,9 @@ const audioContext = (): AudioContext | null => {
   return context;
 };
 
-function playCycle(ctx: AudioContext, tone: Tone): number {
-  const { beeps, gaps, pause, volume } = PATTERNS[tone];
+function playCycle(ctx: AudioContext, tone: Tone, level: number): number {
+  const { beeps, gaps, pause } = PATTERNS[tone];
+  const volume = PATTERNS[tone].volume * level;
   let at = ctx.currentTime + 0.05;
   beeps.forEach((beep, i) => {
     const gain = ctx.createGain();
@@ -73,21 +79,26 @@ function playCycle(ctx: AudioContext, tone: Tone): number {
 export function startRingtone(tone: Tone): void {
   if (current === tone) return;
   stopRingtone();
+  // Settings > Notifications: the call ringtone can be switched off, the volume is shared with
+  // the message sound, and vibration is its own switch.
+  const { ringtoneEnabled, soundVolume, vibration } = useSettingsStore.getState();
+  current = tone;
+
+  if (tone === 'ring' && vibration && typeof navigator.vibrate === 'function') {
+    navigator.vibrate(VIBRATION_MS);
+  }
+  if (tone === 'ring' && !ringtoneEnabled) return;
+  if (soundVolume <= 0) return;
   const ctx = audioContext();
   if (!ctx) return;
-  current = tone;
   void ctx.resume().catch(() => undefined);
 
   const loop = (): void => {
     if (current !== tone) return;
-    const waitMs = playCycle(ctx, tone);
+    const waitMs = playCycle(ctx, tone, Math.min(1.5, soundVolume / DEFAULT_VOLUME));
     timer = setTimeout(loop, waitMs);
   };
   loop();
-
-  if (tone === 'ring' && typeof navigator.vibrate === 'function') {
-    navigator.vibrate(VIBRATION_MS);
-  }
 }
 
 export function stopRingtone(): void {

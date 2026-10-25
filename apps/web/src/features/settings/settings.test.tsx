@@ -11,7 +11,9 @@ const privacy = {
   last_seen: 'everyone',
   profile_photo: 'everyone',
   about: 'everyone',
+  groups_add: 'everyone',
   read_receipts: true,
+  ai_language: null,
 };
 
 describe('PrivacySettings', () => {
@@ -19,7 +21,7 @@ describe('PrivacySettings', () => {
     const api = fakeApi();
     api.call.mockImplementation((endpoint, args) =>
       Promise.resolve(
-        endpoint === ENDPOINTS.users.updatePrivacy
+        endpoint === ENDPOINTS.users.updateSettings
           ? { ...privacy, ...(args as { body: object }).body }
           : privacy,
       ),
@@ -30,15 +32,23 @@ describe('PrivacySettings', () => {
     const lastSeen = await screen.findByRole('combobox', { name: 'Last seen and online' });
     expect(lastSeen).toHaveValue('everyone');
     await userEvent.selectOptions(lastSeen, 'nobody');
-    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.users.updatePrivacy, {
+    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.users.updateSettings, {
       body: { last_seen: 'nobody' },
     });
     await waitFor(() => {
       expect(lastSeen).toHaveValue('nobody');
     });
 
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Who can add me to groups' }),
+      'nobody',
+    );
+    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.users.updateSettings, {
+      body: { groups_add: 'nobody' },
+    });
+
     await userEvent.click(screen.getByRole('switch', { name: 'Read receipts' }));
-    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.users.updatePrivacy, {
+    expect(api.call).toHaveBeenCalledWith(ENDPOINTS.users.updateSettings, {
       body: { read_receipts: false },
     });
   });
@@ -46,7 +56,7 @@ describe('PrivacySettings', () => {
   it('puts the old value back when saving fails', async () => {
     const api = fakeApi();
     api.call.mockImplementation((endpoint) =>
-      endpoint === ENDPOINTS.users.updatePrivacy
+      endpoint === ENDPOINTS.users.updateSettings
         ? Promise.reject(new Error('nope'))
         : Promise.resolve(privacy),
     );

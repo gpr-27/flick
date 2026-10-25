@@ -25,6 +25,8 @@ import { useUnreadIndicators } from '@/features/notifications/useUnreadIndicator
 import { useOpenPendingConversation } from '@/features/notifications/useOpenPendingConversation';
 import { PeoplePage } from '@/features/directory/PeoplePage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
+import { PublicProfilePage } from '@/features/profile/PublicProfilePage';
+import { AppLock } from '@/features/settings/components/AppLock';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { useThemeStore } from '@/features/settings/useThemeStore';
@@ -105,6 +107,7 @@ const SignedInApp = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/people" element={<PeoplePage />} />
+          <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route path="/calls" element={<CallLogPage />} />
           <Route path="/join/:code" element={<InvitePage />} />
           <Route path="/call/:token" element={<CallLinkPage />} />
@@ -113,6 +116,7 @@ const SignedInApp = () => {
         </Routes>
       </div>
       <IncomingBanner />
+      <AppLock />
       <IncomingCallModal />
       <CallPermissionPrompt />
       <CallOverlay />

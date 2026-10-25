@@ -7,6 +7,7 @@ export const findUserById = (db: Db, id: string): Promise<User | undefined> =>
 
 export interface ProfileChanges {
   display_name?: string;
+  username?: string;
   about?: string | null;
   avatar_object_key?: string | null;
 }

@@ -10,17 +10,15 @@ import {
   type PushFailure,
   type PushState,
 } from './push';
-import { useNotificationPrefs } from './useNotificationPrefs';
 
-export const NotificationSettings = () => {
+/** The push on/off row (Settings > Notifications). The other notification choices are in settings. */
+export const PushToggle = () => {
   const [state, setState] = useState<PushState | 'loading'>('loading');
   // undefined = still loading; null = the server has no VAPID key.
   const [vapidKey, setVapidKey] = useState<string | null | undefined>(undefined);
   const [keyError, setKeyError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<PushFailure | null>(null);
-  const sound = useNotificationPrefs((s) => s.sound);
-  const setSound = useNotificationPrefs((s) => s.setSound);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,12 +75,8 @@ export const NotificationSettings = () => {
   const ready = state !== 'loading' && vapidKey !== undefined;
 
   return (
-    <section className="glass-card rounded-3xl p-6" aria-labelledby="notif-title">
-      <h2 id="notif-title" className="font-display text-lg font-bold">
-        Notifications
-      </h2>
-
-      <label className="mt-4 flex items-center justify-between gap-4">
+    <div>
+      <label className="flex min-h-11 items-center justify-between gap-4">
         <span>
           <span className="block font-semibold">Push notifications</span>
           <span className="block text-sm text-base-content/60">
@@ -106,26 +100,6 @@ export const NotificationSettings = () => {
           {PUSH_MESSAGES[message]}
         </p>
       )}
-
-      <label className="mt-5 flex items-center justify-between gap-4">
-        <span>
-          <span className="block font-semibold">Message sound</span>
-          <span className="block text-sm text-base-content/60">
-            A soft sound when a message arrives in a chat you are not looking at. Muted chats stay
-            silent.
-          </span>
-        </span>
-        <input
-          type="checkbox"
-          className="toggle toggle-primary"
-          role="switch"
-          aria-label="Message sound"
-          checked={sound}
-          onChange={(e) => {
-            setSound(e.target.checked);
-          }}
-        />
-      </label>
-    </section>
+    </div>
   );
 };

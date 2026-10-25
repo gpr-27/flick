@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { ENDPOINTS } from '@chat/contracts';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { fakeApi, installFakeServices } from '../../../test/fakes';
@@ -58,7 +59,11 @@ describe('ProfilePage without a session user', () => {
 
   it('shows a loading status while the profile loads', () => {
     useSessionStore.setState({ user: null, status: 'booting', error: null });
-    render(<ProfilePage />);
+    render(
+      <MemoryRouter>
+        <ProfilePage />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
@@ -73,7 +78,11 @@ describe('ProfilePage without a session user', () => {
         return Promise.resolve();
       },
     });
-    render(<ProfilePage />);
+    render(
+      <MemoryRouter>
+        <ProfilePage />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole('alert')).toHaveTextContent("Can't reach the server.");
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(loads).toBe(1);

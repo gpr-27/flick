@@ -61,6 +61,8 @@ export interface UserSettingsTable {
   photo_privacy: Generated<PrivacyLevel>;
   about_privacy: Generated<PrivacyLevel>;
   groups_add_privacy: Generated<PrivacyLevel>;
+  /** Language Flick answers in; null = the language of the message. */
+  ai_language: string | null;
   read_receipts: Generated<boolean>;
 }
 

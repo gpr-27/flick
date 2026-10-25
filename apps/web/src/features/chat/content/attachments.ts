@@ -42,7 +42,8 @@ export interface AttachmentUrl {
 }
 
 /** The download URL of an attachment, or null while loading / if it failed. */
-export const useAttachmentUrl = (attachmentId: string): AttachmentUrl => {
+/** Pass `enabled = false` to wait (for example until the person taps "Download"). */
+export const useAttachmentUrl = (attachmentId: string, enabled = true): AttachmentUrl => {
   const [state, setState] = useState<{ id: string; url: string | null; failed: boolean }>({
     id: attachmentId,
     url: null,
@@ -50,6 +51,7 @@ export const useAttachmentUrl = (attachmentId: string): AttachmentUrl => {
   });
   const [tries, setTries] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     // The first load may use the cache; a reload (tries > 0) always asks for a new link.
     (tries > 0 ? refreshAttachmentUrl(attachmentId) : getAttachmentUrl(attachmentId))
@@ -62,7 +64,7 @@ export const useAttachmentUrl = (attachmentId: string): AttachmentUrl => {
     return () => {
       alive = false;
     };
-  }, [attachmentId, tries]);
+  }, [attachmentId, tries, enabled]);
   const fail = useCallback((): void => {
     setState({ id: attachmentId, url: null, failed: true });
   }, [attachmentId]);

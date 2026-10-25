@@ -108,7 +108,7 @@ export const SelfView = ({
         pos ? '' : 'right-3 top-16 sm:bottom-28 sm:right-4 sm:top-auto',
       )}
     >
-      {placeholder ?? (
+      {placeholder ? null : (
         <video
           ref={videoRef}
           autoPlay

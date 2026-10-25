@@ -46,6 +46,8 @@ export async function buildApp(deps: AppDeps) {
     origin: config.CORS_ORIGINS,
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    // Lets the web app read the file name of the data export from another origin.
+    exposedHeaders: ['content-disposition'],
   });
 
   // Counters live in Redis so the limit holds across API replicas. If Redis is down the

@@ -8,6 +8,8 @@ import { getTransport } from '@/lib/services';
 import type { ClientEvents, RealtimeTransport, Unsubscribe } from '@/lib/realtime';
 import { notify } from '@/components/ui/notify';
 import { useChatStore } from '@/features/chat/useChatStore';
+import { VIDEO_MAX_BITRATE } from '@/features/settings/policy';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import type { CallType, PeerSummary } from '@/types/domain';
 import { closeCallNotification } from './callNotifications';
 import { fetchIceServers } from './iceServers';
@@ -35,6 +37,16 @@ interface PendingCandidate {
   callId: string;
   candidate: RTCIceCandidateInit;
 }
+
+/** Settings > Calls, read once when a call starts. */
+const callSettings = () => {
+  const s = useSettingsStore.getState();
+  return {
+    audio: { noiseSuppression: s.noiseSuppression, echoCancellation: s.echoCancellation },
+    maxVideoBitrate: VIDEO_MAX_BITRATE[s.videoQuality],
+    cameraOff: s.cameraOffByDefault,
+  };
+};
 
 /** The contract's session description is only ever an offer or an answer. */
 const toSdp = (d: RTCSessionDescriptionInit): { type: 'offer' | 'answer'; sdp: string } => ({
@@ -192,7 +204,9 @@ export const useCallStore = create<CallState>()((set, get) => ({
 
   _createPeer: (iceServers) => {
     set({ _iceServers: iceServers });
-    const peer = new RTCPeerConnection({ iceServers });
+    // "Relay only" (Settings > Calls) hides this device's address from the other person.
+    const iceTransportPolicy = useSettingsStore.getState().relayOnly ? 'relay' : 'all';
+    const peer = new RTCPeerConnection({ iceServers, iceTransportPolicy });
 
     peer.onicecandidate = (event) => {
       if (!event.candidate) return;
@@ -331,7 +345,8 @@ export const useCallStore = create<CallState>()((set, get) => ({
     });
 
     try {
-      const stream = await getLocalMedia(type);
+      const prefs = callSettings();
+      const stream = await getLocalMedia(type, prefs.audio);
       if (get().callId !== callId) {
         // Hung up while the permission prompt was open.
         stream.getTracks().forEach((t) => {
@@ -356,9 +371,11 @@ export const useCallStore = create<CallState>()((set, get) => ({
         peer.addTransceiver('video', { direction: 'recvonly' });
       }
 
+      if (prefs.cameraOff) stream.getVideoTracks().forEach((t) => (t.enabled = false));
       set({
         localStream: stream,
         _peer: peer,
+        isCameraOff: prefs.cameraOff && stream.getVideoTracks().length > 0,
         audioInputId: trackDeviceId(stream.getAudioTracks()[0]),
         videoInputId: trackDeviceId(stream.getVideoTracks()[0]),
       });
@@ -366,7 +383,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
 
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
-      await capVideoSenders(peer);
+      await capVideoSenders(peer, prefs.maxVideoBitrate);
       if (peer.localDescription) {
         get()._emit('call_offer', {
           conversation_id: conversationId,
@@ -401,7 +418,8 @@ export const useCallStore = create<CallState>()((set, get) => ({
     }
 
     try {
-      const stream = await getLocalMedia(callType);
+      const prefs = callSettings();
+      const stream = await getLocalMedia(callType, prefs.audio);
       if (get().callId !== callId) {
         stream.getTracks().forEach((t) => {
           t.stop();
@@ -418,13 +436,18 @@ export const useCallStore = create<CallState>()((set, get) => ({
       }
 
       const peer = get()._createPeer(iceServers);
-      set({ _peer: peer, localStream: stream });
+      if (prefs.cameraOff) stream.getVideoTracks().forEach((t) => (t.enabled = false));
+      set({
+        _peer: peer,
+        localStream: stream,
+        isCameraOff: prefs.cameraOff && stream.getVideoTracks().length > 0,
+      });
 
       // Apply the caller's offer BEFORE attaching local tracks so addTrack
       // reuses the transceivers created from the offer (both directions sendrecv).
       await peer.setRemoteDescription(_incomingOffer);
       stream.getTracks().forEach((track) => peer.addTrack(track, stream));
-      await capVideoSenders(peer);
+      await capVideoSenders(peer, prefs.maxVideoBitrate);
 
       set({
         audioInputId: trackDeviceId(stream.getAudioTracks()[0]),
@@ -609,7 +632,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
       const sender = _peer?.getSenders().find((s) => s.track?.kind === 'video');
       if (sender) {
         await sender.replaceTrack(newTrack);
-        await capVideoBitrate(sender);
+        await capVideoSender(sender, callSettings().maxVideoBitrate);
       }
       localStream.getVideoTracks().forEach((t) => {
         localStream.removeTrack(t);
@@ -624,15 +647,19 @@ export const useCallStore = create<CallState>()((set, get) => ({
   },
 }));
 
-/** Every video sender on this connection gets the bitrate cap. Never fails the call over it. */
-async function capVideoSenders(peer: RTCPeerConnection): Promise<void> {
+/** One video sender gets the bitrate cap (Settings > Calls). Never fails the call over it. */
+async function capVideoSender(sender: RTCRtpSender, maxBitrate: number): Promise<void> {
+  try {
+    await capVideoBitrate(sender, maxBitrate);
+  } catch (error) {
+    logger.warn('could not cap video bitrate:', describeError(error));
+  }
+}
+
+/** Every video sender on this connection gets the bitrate cap. */
+async function capVideoSenders(peer: RTCPeerConnection, maxBitrate: number): Promise<void> {
   for (const sender of peer.getSenders()) {
-    if (sender.track?.kind !== 'video') continue;
-    try {
-      await capVideoBitrate(sender);
-    } catch (error) {
-      logger.warn('could not cap video bitrate:', describeError(error));
-    }
+    if (sender.track?.kind === 'video') await capVideoSender(sender, maxBitrate);
   }
 }
 

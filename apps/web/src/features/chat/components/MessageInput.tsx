@@ -58,6 +58,8 @@ import { ScheduleDialog } from '@/features/scheduled/ScheduleDialog';
 import { MentionList } from '../../organise/MentionViews';
 import { MENTION_LIST_ID, mentionOptionId, useMentionAutocomplete } from '../../organise/mentions';
 import { useDraftStore } from '../../organise/drafts';
+import { enterAction } from '../../settings/policy';
+import { useSettingsStore } from '../../settings/useSettingsStore';
 import { previewContent } from '../content/registry';
 import { conversationTitle } from '../conversationView';
 import { isFlickBot } from '@/features/ai/isFlickBot';
@@ -209,6 +211,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
 
   const myId = useSessionStore((s) => s.user?.id);
   const notifyTyping = useChatStore((s) => s.notifyTyping);
+  const enterSends = useSettingsStore((s) => s.enterSends);
   const notifyStopTyping = useChatStore((s) => s.notifyStopTyping);
   const editMessage = useChatStore((s) => s.editMessage);
   const replyingTo = useChatStore((s) => s.replyingTo);
@@ -505,8 +508,17 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       format(shortcut);
       return;
     }
-    // Enter sends, Shift+Enter makes a new line (not while an IME is still composing a word).
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+    // Settings > Chats > "Enter sends": Enter sends and Shift+Enter makes a new line; with it off,
+    // Enter makes a new line and only Ctrl/Cmd + Enter sends. (Not while an IME is composing.)
+    if (
+      enterAction(enterSends, {
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey,
+        isComposing: e.nativeEvent.isComposing,
+      }) === 'send'
+    ) {
       e.preventDefault();
       formRef.current?.requestSubmit();
       return;

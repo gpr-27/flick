@@ -19,23 +19,59 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Apply the saved (or OS-preferred) theme before first paint to avoid a flash.
-         Kept in sync with src/features/settings/useThemeStore.ts. -->
+    <!-- Apply the saved appearance (Settings > Appearance) before first paint to avoid a flash.
+         Kept in sync with src/features/settings/appearance.ts (a test compares the two). -->
     <script>
       (function () {
         try {
-          var saved = localStorage.getItem('chat-theme');
-          var mode =
-            saved === 'light' || saved === 'dark'
-              ? saved
-              : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light';
-          var theme = mode === 'dark' ? 'pastel-night' : 'pastel-glass';
-          document.documentElement.setAttribute('data-theme', theme);
-          document.documentElement.style.colorScheme = mode;
+          var saved = {};
+          try {
+            saved = JSON.parse(localStorage.getItem('flick.settings.v1') || '{}').state || {};
+          } catch (e) {}
+          var media = function (q) {
+            return !!(window.matchMedia && window.matchMedia(q).matches);
+          };
+          var theme = saved.theme || localStorage.getItem('chat-theme');
+          var dark =
+            theme === 'dark' || (theme !== 'light' && media('(prefers-color-scheme: dark)'));
+          var root = document.documentElement;
+          root.setAttribute('data-theme', dark ? 'pastel-night' : 'pastel-glass');
+          root.style.colorScheme = dark ? 'dark' : 'light';
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', mode === 'dark' ? '#14111F' : '#F4F3FA');
+          if (meta) meta.setAttribute('content', dark ? '#14111F' : '#F4F3FA');
+          var accents = {
+            blue: '217 91% 55%',
+            green: '152 60% 38%',
+            orange: '24 90% 48%',
+            pink: '330 75% 55%',
+            teal: '175 75% 33%',
+          };
+          if (accents[saved.accent]) {
+            root.style.setProperty('--p', accents[saved.accent]);
+            root.style.setProperty('--pc', '0 0% 100%');
+          }
+          var families = {
+            system: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+            serif: "Georgia, 'Times New Roman', serif",
+            mono: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
+          };
+          if (families[saved.fontFamily]) {
+            root.style.setProperty('--app-font', families[saved.fontFamily]);
+            root.style.setProperty('--display-font', families[saved.fontFamily]);
+          }
+          var sizes = { small: 14, large: 18, xlarge: 20 };
+          if (sizes[saved.fontSize]) root.style.fontSize = sizes[saved.fontSize] + 'px';
+          root.setAttribute(
+            'data-density',
+            saved.density === 'compact' ? 'compact' : 'comfortable',
+          );
+          root.setAttribute('data-corners', saved.corners === 'sharp' ? 'sharp' : 'rounded');
+          root.setAttribute(
+            'data-motion',
+            saved.reduceMotion === true || media('(prefers-reduced-motion: reduce)')
+              ? 'reduce'
+              : 'full',
+          );
         } catch (e) {}
       })();
     </script>

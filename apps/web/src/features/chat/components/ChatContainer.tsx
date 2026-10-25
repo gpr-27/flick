@@ -23,6 +23,7 @@ import { useIsHidden } from '../../organise/lock';
 import { toggleStar, usePinsStore } from '../../organise/messageActions';
 import { PinnedBar } from '../../organise/PinnedBar';
 import { wallpaperStyle } from '../../organise/wallpapers';
+import { useSettingsStore } from '../../settings/useSettingsStore';
 import { buildRows, firstUnreadKey, groupPosition, rowStatus, type ThreadRow } from '../threadRows';
 import { useChatStore, userName, type Activity } from '../useChatStore';
 import { ChatHeader } from './ChatHeader';
@@ -144,7 +145,8 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   const setReplyingTo = useChatStore((s) => s.setReplyingTo);
   const setEditing = useChatStore((s) => s.setEditing);
 
-  const wallpaper = wallpaperStyle(conversation.prefs.wallpaper);
+  const defaultWallpaper = useSettingsStore((s) => s.defaultWallpaper);
+  const wallpaper = wallpaperStyle(conversation.prefs.wallpaper ?? defaultWallpaper);
   const isGroup = conversation.type === 'group';
   const title = conversationTitle(conversation);
   const messages = thread?.messages;

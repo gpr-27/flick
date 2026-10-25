@@ -27,18 +27,23 @@ export const mediaErrorMessage = (error: unknown): string => {
   }
 };
 
-/**
- * Acquire local media. A video call on a device without a usable camera falls
- * back to audio-only so the call still connects (and still RECEIVES video).
- */
+/** The microphone choices from Settings > Calls. */
+export interface AudioOptions {
+  noiseSuppression: boolean;
+  echoCancellation: boolean;
+}
+
+const DEFAULT_AUDIO: AudioOptions = { noiseSuppression: true, echoCancellation: true };
+
 // Voice quality: echo cancellation stops the other person hearing themselves, noise suppression
 // removes background noise, auto gain keeps quiet and loud speakers at a similar level. Browsers
-// apply these by default only sometimes, so they are asked for explicitly.
-const VOICE: MediaTrackConstraints = {
-  echoCancellation: true,
-  noiseSuppression: true,
+// apply these by default only sometimes, so they are asked for explicitly. Noise suppression and
+// echo cancellation follow Settings > Calls.
+const voiceConstraints = (audio: AudioOptions): MediaTrackConstraints => ({
+  echoCancellation: audio.echoCancellation,
+  noiseSuppression: audio.noiseSuppression,
   autoGainControl: true,
-};
+});
 
 // A live call needs a picture that moves smoothly more than a sharp one. Asking the camera for
 // 720p at 30 frames per second (at most) keeps the phone's camera and encoder within budget; the
@@ -49,16 +54,24 @@ const CAMERA: MediaTrackConstraints = {
   frameRate: { ideal: 24, max: 30 },
 };
 
-export const getLocalMedia = async (type: CallType): Promise<MediaStream> => {
+/**
+ * Acquire local media. A video call on a device without a usable camera falls
+ * back to audio-only so the call still connects (and still RECEIVES video).
+ */
+export const getLocalMedia = async (
+  type: CallType,
+  audio: AudioOptions = DEFAULT_AUDIO,
+): Promise<MediaStream> => {
+  const voice = voiceConstraints(audio);
   try {
     return await navigator.mediaDevices.getUserMedia({
-      audio: VOICE,
+      audio: voice,
       video: type === 'video' ? CAMERA : false,
     });
   } catch (error) {
     const name = errorName(error);
     if (type !== 'video' || name === 'NotAllowedError' || name === 'SecurityError') throw error;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: VOICE, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: voice, video: false });
     notify.info('No camera available — joining with audio only');
     return stream;
   }
@@ -71,16 +84,38 @@ export const describeError = (error: unknown): string =>
  * Caps how much video the sender pushes. Without a cap a weak connection makes the picture freeze
  * (the browser keeps the resolution and drops frames). With a cap it lowers the picture quality
  * first, which keeps the call moving. 1.2 Mbps is a clear 720p picture; audio is always kept.
+ * Settings > Calls can choose a lower or higher cap.
  */
 export const VIDEO_MAX_BITRATE = 1_200_000;
 
-export async function capVideoBitrate(sender: RTCRtpSender): Promise<void> {
+export async function capVideoBitrate(
+  sender: RTCRtpSender,
+  maxBitrate: number = VIDEO_MAX_BITRATE,
+): Promise<void> {
   const params = sender.getParameters();
   const encodings = params.encodings.length > 0 ? params.encodings : [{}];
   params.encodings = encodings.map((e) => ({
     ...e,
-    maxBitrate: VIDEO_MAX_BITRATE,
+    maxBitrate,
   }));
   params.degradationPreference = 'maintain-framerate';
   await sender.setParameters(params);
 }
+
+/**
+ * Limits how much bandwidth every outgoing video may use (bits per second). A browser that does
+ * not allow it keeps its own default.
+ */
+export const limitVideoBitrate = async (
+  peer: Pick<RTCPeerConnection, 'getSenders'>,
+  maxBitrate: number,
+): Promise<void> => {
+  for (const sender of peer.getSenders()) {
+    if (sender.track?.kind !== 'video') continue;
+    try {
+      await capVideoBitrate(sender, maxBitrate);
+    } catch {
+      // not supported yet at this point of the call: the default bitrate is used
+    }
+  }
+};

@@ -12,6 +12,9 @@ import { LinkPreviewCard } from '@/features/content/LinkPreviewCard';
 import { firstUrl } from '@/features/content/urls';
 import { PollView } from '@/features/content/polls/PollView';
 import { ViewOnce } from '@/features/content/ViewOnce';
+import { TapToDownload } from '@/features/settings/MediaGate';
+import { useMediaGate } from '@/features/settings/useMediaGate';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { VoicePlayer } from '@/features/content/voice/VoicePlayer';
 import { RichText } from '@/features/content/richText/RichText';
 import { MentionText } from '../../organise/MentionViews';
@@ -55,6 +58,7 @@ const TextView = ({ content }: { content: Of<'text'> }) => {
     () => new Set(['flick', ...Object.values(users).map((u) => u.username)]),
     [users],
   );
+  const linkPreviews = useSettingsStore((s) => s.linkPreviews);
   const url = firstUrl(content.text);
   const long = isLongText(content.text);
   const [expanded, setExpanded] = useState(false);
@@ -77,7 +81,7 @@ const TextView = ({ content }: { content: Of<'text'> }) => {
           {expanded ? 'Show less' : 'Read more'}
         </button>
       )}
-      {url && <LinkPreviewCard url={url} />}
+      {url && linkPreviews && <LinkPreviewCard url={url} />}
     </>
   );
 };
@@ -90,11 +94,14 @@ const text: ContentRenderer<'text'> = {
 // ── image ─────────────────────────────────────────────────────────────────
 
 const ImageView = ({ content, context }: { content: Of<'image'>; context: ContentContext }) => {
-  const { url, failed, fail, reload } = useAttachmentUrl(content.attachment_id);
+  const gate = useMediaGate();
+  const { url, failed, fail, reload } = useAttachmentUrl(content.attachment_id, gate.go);
   const box = { aspectRatio: `${content.width} / ${content.height}` };
   return (
     <div>
-      {url ? (
+      {!gate.go ? (
+        <TapToDownload noun="photo" onClick={gate.load} />
+      ) : url ? (
         <button
           type="button"
           onClick={() => {

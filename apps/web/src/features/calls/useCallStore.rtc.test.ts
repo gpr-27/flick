@@ -15,6 +15,7 @@ import {
   type FakeTransport,
   installFakeServices,
 } from '../../../test/fakes';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { RECONNECT_GRACE_MS, bindCallRealtime, useCallStore } from './useCallStore';
 
 // ── fake WebRTC / media ────────────────────────────────────────────────────
@@ -149,6 +150,8 @@ const answer = (callId: string) => {
   return flush();
 };
 
+const like = (v: Record<string, unknown>): never => expect.objectContaining(v) as never;
+
 // ── tests ──────────────────────────────────────────────────────────────────
 
 describe('ICE servers', () => {
@@ -162,6 +165,69 @@ describe('ICE servers', () => {
     const { peer } = await startVideoCall();
     expect(peer.config.iceServers).toEqual([...config.webrtc.iceServers]);
     expect(useCallStore.getState().callStatus).toBe('calling');
+  });
+});
+
+describe('Settings > Calls', () => {
+  beforeEach(() => {
+    useSettingsStore.getState().reset();
+  });
+
+  it('"Always relay calls" makes the peer connection relay-only', async () => {
+    const normal = await startVideoCall();
+    expect(normal.peer.config.iceTransportPolicy).toBe('all');
+    useCallStore.getState()._cleanup();
+    FakePeer.all = [];
+    useSettingsStore.getState().update({ relayOnly: true });
+    const relayed = await startVideoCall();
+    expect(relayed.peer.config.iceTransportPolicy).toBe('relay');
+  });
+
+  it('"Camera off by default" starts a video call with the camera off', async () => {
+    useSettingsStore.getState().update({ cameraOffByDefault: true });
+    await startVideoCall();
+    expect(camera.enabled).toBe(false);
+    expect(useCallStore.getState().isCameraOff).toBe(true);
+  });
+
+  it('the camera is on by default', async () => {
+    await startVideoCall();
+    expect(camera.enabled).toBe(true);
+    expect(useCallStore.getState().isCameraOff).toBe(false);
+  });
+
+  it('noise suppression and echo cancellation reach getUserMedia', async () => {
+    useSettingsStore.getState().update({ noiseSuppression: false, echoCancellation: false });
+    await startVideoCall();
+    expect(getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audio: like({ noiseSuppression: false, echoCancellation: false }),
+        video: expect.anything() as unknown,
+      }),
+    );
+  });
+
+  it('the video quality limits the outgoing bitrate', async () => {
+    useSettingsStore.getState().update({ videoQuality: 'low' });
+    const { peer } = await startVideoCall();
+    const params = { encodings: [{} as { maxBitrate?: number }] };
+    const sender = peer.transceivers.find((t) => t.sender.track?.kind === 'video')?.sender as
+      { getParameters?: () => unknown; setParameters?: (p: unknown) => Promise<void> } | undefined;
+    // The fake sender has no setParameters yet; give it one and start another call.
+    useCallStore.getState()._cleanup();
+    FakePeer.all = [];
+    const setParameters = vi.fn(() => Promise.resolve());
+    const original = FakePeer.prototype.addTrack;
+    FakePeer.prototype.addTrack = function (this: FakePeer, t: FakeTrack) {
+      const sent = original.call(this, t) as Record<string, unknown>;
+      sent.getParameters = () => params;
+      sent.setParameters = setParameters;
+      return sent as never;
+    };
+    await startVideoCall();
+    FakePeer.prototype.addTrack = original;
+    expect(sender).toBeDefined();
+    expect(setParameters).toHaveBeenCalledWith(like({ encodings: [{ maxBitrate: 400_000 }] }));
   });
 });
 
