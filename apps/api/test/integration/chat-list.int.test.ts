@@ -62,6 +62,19 @@ describe('DELETE /conversations/:id (delete for me)', () => {
     expect((await sync(b, id)).body.events).toHaveLength(2);
   });
 
+  it('starting a deleted direct chat again brings it back, empty, instead of "not found"', async () => {
+    const { a, b, id } = await chat();
+    await say(id, b, 'old news');
+    await t.call(a, 'DELETE', `/conversations/${id}`);
+    expect(await ids(a)).not.toContain(id);
+
+    const reopened = await t.call(a, 'POST', '/conversations/direct', { user_id: b });
+    expect(reopened.status).toBe(200);
+    expect(reopened.body.id).toBe(id);
+    expect(await ids(a)).toContain(id);
+    expect(await history(a, id)).toEqual([]);
+  });
+
   it('brings the chat back with only the newer messages', async () => {
     const { a, b, id } = await chat();
     await say(id, b, 'old news');

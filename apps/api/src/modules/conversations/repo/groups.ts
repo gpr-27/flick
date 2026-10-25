@@ -59,6 +59,15 @@ export async function openDirect(db: Db, userId: string, otherId: string): Promi
   }
 
   const { conversationId, created } = await findOrCreateDirectConversation(db, userId, otherId);
+  // A chat you deleted for yourself is still the same chat: starting it again brings it back to
+  // your list. Its old messages stay hidden (they were cleared), so it opens empty.
+  await db
+    .updateTable('conversation_members')
+    .set({ deleted_at: null })
+    .where('conversation_id', '=', conversationId)
+    .where('user_id', '=', userId)
+    .where('deleted_at', 'is not', null)
+    .execute();
   if (created) {
     // The helper owns its transaction, so this event is a separate write. If it were lost the
     // other user would still learn of the chat from the first message.
