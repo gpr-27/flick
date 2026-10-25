@@ -19,6 +19,7 @@ vi.mock('@clerk/clerk-react', () => ({
   SignIn: () => <div>clerk-sign-in</div>,
   SignUp: () => <div>clerk-sign-up</div>,
   UserButton: () => <button type="button">Account</button>,
+  useUser: () => ({ isLoaded: true, user: null }),
   useAuth: () => ({ getToken: () => Promise.resolve('tok'), signOut: clerk.signOut }),
 }));
 

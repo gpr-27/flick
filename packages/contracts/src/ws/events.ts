@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Cursor, Emoji, Id, IsoDateTime, Seq } from '../common.js';
+import { Cursor, Emoji, Id, IsoDateTime, Seq, UserSummary } from '../common.js';
 import { MessageContent } from '../content.js';
 import { ErrorBody } from '../errors.js';
 import { LIMITS } from '../limits.js';
@@ -147,6 +147,16 @@ export const PinsChangedPayload = z.object({
   pinned: z.boolean(),
   actor_user_id: Id,
 });
+
+/**
+ * A person you share a conversation with changed their name, username or picture. It takes no seq,
+ * so sync does not replay it: a fresh load already has the current profile.
+ */
+export const UserUpdatedPayload = UserSummary.pick({
+  display_name: true,
+  username: true,
+  avatar_url: true,
+}).extend({ user_id: Id });
 
 /** Sync replays exactly the events the device would have seen live, in seq order. */
 export const SyncEvent = z.discriminatedUnion('type', [

@@ -8,6 +8,7 @@ import { AppToaster } from '@/components/ui';
 import { getTransport } from '@/lib/services';
 import { setClerkBridge } from '@/features/auth/authBridge';
 import { SignInPage } from '@/features/auth/components/SignInPage';
+import { useClerkProfileSync } from '@/features/auth/useClerkProfileSync';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CallOverlay } from '@/features/calls/components/CallOverlay';
 import { CallPermissionPrompt } from '@/features/calls/components/CallPermissionPrompt';
@@ -76,6 +77,7 @@ const SignedInApp = () => {
   }, [status]);
 
   useRealtimeBindings(userId);
+  useClerkProfileSync();
   useOpenPendingConversation();
   useUnreadIndicators();
   useAnswerFromNotification(status === 'authenticated');

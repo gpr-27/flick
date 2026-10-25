@@ -84,6 +84,19 @@ export function startChatSession(userId: string): Unsubscribe {
     transport.on('pins_changed', (change) => {
       usePinsStore.getState().applyChange(change);
     }),
+    transport.on('user_updated', (profile) => {
+      chat().userUpdated(profile);
+      // Another device of mine renamed me: keep my own record in step.
+      const session = useSessionStore.getState();
+      if (session.user?.id === profile.user_id) {
+        session.setUser({
+          ...session.user,
+          display_name: profile.display_name,
+          username: profile.username,
+          avatar_url: profile.avatar_url,
+        });
+      }
+    }),
     transport.on('conversation_updated', ({ conversation_id, conversation }) => {
       chat().conversationUpdated(conversation_id, conversation);
     }),

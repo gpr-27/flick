@@ -102,6 +102,18 @@ describe('broker events', () => {
     ).toBe(false);
   });
 
+  it('accepts a member profile change and needs the user id', () => {
+    const changed = {
+      ...meta(8),
+      type: 'conversation.member_profile_changed',
+      data: { user_id: BOB },
+    };
+    expect(TOPIC_SCHEMAS[TOPICS.CONVERSATION].safeParse(changed).success).toBe(true);
+    expect(TOPIC_SCHEMAS[TOPICS.CONVERSATION].safeParse({ ...changed, data: {} }).success).toBe(
+      false,
+    );
+  });
+
   it('caps fan-out batches', () => {
     const tooMany = Array.from({ length: LIMITS.FANOUT_BATCH_SIZE + 1 }, (_, i) => id(5000 + i));
     const batch = {

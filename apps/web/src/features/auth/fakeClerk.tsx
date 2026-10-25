@@ -45,6 +45,9 @@ export const useAuth = () => {
   };
 };
 
+/** The fake login has no Clerk account behind it, so there is no user object to update. */
+export const useUser = () => ({ isLoaded: true, user: null });
+
 export const ClerkLoading = () => null;
 export const SignedIn = ({ children }: { children: ReactNode }) =>
   useContext(UserContext) ? <>{children}</> : null;
