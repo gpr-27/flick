@@ -103,15 +103,15 @@ test('a file type the server does not accept is refused with a message, and can 
 }) => {
   const { alice } = await openPair(browser);
   await attachFile(alice.page, 'File', {
-    name: 'notes.txt',
-    mimeType: 'text/plain',
-    buffer: Buffer.from('plain text is not on the allow list'),
+    name: 'tool.exe',
+    mimeType: 'application/x-msdownload',
+    buffer: Buffer.from('MZ programs are not on the allow list'),
   });
   await alice.page.getByRole('button', { name: 'Send message' }).click();
   await expect(alice.page.getByRole('alert')).toBeVisible();
   await expect(alice.page.getByRole('button', { name: 'Retry' })).toBeVisible();
   // Nothing was sent, and taking the file out clears the message.
-  await expect(alice.page.getByRole('button', { name: 'Download notes.txt' })).toHaveCount(0);
+  await expect(alice.page.getByRole('button', { name: 'Download tool.exe' })).toHaveCount(0);
   await alice.page.getByRole('button', { name: 'Remove attachment' }).click();
   await expect(alice.page.getByRole('alert')).toHaveCount(0);
 });
