@@ -18,6 +18,7 @@ const MESSAGE_TYPES = [
   'audio/aac',
   'audio/wav',
   'application/pdf',
+  'text/plain',
   'application/zip',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

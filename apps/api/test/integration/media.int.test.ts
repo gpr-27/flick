@@ -182,6 +182,48 @@ describe('presigned upload', () => {
     expect(row.status).toBe('deleted');
   });
 
+  it('accepts a UTF-8 text file declared as text/plain', async () => {
+    const text = Buffer.from('hello, wörld \u2713\nsecond line\n', 'utf8');
+    const p = (
+      await presign(alice, {
+        purpose: 'message',
+        mime: 'text/plain',
+        size: text.length,
+        file_name: 'notes.txt',
+      })
+    ).json<Presigned>();
+    expect((await upload(p, text)).status).toBe(204);
+    const res = await complete(alice, p.attachment_id);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ mime: string; status: string }>()).toMatchObject({
+      mime: 'text/plain',
+      status: 'ready',
+    });
+  });
+
+  it('refuses binary data, invalid UTF-8 and disguised files declared as text/plain', async () => {
+    const bad = [
+      Buffer.from([0x68, 0x69, 0x00, 0x01, 0x02, 0x03]), // NUL bytes
+      Buffer.from([0x68, 0x69, 0xff, 0xfe, 0xfd]), // not UTF-8
+      await png(), // has a signature of another type
+    ];
+    for (const bytes of bad) {
+      const p = (
+        await presign(alice, { purpose: 'message', mime: 'text/plain', size: bytes.length })
+      ).json<Presigned>();
+      expect((await upload(p, bytes)).status).toBe(204);
+      const res = await complete(alice, p.attachment_id);
+      expect(res.statusCode).toBe(415);
+      expect(await objectExists(`messages/${alice}/${p.attachment_id}`)).toBe(false);
+    }
+  });
+
+  it('does not allow text/plain for avatars', async () => {
+    expect(
+      (await presign(alice, { purpose: 'avatar', mime: 'text/plain', size: 10 })).statusCode,
+    ).toBe(415);
+  });
+
   it('refuses types that are not allowed and sizes over the purpose limit', async () => {
     expect(
       (await presign(alice, { purpose: 'message', mime: 'application/x-msdownload', size: 10 }))

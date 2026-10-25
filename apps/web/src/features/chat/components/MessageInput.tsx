@@ -454,7 +454,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     }
     const attachmentId = await uploadAttachment(file, {
       purpose: 'message',
-      mime: file.type || 'application/octet-stream',
+      mime: file.type || (/\.txt$/i.test(file.name) ? 'text/plain' : 'application/octet-stream'),
       fileName: file.name,
       onProgress,
     });
