@@ -170,6 +170,13 @@ interface Attachment {
   previewUrl: string | null;
 }
 
+/** An uploaded file waiting for its caption: builds the message to send. */
+type Prepared = (extras: {
+  caption?: string;
+  reply_to?: string;
+  view_once?: boolean;
+}) => MessageContent;
+
 /** A table that was pasted as markdown: where it went, so "Undo" can put the plain text back. */
 interface PastedTable {
   start: number;
@@ -189,8 +196,18 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   // The unsent draft of this chat (MessageInput remounts per chat, see ChatContainer).
   const [text, setText] = useState(() => useDraftStore.getState().drafts[conversation.id] ?? '');
   const [attachment, setAttachment] = useState<Attachment | null>(null);
-  const [uploading, setUploading] = useState(false);
+  // An attached file uploads at once, in the background, so Send is instant (or, if the upload is
+  // still running, sends the moment it finishes).
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'ready' | 'failed'>(
+    'idle',
+  );
+  const [sendQueued, setSendQueued] = useState(false);
+  const uploading = uploadStatus === 'uploading';
   const [progress, setProgress] = useState(0);
+  const uploadSeq = useRef(0); // answers from an older upload are ignored
+  const queuedSend = useRef<{ caption: string; replyTo?: string; viewOnce: boolean } | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  const preparedRef = useRef<Prepared | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [viewOnce, setViewOnce] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
@@ -302,13 +319,14 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
 
   /** Every way of getting a file in (picker, camera, paste, drop) ends up here. */
   const attachFile = (file: File): void => {
-    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
-    setUploadError(null);
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+    previewUrlRef.current = previewUrl;
+    queuedSend.current = null;
+    setSendQueued(false);
     setViewOnce(false);
-    setAttachment({
-      file,
-      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-    });
+    setAttachment({ file, previewUrl });
+    startUpload(file);
   };
 
   const pickFile = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -374,7 +392,12 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   };
 
   const removeAttachment = (): void => {
-    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    previewUrlRef.current = null;
+    uploadSeq.current += 1; // whatever the running upload answers is dropped
+    queuedSend.current = null;
+    setSendQueued(false);
+    setUploadStatus('idle');
     setAttachment(null);
     setUploadError(null);
     setViewOnce(false);
@@ -390,14 +413,8 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     setReplyingTo(null);
   };
 
-  /** Upload first, then queue the message: the outbox only ever holds sendable messages. */
-  const sendAttachment = async (userId: string, file: File, caption: string): Promise<void> => {
-    const extras = {
-      ...(caption ? { caption } : {}),
-      ...(replyingTo ? { reply_to: replyingTo.message_id } : {}),
-    };
-    const onProgress = setProgress;
-    const viewOnceExtra = viewOnce ? { view_once: true } : {};
+  /** Compress (images) and upload the file; the result builds the message once the caption is known. */
+  const prepareUpload = async (file: File, onProgress: (f: number) => void): Promise<Prepared> => {
     if (file.type.startsWith('image/')) {
       const image = await prepareImage(file);
       const attachmentId = await uploadAttachment(image.blob, {
@@ -406,15 +423,17 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         fileName: file.name,
         onProgress,
       });
-      sendMessage(userId, id, {
+      return (x) => ({
         type: 'image',
         attachment_id: attachmentId,
         width: image.width,
         height: image.height,
-        ...extras,
-        ...viewOnceExtra,
+        ...(x.caption ? { caption: x.caption } : {}),
+        ...(x.reply_to ? { reply_to: x.reply_to } : {}),
+        ...(x.view_once ? { view_once: true } : {}),
       });
-    } else if (file.type.startsWith('video/')) {
+    }
+    if (file.type.startsWith('video/')) {
       const meta = await readVideoMeta(file);
       const attachmentId = await uploadAttachment(file, {
         purpose: 'message',
@@ -422,30 +441,77 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         fileName: file.name,
         onProgress,
       });
-      sendMessage(userId, id, {
+      return (x) => ({
         type: 'video',
         attachment_id: attachmentId,
         width: meta.width,
         height: meta.height,
         duration_ms: meta.durationMs,
-        ...extras,
-        ...viewOnceExtra,
-      });
-    } else {
-      const attachmentId = await uploadAttachment(file, {
-        purpose: 'message',
-        mime: file.type || 'application/octet-stream',
-        fileName: file.name,
-        onProgress,
-      });
-      sendMessage(userId, id, {
-        type: 'file',
-        attachment_id: attachmentId,
-        file_name: file.name,
-        size: file.size,
-        ...extras,
+        ...(x.caption ? { caption: x.caption } : {}),
+        ...(x.reply_to ? { reply_to: x.reply_to } : {}),
+        ...(x.view_once ? { view_once: true } : {}),
       });
     }
+    const attachmentId = await uploadAttachment(file, {
+      purpose: 'message',
+      mime: file.type || 'application/octet-stream',
+      fileName: file.name,
+      onProgress,
+    });
+    return (x) => ({
+      type: 'file',
+      attachment_id: attachmentId,
+      file_name: file.name,
+      size: file.size,
+      ...(x.caption ? { caption: x.caption } : {}),
+      ...(x.reply_to ? { reply_to: x.reply_to } : {}),
+    });
+  };
+
+  /** Queue the finished upload as a message, then clear the composer. */
+  const finishSend = (
+    prepared: Prepared,
+    q: { caption: string; replyTo?: string; viewOnce: boolean },
+  ): void => {
+    if (!myId) return;
+    sendMessage(
+      myId,
+      id,
+      prepared({
+        caption: q.caption,
+        ...(q.replyTo ? { reply_to: q.replyTo } : {}),
+        view_once: q.viewOnce,
+      }),
+    );
+    setText('');
+    setReplyingTo(null);
+    removeAttachment();
+  };
+
+  /** Starts uploading now. If Send was already pressed, the message goes out when this finishes. */
+  const startUpload = (file: File): void => {
+    uploadSeq.current += 1;
+    const seq = uploadSeq.current;
+    setUploadStatus('uploading');
+    setProgress(0);
+    setUploadError(null);
+    prepareUpload(file, (fraction) => {
+      if (uploadSeq.current === seq) setProgress(fraction);
+    })
+      .then((prepared) => {
+        if (uploadSeq.current !== seq) return;
+        preparedRef.current = prepared;
+        setUploadStatus('ready');
+        const queued = queuedSend.current;
+        if (queued) finishSend(prepared, queued);
+      })
+      .catch((error: unknown) => {
+        if (uploadSeq.current !== seq) return;
+        queuedSend.current = null;
+        setSendQueued(false);
+        setUploadStatus('failed');
+        setUploadError(getErrorMessage(error, "Couldn't upload the file."));
+      });
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
@@ -457,27 +523,25 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       setText('');
       return;
     }
-    if (uploading || !myId || (!trimmed && !attachment)) return;
+    if (sendQueued || !myId || (!trimmed && !attachment)) return;
 
     clearTimeout(typingTimerRef.current);
     notifyStopTyping(id);
 
     if (attachment) {
-      setUploading(true);
-      setProgress(0);
-      setUploadError(null);
-      sendAttachment(myId, attachment.file, trimmed)
-        .then(() => {
-          setText('');
-          removeAttachment();
-          setReplyingTo(null);
-        })
-        .catch((error: unknown) => {
-          setUploadError(getErrorMessage(error, "Couldn't upload the file."));
-        })
-        .finally(() => {
-          setUploading(false);
-        });
+      const q = {
+        caption: trimmed,
+        ...(replyingTo ? { replyTo: replyingTo.message_id } : {}),
+        viewOnce,
+      };
+      if (uploadStatus === 'ready' && preparedRef.current) {
+        finishSend(preparedRef.current, q); // already uploaded: sent instantly
+      } else {
+        // Still uploading (or a retry after a failure): send as soon as the upload is done.
+        queuedSend.current = q;
+        setSendQueued(true);
+        if (uploadStatus === 'failed') startUpload(attachment.file);
+      }
     } else {
       // Queued (and shown as pending) at once; the outbox sends it when it can.
       const mentions = mention.idsIn(trimmed);
@@ -616,7 +680,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
 
   const counter = counterState(text.length);
   const sendDisabled =
-    uploading || Boolean(counter?.over) || (!text.trim() && (!attachment || Boolean(editing)));
+    sendQueued || Boolean(counter?.over) || (!text.trim() && (!attachment || Boolean(editing)));
   // On a phone the bar has room for the box only if it shows one of microphone / Send, not both:
   // the microphone while there is nothing to send, Send once there is.
   const hasContent = text.trim() !== '' || attachment !== null || Boolean(editing);
@@ -693,12 +757,24 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
               <span className="chip">{attachment.file.name}</span>
             )}
             {uploading && (
-              <progress
-                className="progress progress-primary mt-1 block w-20"
-                value={Math.round(progress * 100)}
-                max={100}
-                aria-label="Upload progress"
-              />
+              <>
+                <progress
+                  className="progress progress-primary mt-1 block w-20"
+                  value={Math.round(progress * 100)}
+                  max={100}
+                  aria-label="Upload progress"
+                />
+                <span role="status" className="mt-0.5 block text-xs text-base-content/70">
+                  {sendQueued
+                    ? 'Sending when ready…'
+                    : `Uploading ${String(Math.round(progress * 100))}%`}
+                </span>
+              </>
+            )}
+            {uploadStatus === 'ready' && !sendQueued && (
+              <span role="status" className="mt-1 block text-xs text-success">
+                Ready to send
+              </span>
             )}
             <button
               type="button"

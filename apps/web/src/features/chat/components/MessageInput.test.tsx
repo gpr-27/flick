@@ -8,6 +8,7 @@ import { useDraftStore } from '@/features/organise/drafts';
 import { installFakeServices, makeConversation, ME } from '../../../../test/fakes';
 import * as outbox from '../outbox/useOutboxStore';
 import { useChatStore } from '../useChatStore';
+import * as uploadModule from '../upload';
 import { MessageInput } from './MessageInput';
 
 vi.mock('@/features/content/camera/CameraCapture', () => ({
@@ -30,6 +31,10 @@ vi.mock('@/features/content/camera/CameraCapture', () => ({
       </button>
     </div>
   ),
+}));
+
+vi.mock('@/features/content/videoMeta', () => ({
+  readVideoMeta: () => Promise.resolve({ width: 640, height: 360, durationMs: 4000 }),
 }));
 
 const conv = makeConversation();
@@ -208,5 +213,96 @@ describe('formatting toolbar', () => {
     const preview = screen.getByRole('region', { name: 'Message preview' });
     expect(within(preview).getByRole('heading', { name: 'Title' })).toBeInTheDocument();
     expect(preview).not.toHaveTextContent('#');
+  });
+});
+
+describe('files upload as soon as they are attached', () => {
+  const video = () => new File(['v'], 'clip.mp4', { type: 'video/mp4' });
+  const attachVideo = (field: HTMLElement) =>
+    fireEvent.drop(field.closest('form')!, {
+      dataTransfer: { files: [video()], types: ['Files'] },
+    });
+
+  it('uploads before Send is pressed, then Send sends at once without uploading again', async () => {
+    const user = userEvent.setup();
+    const upload = vi.spyOn(uploadModule, 'uploadAttachment').mockResolvedValue('att-1');
+    const { send, field } = setup();
+    attachVideo(field);
+    expect(await screen.findByText('Ready to send')).toBeInTheDocument();
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
+
+    await user.type(field, 'look at this');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(ME, conv.id, {
+      type: 'video',
+      attachment_id: 'att-1',
+      width: 640,
+      height: 360,
+      duration_ms: 4000,
+      caption: 'look at this',
+    });
+    expect(upload).toHaveBeenCalledTimes(1); // not uploaded a second time
+    expect(screen.queryByText('clip.mp4')).not.toBeInTheDocument();
+  });
+
+  it('Send while the upload is still running sends by itself when it finishes', async () => {
+    const user = userEvent.setup();
+    let finish: (id: string) => void = () => undefined;
+    vi.spyOn(uploadModule, 'uploadAttachment').mockReturnValue(
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { send, field } = setup();
+    attachVideo(field);
+    await user.click(await screen.findByRole('button', { name: 'Send message' }));
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.getByText('Sending when ready…')).toBeInTheDocument();
+
+    finish('att-2');
+    await vi.waitFor(() => {
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+    expect(send.mock.calls[0]?.[2]).toMatchObject({ type: 'video', attachment_id: 'att-2' });
+    expect(screen.queryByText('clip.mp4')).not.toBeInTheDocument();
+  });
+
+  it('a failed upload shows the error, and Send tries again and sends when it works', async () => {
+    const user = userEvent.setup();
+    const upload = vi
+      .spyOn(uploadModule, 'uploadAttachment')
+      .mockRejectedValueOnce(new Error('Upload failed. Check your connection.'))
+      .mockResolvedValueOnce('att-3');
+    const { send, field } = setup();
+    attachVideo(field);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/upload/i);
+    expect(send).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => {
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0]?.[2]).toMatchObject({ attachment_id: 'att-3' });
+  });
+
+  it('removing the file while it uploads drops it: nothing is sent', async () => {
+    const user = userEvent.setup();
+    let finish: (id: string) => void = () => undefined;
+    vi.spyOn(uploadModule, 'uploadAttachment').mockReturnValue(
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { send, field } = setup();
+    attachVideo(field);
+    await user.click(await screen.findByRole('button', { name: 'Send message' }));
+    await user.click(screen.getByRole('button', { name: 'Remove attachment' }));
+    finish('att-4');
+    await Promise.resolve();
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.queryByText('Sending when ready…')).not.toBeInTheDocument();
   });
 });
