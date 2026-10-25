@@ -91,7 +91,7 @@ export const MessageMenu = (props: MessageMenuProps) => {
       open
       onClose={onClose}
       label="Message actions"
-      overlayClassName={cn('items-end p-0 sm:items-center sm:p-4', !ready && 'pointer-events-none')}
+      overlayClassName={cn('max-sm:items-end sm:p-4', !ready && 'pointer-events-none')}
       className="w-full sm:w-80"
     >
       <div className="glass-card flex flex-col gap-1 rounded-t-3xl border border-base-content/10 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl">

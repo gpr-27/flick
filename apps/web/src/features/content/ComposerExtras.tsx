@@ -11,6 +11,8 @@ import { VoiceComposer } from './voice/VoiceComposer';
 
 export interface ComposerExtrasProps {
   disabled: boolean;
+  /** Extra classes for the microphone button (the composer hides it on phones while Send shows). */
+  micClassName?: string | undefined;
   onSend: (content: MessageContent) => void;
   gifs: boolean;
   onGifsChange: (open: boolean) => void;
@@ -20,6 +22,7 @@ export interface ComposerExtrasProps {
 
 export const ComposerExtras = ({
   disabled,
+  micClassName,
   onSend,
   gifs,
   onGifsChange,
@@ -55,7 +58,7 @@ export const ComposerExtras = ({
       >
         <BarChart3 className="size-5" aria-hidden="true" />
       </button>
-      <VoiceComposer disabled={disabled} onSend={onSend} />
+      <VoiceComposer disabled={disabled} onSend={onSend} buttonClassName={micClassName} />
       {gifs && (
         <GifPicker
           onPick={(content) => {

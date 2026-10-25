@@ -25,6 +25,8 @@ export const UpdateBanner = () => {
 /**
  * Shown from the browser's own online/offline signal. It works even when the signed-in app has
  * not loaded (Clerk needs the network), which is when the realtime connection banner cannot show.
+ * It ignores pointer events: on a phone it sits over the chat header's back button, which must
+ * stay usable while offline.
  */
 export const OfflineNotice = () => {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -46,7 +48,7 @@ export const OfflineNotice = () => {
   return (
     <div
       role="status"
-      className="glass-card fixed inset-x-4 top-2 z-[65] mx-auto flex max-w-sm items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-error shadow-lg"
+      className="glass-card pointer-events-none fixed inset-x-4 top-2 z-[65] mx-auto flex max-w-sm items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-error shadow-lg"
     >
       <WifiOff className="size-4" aria-hidden="true" />
       You are offline. Flick will reconnect when you are back.

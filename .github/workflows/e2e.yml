@@ -1,6 +1,7 @@
 name: E2E
 
-# Browser tests: real Chromium against the API, worker and web app, with a fake login.
+# Browser tests: real Chromium against the API, worker and web app, with a fake login. Every
+# journey runs on both Playwright projects, `laptop` (1440x900) and `phone` (390x844, touch).
 # Not part of the default CI job because it is slower; it runs on pull requests and on main.
 on:
   push:
@@ -15,7 +16,7 @@ jobs:
   e2e:
     name: Playwright journeys
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:17-alpine
@@ -61,7 +62,9 @@ jobs:
             npx vite build --outDir "$RUNNER_TEMP/web-prod" --emptyOutDir
           ! grep -rq "flick.e2e_user" "$RUNNER_TEMP/web-prod"
         working-directory: apps/web
-      - run: npm run e2e
+      # Both projects in one run (one stack): the report lists every test as [laptop] or [phone].
+      - name: Run the journeys on laptop and phone
+        run: npm run e2e -- --project=laptop --project=phone
       - name: Upload report and logs
         if: failure()
         uses: actions/upload-artifact@v4

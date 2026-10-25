@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { bubble, createGroup, openChat, send, signIn, uniqueName } from './support';
+import { bubble, createGroup, openChat, openGroupInfo, send, signIn, uniqueName } from './support';
 
 // Journey (e): a group of three. A message reaches every member. After one member is removed,
 // that person no longer receives anything, while the others carry on.
@@ -20,7 +20,7 @@ test('group messages reach all members, and a removed member stops receiving', a
   }
 
   // Alice (the owner) removes Bob in the group info dialog.
-  await alice.page.getByRole('button', { name: 'Group info' }).click();
+  await openGroupInfo(alice.page);
   await alice.page.getByRole('button', { name: `Remove ${bob.name}` }).click();
   await expect(alice.page.getByRole('button', { name: `Remove ${bob.name}` })).toHaveCount(0);
   await alice.page.getByRole('button', { name: 'Close', exact: true }).click();

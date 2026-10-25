@@ -673,7 +673,14 @@ export const bindCallRealtime = (t: RealtimeTransport): Unsubscribe => {
           get()._clearTimer('ring');
           await peer.setRemoteDescription(sdp);
           await get()._flushCandidates();
-          set({ callStatus: 'connected', connectionState: 'connecting' });
+          // The media path can already be up by now (the other side connected first). Its
+          // "connected" event came while we were still "calling", so do not overwrite it with
+          // "connecting": nothing would ever correct that, and the screen would say
+          // "Connecting…" for the whole call.
+          set({
+            callStatus: 'connected',
+            connectionState: peer.connectionState === 'connected' ? 'connected' : 'connecting',
+          });
         } catch (error) {
           logger.warn('call_answer error:', describeError(error));
           notify.error('Call failed to connect');

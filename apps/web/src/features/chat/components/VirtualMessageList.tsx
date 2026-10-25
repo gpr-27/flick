@@ -133,7 +133,10 @@ function VirtualMessageListInner<T>(
       scrollToKey: (key) => {
         const index = items.findIndex((item) => getKey(item) === key);
         if (index < 0) return false;
-        virtualizer.scrollToIndex(index, { align: 'center', behavior: 'smooth' });
+        // Not 'smooth': a long smooth scroll over rows whose heights are still estimates stops short
+        // of the target (the rows it passes get measured and move it), so the message was not
+        // reached. An instant jump is re-aimed after every measurement and lands on it.
+        virtualizer.scrollToIndex(index, { align: 'center' });
         return true;
       },
       scrollToBottom: () => {

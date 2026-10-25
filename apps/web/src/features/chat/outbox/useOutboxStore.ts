@@ -61,14 +61,26 @@ export const useOutboxStore = create<OutboxState>()((set, get) => {
     persist(event, next);
   };
 
-  /** Write every pending message to the socket, oldest first. */
+  /**
+   * Write the pending messages to the socket, oldest first, ONE AT A TIME per conversation: the
+   * next one goes out only when the server has answered the one before it. Written all at once,
+   * a queue built up offline reached the server together, the server stored them in whatever
+   * order its handlers finished, and the receiver saw "1, 2, 3" as "2, 3, 1".
+   */
   const flush = (): void => {
     if (!get().ready) return;
+    const busy = new Set(
+      get()
+        .items.filter((i) => inflight.has(i.client_message_id))
+        .map((i) => i.conversation_id),
+    );
     const pending = get()
       .items.filter((i) => i.status === 'pending' && !inflight.has(i.client_message_id))
       .sort((a, b) => a.created_at - b.created_at);
     for (const item of pending) {
+      if (busy.has(item.conversation_id)) continue; // wait for the answer to the one ahead
       if (getTransport().state !== 'connected') return; // setReady(false) is on its way
+      busy.add(item.conversation_id);
       inflight.add(item.client_message_id);
       // No answer within the transport's timeout is a retryable failure (Retry button).
       void getTransport()
@@ -80,9 +92,11 @@ export const useOutboxStore = create<OutboxState>()((set, get) => {
         .then((ack) => {
           if (ack.ok) {
             get().handleAccepted(ack.data);
+            flush(); // the next message of that chat may go now
           } else if (ack.error.code !== 'OFFLINE' && inflight.has(item.client_message_id)) {
             // OFFLINE: the message stays pending and goes out again when we are ready.
             get().handleFailed({ client_message_id: item.client_message_id, error: ack.error });
+            flush();
           } else {
             inflight.delete(item.client_message_id);
           }

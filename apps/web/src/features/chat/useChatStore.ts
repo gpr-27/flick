@@ -379,6 +379,15 @@ export const useChatStore = create<ChatState>()((set, get) => {
       if (!me) return;
       // Build the record the server will also send us: either copy may arrive first, both end up
       // as the same message (insertMessage replaces by message_id).
+      // In a chat with disappearing messages the server stamps the expiry at the moment it stores
+      // the message (its clock plus the chat's timer). Do the same here, or the sender's own copy
+      // would not show the timer mark and would never expire on screen until a reload.
+      const timerSeconds =
+        get().conversations[accepted.conversation_id]?.settings.disappearing_timer_s ?? 0;
+      const expiresAt =
+        timerSeconds > 0
+          ? new Date(Date.parse(accepted.created_at) + timerSeconds * 1000).toISOString()
+          : null;
       const record: MessageRecord = {
         message_id: accepted.message_id,
         conversation_id: accepted.conversation_id,
@@ -389,7 +398,7 @@ export const useChatStore = create<ChatState>()((set, get) => {
         created_at: accepted.created_at,
         edited_at: null,
         deleted_at: null,
-        expires_at: null,
+        expires_at: expiresAt,
         reactions: [],
         starred: false,
         viewed: false,
