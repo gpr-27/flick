@@ -22,6 +22,11 @@ const testEnv = {
   VITE_APP_ENV: 'test',
   VITE_API_URL: 'http://api.test/api',
   VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_placeholder',
+  // Blank on purpose: a developer's own relay login in .env must not change what a test sees.
+  VITE_STUN_URLS: '',
+  VITE_TURN_URL: '',
+  VITE_TURN_USERNAME: '',
+  VITE_TURN_CREDENTIAL: '',
 };
 
 // Installable app + offline shell. src/pwa/sw.ts is our own worker (push + precache);

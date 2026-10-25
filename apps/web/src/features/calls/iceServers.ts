@@ -10,7 +10,12 @@ import { getApi } from '@/lib/services';
 export const fetchIceServers = async (): Promise<RTCIceServer[]> => {
   try {
     const { ice_servers } = await getApi().call(ENDPOINTS.calls.turn);
-    if (ice_servers.length > 0) return ice_servers;
+    if (ice_servers.length > 0) {
+      // The server may only know a public STUN address. If this build has its own relay login
+      // (VITE_TURN_*), add that relay, so calls between different networks still have one.
+      if (ice_servers.some((s) => s.credential) || !config.webrtc.hasTurn) return ice_servers;
+      return [...ice_servers, ...config.webrtc.iceServers.filter((s) => s.credential)];
+    }
   } catch (error) {
     logger.warn('TURN credentials unavailable, using STUN only:', error);
   }
