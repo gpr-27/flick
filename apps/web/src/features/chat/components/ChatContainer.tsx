@@ -7,7 +7,7 @@ import { formatDateSeparator, isNewDay } from '@/lib/time';
 import { useConnectionState } from '@/lib/realtime';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { FlickThinking } from '@/features/ai/FlickThinking';
-import { FlickWelcome } from '@/features/ai/FlickWelcome';
+import { FlickPromptChips, FlickWelcome } from '@/features/ai/FlickWelcome';
 import { useFlickThinking } from '@/features/ai/useFlickThinking';
 import { isFlickChat } from '@/features/ai/isFlickBot';
 import { GroupCallBanner } from '@/features/groupcall/components/GroupCallBanner';
@@ -266,6 +266,23 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
     <FlickThinking />
   ) : null;
 
+  // Flick's welcome message is the first message of a new Flick chat; until the person writes
+  // something, the example prompts stay available right under it.
+  const showPrompts =
+    isBot && rows.length > 0 && !rows.some((r) => r.message.sender_user_id === myId);
+  const footer = showPrompts ? (
+    <>
+      <FlickPromptChips
+        onPick={(prompt) => {
+          sendMessage(myId, id, { type: 'text', text: prompt });
+        }}
+      />
+      {activityRow}
+    </>
+  ) : (
+    activityRow
+  );
+
   let body;
   if (!thread || thread.status === 'loading') {
     body = <MessageSkeleton />;
@@ -304,7 +321,7 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
         hasOlder={thread.hasOlder}
         isLoadingOlder={thread.loadingOlder}
         onLoadOlder={loadOlder}
-        footer={activityRow}
+        footer={footer}
         dateLabel={(row) => formatDateSeparator(row.message.created_at)}
         renderItem={(row, index) => {
           const { message } = row;

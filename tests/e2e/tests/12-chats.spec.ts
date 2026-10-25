@@ -79,7 +79,9 @@ test('a group: add a member, promote an admin, remove a member, rename, and leav
   await alice.page.getByRole('button', { name: 'Close', exact: true }).click();
   await carol.page.reload();
   await expect(carol.page.getByRole('button', { name: 'New chat' })).toBeVisible();
-  await expect(carol.page.getByText('No chats yet')).toBeVisible();
+  // Carol is left with only the chat with Flick that every account starts with.
+  await expect(chatInList(carol.page, renamed)).toHaveCount(0);
+  await expect(chatInList(carol.page, 'Flick')).toHaveCount(1);
 
   // Bob leaves: the group disappears for him and the others are told.
   await openGroupInfo(bob.page);
@@ -89,7 +91,8 @@ test('a group: add a member, promote an admin, remove a member, rename, and leav
     .getByRole('alertdialog', { name: 'Leave this group?' })
     .getByRole('button', { name: 'Leave', exact: true })
     .click();
-  await expect(bob.page.getByText('No chats yet')).toBeVisible();
+  await expect(chatInList(bob.page, renamed)).toHaveCount(0);
+  await expect(chatInList(bob.page, 'Flick')).toHaveCount(1);
   await expect(alice.page.getByText(new RegExp(`${bob.name} left`))).toBeVisible();
 });
 

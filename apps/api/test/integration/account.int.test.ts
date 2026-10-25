@@ -200,7 +200,8 @@ describe('stats', () => {
       .execute();
     const res = await call('statty', 'GET', '/users/me/stats');
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ chats: 2, groups: 2, days_on_flick: 1 });
+    // 2 groups plus the chat with Flick that every new account starts with.
+    expect(res.body).toMatchObject({ chats: 3, groups: 2, days_on_flick: 1 });
     expect(typeof res.body.last_active_at).toBe('string');
     expect((await call(null, 'GET', '/users/me/stats')).status).toBe(401);
   });
@@ -424,23 +425,27 @@ describe('export', () => {
       username: 'exporter',
       email: 'exporter@example.com',
     });
-    expect(doc.chats.map((c: any) => c.id)).toEqual([shared]);
-    const messages = doc.chats[0].messages;
+    // The shared group and the chat with Flick (it holds only Flick's welcome message).
+    expect(doc.chats).toHaveLength(2);
+    const sharedChat = doc.chats.find((c: any) => c.id === shared);
+    expect(doc.chats.find((c: any) => c.id !== shared).messages).toHaveLength(1);
+    const messages = sharedChat.messages;
     expect(messages).toHaveLength(1198);
     expect(messages.map((m: any) => m.seq).slice(0, 6)).toEqual([1, 2, 3, 4, 7, 8]);
     expect(messages.at(-1).seq).toBe(1200);
     expect(JSON.stringify(doc)).not.toContain(stranger);
-    expect(doc.chats[0].members.map((m: any) => m.username).sort()).toEqual([
+    expect(sharedChat.members.map((m: any) => m.username).sort()).toEqual([
       'exp_friend',
       'exporter',
     ]);
     expect((await call(null, 'GET', '/users/me/export')).status).toBe(401);
   });
 
-  it('is valid JSON for an account with no chats', async () => {
+  it('is valid JSON for an account with only the Flick welcome chat', async () => {
     await signUp('empty_exp');
     const res = await call('empty_exp', 'GET', '/users/me/export');
-    expect(res.body.chats).toEqual([]);
+    expect(res.body.chats).toHaveLength(1);
+    expect(res.body.chats[0].messages).toHaveLength(1);
   });
 });
 
@@ -527,32 +532,25 @@ describe('clear the Flick assistant chat', () => {
   it('hides every message for me only and is safe to repeat', async () => {
     const me = await signUp('chatty');
     const other = await signUp('chatty_two');
-    const [lo, hi] = me < FLICK_BOT_USER_ID ? [me, FLICK_BOT_USER_ID] : [FLICK_BOT_USER_ID, me];
-    const conv = await db
-      .insertInto('conversations')
-      .values({ type: 'direct' })
-      .returning('id')
-      .executeTakeFirstOrThrow();
-    await db
-      .insertInto('direct_pairs')
-      .values({ user_lo: lo, user_hi: hi, conversation_id: conv.id })
-      .execute();
+    // Every new account already has this chat (with Flick's welcome); start from an empty one.
+    const flickChatOf = async (id: string) => {
+      const [a, b] = id < FLICK_BOT_USER_ID ? [id, FLICK_BOT_USER_ID] : [FLICK_BOT_USER_ID, id];
+      const pair = await db
+        .selectFrom('direct_pairs')
+        .select('conversation_id')
+        .where('user_lo', '=', a)
+        .where('user_hi', '=', b)
+        .executeTakeFirstOrThrow();
+      await db.deleteFrom('messages').where('conversation_id', '=', pair.conversation_id).execute();
+      return { id: pair.conversation_id };
+    };
+    const conv = await flickChatOf(me);
     await sql`
       INSERT INTO messages (conversation_id, seq, sender_id, type, body_text)
       SELECT ${conv.id}::uuid, g, CASE WHEN g % 2 = 0 THEN ${FLICK_BOT_USER_ID}::uuid ELSE ${me}::uuid END, 'text', 'm' || g
       FROM generate_series(1, 6) g`.execute(db);
     // Another person's chat with the bot is untouched.
-    const [lo2, hi2] =
-      other < FLICK_BOT_USER_ID ? [other, FLICK_BOT_USER_ID] : [FLICK_BOT_USER_ID, other];
-    const conv2 = await db
-      .insertInto('conversations')
-      .values({ type: 'direct' })
-      .returning('id')
-      .executeTakeFirstOrThrow();
-    await db
-      .insertInto('direct_pairs')
-      .values({ user_lo: lo2, user_hi: hi2, conversation_id: conv2.id })
-      .execute();
+    const conv2 = await flickChatOf(other);
     await sql`INSERT INTO messages (conversation_id, seq, sender_id, type, body_text) VALUES (${conv2.id}::uuid, 1, ${other}::uuid, 'text', 'mine')`.execute(
       db,
     );
