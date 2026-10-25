@@ -60,6 +60,16 @@ const pwaOptions: Partial<VitePWAOptions> = {
   injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'] },
 };
 
+// daisyUI 4 ships a table-row hover rule whose selector comes out as `.hover:hovertr:hover`, which
+// is not valid CSS and makes the CSS minifier warn on every build. The app uses no daisyUI tables,
+// so the broken rule is removed.
+const dropBrokenTableHover = {
+  postcssPlugin: 'drop-broken-table-hover',
+  Rule(rule: { selector: string; remove: () => void }) {
+    if (rule.selector.includes('hovertr')) rule.remove();
+  },
+};
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootEnvDir, '');
   const port = env.FRONTEND_PORT ? Number(env.FRONTEND_PORT) : undefined;
@@ -86,11 +96,16 @@ export default defineConfig(({ mode }) => {
     },
     css: {
       postcss: {
-        plugins: [tailwindcss({ config: resolve(here, 'tailwind.config.ts') }), autoprefixer()],
+        plugins: [
+          tailwindcss({ config: resolve(here, 'tailwind.config.ts') }),
+          dropBrokenTableHover,
+          autoprefixer(),
+        ],
       },
     },
     server: { port },
-    build: { sourcemap: true },
+    // The one big chunk is the LiveKit call SDK, which is only loaded when a call starts.
+    build: { sourcemap: true, chunkSizeWarningLimit: 1000 },
     test: {
       environment: 'jsdom',
       include: ['src/**/*.test.{ts,tsx}', 'test/**/*.test.{ts,tsx}'],
