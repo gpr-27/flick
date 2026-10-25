@@ -57,7 +57,7 @@ export const RowMenu = ({
         role="menu"
         aria-label={`Options for chat with ${conversationTitle(conversation)}`}
         onKeyDown={onKeyDown}
-        className="glass-card w-56 rounded-xl border border-base-content/10 p-1 shadow-xl"
+        className="w-56 rounded-xl border border-base-content/15 bg-base-100 p-1 text-base-content shadow-xl"
       >
         {menuActionIds(conversation).map((id) => (
           <button
