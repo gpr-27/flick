@@ -528,10 +528,13 @@ describe('login (the real authenticate, with a fake Clerk)', () => {
       user_id: randomUUID(),
       request_id: randomUUID(),
       attachment_id: randomUUID(),
+      device_id: randomUUID(),
+      scheduled_id: randomUUID(),
+      username: 'someone',
       code: 'AAAAAAAAAAAAAAAAAAAA',
     });
 
-  it.each(flat.map((e) => [e.key, e.def] as const))(
+  it.each(flat.filter((e) => e.def.auth).map((e) => [e.key, e.def] as const))(
     '%s without a token is 401 UNAUTHORIZED in the standard shape',
     async (key, def) => {
       const res = await stack.call(null, def.method, urlOf(def), def.body ? {} : undefined, {
@@ -542,6 +545,58 @@ describe('login (the real authenticate, with a fake Clerk)', () => {
         true,
       );
       expect(res.body.error.code).toBe('UNAUTHORIZED');
+    },
+  );
+
+  // Public endpoints have no login. calls.declineFromPush is proven by a one-time token that came
+  // inside the push; without it, or with a wrong one, nothing happens and nobody learns whether
+  // the call exists.
+  describe.each(flat.filter((e) => !e.def.auth).map((e) => [e.key, e.def] as const))(
+    '%s (public, token-based)',
+    (_key, def) => {
+      const post = (body: unknown, headers: Record<string, string> = {}) =>
+        stack.call(null, def.method, urlOf(def), body, headers);
+      const expectStandard = (res: Awaited<ReturnType<typeof post>>, status: number) => {
+        expect(res.status, JSON.stringify(res.body)).toBe(status);
+        expect(ErrorResponse.safeParse(res.body).success, JSON.stringify(res.body)).toBe(true);
+      };
+
+      it('is reachable without a login and is not a 401', async () => {
+        const res = await post({ call_id: randomUUID(), token: 'x'.repeat(32) });
+        expect(res.status).not.toBe(401);
+      });
+
+      it('a missing or malformed token is a 400 in the standard shape', async () => {
+        expectStandard(await post({}), 400);
+        expectStandard(await post({ call_id: randomUUID() }), 400);
+        expectStandard(await post({ call_id: randomUUID(), token: 'short' }), 400);
+        expectStandard(await post({ call_id: 'not-a-uuid', token: 'x'.repeat(32) }), 400);
+        expectStandard(await post({ call_id: randomUUID(), token: 'x'.repeat(5000) }), 400);
+      });
+
+      it('a wrong token, or a call that does not exist, is the same 404', async () => {
+        expectStandard(await post({ call_id: randomUUID(), token: 'x'.repeat(32) }), 404);
+        const callId = randomUUID();
+        await stack.redis.set(
+          `call:decline-token:${callId}`,
+          JSON.stringify({ user_id: randomUUID(), token: 'the-real-one-time-token-123456' }),
+          'PX',
+          30_000,
+        );
+        const wrong = await post({ call_id: callId, token: 'the-wrong-one-time-token-12345' });
+        expectStandard(wrong, 404);
+        // the wrong guess did not consume the real token
+        const right = await post({ call_id: callId, token: 'the-real-one-time-token-123456' });
+        expect(right.status).toBe(204);
+      });
+
+      it('a bearer token is not needed and a bad one does not matter', async () => {
+        const res = await post(
+          { call_id: randomUUID(), token: 'x'.repeat(32) },
+          { authorization: 'Bearer nonsense' },
+        );
+        expect(res.status).toBe(404);
+      });
     },
   );
 

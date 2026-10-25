@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- test payloads are untyped JSON */
+import { randomUUID } from 'node:crypto';
 import { AiChain, type ProviderAdapter, type ProviderCallParams } from '@chat/ai';
 import { ENDPOINTS, buildPath, type Endpoint } from '@chat/contracts';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -119,7 +120,7 @@ function conforms(def: Endpoint, res: CallResult, status = 200): void {
 
 /** Calls an endpoint of the contract as `user`. */
 function call(
-  user: TestUser,
+  user: TestUser | null,
   def: Endpoint,
   options: {
     params?: Record<string, string>;
@@ -208,6 +209,18 @@ const JSON_ONLY = { accept: 'application/json' };
 const C = (f: Fixture) => ({ conversation_id: f.conv });
 const M = (f: Fixture, id = f.messageId) => ({ conversation_id: f.conv, message_id: id });
 
+/** The harness login does not look at revocation (the real one does), so the table is checked. */
+const revokedAt = async (deviceId: string) =>
+  (
+    await stack.db
+      .selectFrom('devices')
+      .select('revoked_at')
+      .where('id', '=', deviceId)
+      .executeTakeFirstOrThrow()
+  ).revoked_at;
+
+const inOneHour = () => new Date(Date.now() + 3_600_000).toISOString();
+
 const SCENARIOS: Record<string, Scenario> = {
   // ------------------------------------------------------------------ users
   'users.me': async (f, def) => conforms(def, await call(f.alice, def)),
@@ -219,9 +232,76 @@ const SCENARIOS: Record<string, Scenario> = {
     conforms(def, await call(f.alice, def, { query: 'limit=5' })),
   'users.profile': async (f, def) =>
     conforms(def, await call(f.alice, def, { params: { user_id: f.bob.id } })),
+  'users.usernameAvailable': async (f, def) => {
+    const free = await call(f.alice, def, { query: 'u=surely_unused_name' });
+    conforms(def, free);
+    expect(free.body).toEqual({ available: true });
+    const taken = await call(f.alice, def, { query: `u=${f.bob.name}` });
+    conforms(def, taken);
+    expect(taken.body).toEqual({ available: false, reason: 'taken' });
+  },
+  'users.byUsername': async (f, def) => {
+    const res = await call(f.alice, def, { params: { username: f.bob.name } });
+    conforms(def, res);
+    expect(res.body.id).toBe(f.bob.id);
+  },
+  'users.stats': async (f, def) => conforms(def, await call(f.alice, def)),
+  'users.settings': async (f, def) => conforms(def, await call(f.alice, def)),
+  'users.updateSettings': async (f, def) => {
+    const res = await call(f.alice, def, { body: { groups_add: 'nobody', ai_language: 'fr' } });
+    conforms(def, res);
+    expect(res.body.ai_language).toBe('fr');
+  },
+  // export, deleteAccount and clearFlickChat run as a throwaway user: they read or destroy the
+  // caller's own data, which must not be the fixture's.
+  'users.export': async (f, def) => {
+    const temp = await stack.user('exporter');
+    await send(stack, temp, await direct(stack, temp, f.bob), { type: 'text', text: 'in export' });
+    const res = await call(temp, def);
+    conforms(def, res);
+    expect(res.headers['content-disposition']).toMatch(/^attachment; filename=/);
+    expect(JSON.stringify(res.body)).toContain('in export');
+  },
+  'users.deleteAccount': async (f, def) => {
+    const temp = await stack.user('leaver');
+    conforms(def, await call(temp, def, { body: { username: temp.name } }));
+    // the account is anonymised and every device of it is signed out
+    const row = await stack.db
+      .selectFrom('users')
+      .select('status')
+      .where('id', '=', temp.id)
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe('deleted');
+    expect(await revokedAt(temp.deviceId)).not.toBeNull();
+  },
+  'users.clearFlickChat': async (f, def) => {
+    const temp = await stack.user('clearer');
+    conforms(def, await call(temp, def));
+  },
   'users.privacy': async (f, def) => conforms(def, await call(f.alice, def)),
   'users.updatePrivacy': async (f, def) =>
     conforms(def, await call(f.alice, def, { body: { read_receipts: false } })),
+
+  // ------------------------------------------------------------------ devices
+  'devices.list': async (f, def) => {
+    const res = await call(f.alice, def);
+    conforms(def, res);
+    expect((res.body.items as { current: boolean }[]).filter((d) => d.current)).toHaveLength(1);
+  },
+  'devices.revoke': async (f, def) => {
+    const temp = await stack.user('multi');
+    const other = await stack.device(temp);
+    conforms(def, await call(temp, def, { params: { device_id: other.deviceId } }));
+    expect(await revokedAt(other.deviceId)).not.toBeNull();
+    expect(await revokedAt(temp.deviceId)).toBeNull();
+  },
+  'devices.revokeOthers': async (f, def) => {
+    const temp = await stack.user('multi');
+    const other = await stack.device(temp);
+    conforms(def, await call(temp, def));
+    expect(await revokedAt(other.deviceId)).not.toBeNull();
+    expect(await revokedAt(temp.deviceId)).toBeNull();
+  },
 
   // ------------------------------------------------------------------ conversations
   'conversations.list': async (f, def) => {
@@ -232,6 +312,7 @@ const SCENARIOS: Record<string, Scenario> = {
   'conversations.get': async (f, def) => conforms(def, await call(f.alice, def, { params: C(f) })),
   'conversations.createDirect': async (f, def) =>
     conforms(def, await call(f.alice, def, { body: { user_id: f.carol.id } })),
+  'conversations.openSaved': async (f, def) => conforms(def, await call(f.alice, def)),
   'conversations.createGroup': async (f, def) =>
     conforms(
       def,
@@ -265,6 +346,11 @@ const SCENARIOS: Record<string, Scenario> = {
         body: { role: 'admin' },
       }),
     ),
+  'conversations.shared': async (f, def) => {
+    await send(stack, f.alice, f.conv, { type: 'text', text: 'see https://example.com/page' });
+    conforms(def, await call(f.bob, def, { params: C(f), query: 'kind=links&limit=5' }));
+    conforms(def, await call(f.bob, def, { params: C(f), query: 'kind=media' }));
+  },
   'conversations.mentionCandidates': async (f, def) =>
     conforms(def, await call(f.alice, def, { params: C(f), query: 'q=b' })),
   'conversations.createInvite': async (f, def) =>
@@ -444,6 +530,29 @@ const SCENARIOS: Record<string, Scenario> = {
   'calls.turn': async (f, def) => conforms(def, await call(f.alice, def)),
   'calls.livekitToken': async (f, def) =>
     conforms(def, await call(f.alice, def, { body: { conversation_id: f.conv, media: 'audio' } })),
+  'calls.groupPresence': async (f, def) => conforms(def, await call(f.bob, def, { params: C(f) })),
+  'calls.groupBeat': async (f, def) => {
+    const g = await group(stack, f.alice, [f.bob], 'beat');
+    const beat = await call(f.bob, def, { body: { conversation_id: g } });
+    conforms(def, beat);
+    expect(beat.body).toEqual({ active: true, participants: 1 });
+    const left = await call(f.bob, def, { body: { conversation_id: g, action: 'leave' } });
+    conforms(def, left);
+    expect(left.body).toEqual({ active: false, participants: 0 });
+  },
+  // Public: no login, the one-time token from the push is the proof (seeded here like the gateway
+  // does when it parks a call).
+  'calls.declineFromPush': async (f, def) => {
+    const callId = randomUUID();
+    const token = 'a-one-time-token-of-enough-length';
+    await stack.redis.set(
+      `call:decline-token:${callId}`,
+      JSON.stringify({ user_id: f.bob.id, token }),
+      'PX',
+      30_000,
+    );
+    conforms(def, await call(null, def, { body: { call_id: callId, token } }));
+  },
   'calls.createLink': async (f, def) =>
     conforms(
       def,
@@ -465,6 +574,30 @@ const SCENARIOS: Record<string, Scenario> = {
     conforms(def, await call(f.alice, def, { params: { code: link.body.code } }));
   },
   'calls.log': async (f, def) => conforms(def, await call(f.alice, def, { query: 'limit=5' })),
+
+  // ------------------------------------------------------------------ scheduled
+  'scheduled.create': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, { params: C(f), body: { text: 'later', send_at: inOneHour() } }),
+      201,
+    ),
+  'scheduled.list': async (f, def) => {
+    await call(f.alice, E.scheduled.create, {
+      params: C(f),
+      body: { text: 'listed', send_at: inOneHour() },
+    });
+    const res = await call(f.alice, def);
+    conforms(def, res);
+    expect(res.body.items.length).toBeGreaterThan(0);
+  },
+  'scheduled.cancel': async (f, def) => {
+    const made = await call(f.alice, E.scheduled.create, {
+      params: C(f),
+      body: { text: 'cancel me', send_at: inOneHour() },
+    });
+    conforms(def, await call(f.alice, def, { params: { scheduled_id: made.body.id } }));
+  },
 
   // ------------------------------------------------------------------ ai (fake provider)
   'ai.status': async (f, def) => {
