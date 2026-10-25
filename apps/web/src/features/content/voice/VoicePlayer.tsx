@@ -29,7 +29,7 @@ export const Waveform = ({
   const played = Math.round(progress * bars.length);
   return (
     <div
-      className="flex h-8 w-full min-w-0 items-center gap-px"
+      className="flex h-10 w-full min-w-0 items-center gap-px"
       aria-hidden="true"
       data-testid="waveform"
     >
@@ -99,23 +99,23 @@ export const VoicePlayer = ({
   return (
     // Two rows, so nothing sits on top of anything else: the play button and the waveform, then
     // (under the waveform) the time on the left and the speed on the right.
-    <div className="flex w-full min-w-0 max-w-64 flex-col gap-1">
+    <div className="flex w-full min-w-0 max-w-[20rem] flex-col gap-1.5">
       <div className="flex min-w-0 items-center gap-2">
         {url ? (
           <button
             type="button"
             onClick={toggle}
-            className="grid size-10 shrink-0 place-items-center rounded-full bg-black/15"
+            className="grid size-12 shrink-0 place-items-center rounded-full bg-black/15"
             aria-label={playing ? 'Pause voice message' : 'Play voice message'}
           >
             {playing ? (
-              <Pause className="size-4" aria-hidden="true" />
+              <Pause className="size-5" aria-hidden="true" />
             ) : (
-              <Play className="size-4" aria-hidden="true" />
+              <Play className="size-5" aria-hidden="true" />
             )}
           </button>
         ) : (
-          <span className="grid size-10 shrink-0 place-items-center">
+          <span className="grid size-12 shrink-0 place-items-center">
             <Spinner size="sm" label="Loading voice message" />
           </span>
         )}
@@ -123,7 +123,7 @@ export const VoicePlayer = ({
           <Waveform samples={waveform} progress={progress} />
         </div>
       </div>
-      <div className="flex items-center justify-between gap-2 pl-12 text-xs">
+      <div className="flex items-center justify-between gap-2 pl-14 text-sm">
         {/* While it plays, the time counts up; otherwise it is the length of the message. */}
         <span className="tabular-nums" aria-label="Voice message time">
           {formatClock(playing || progress > 0 ? Math.round(progress * durationMs) : durationMs)}
@@ -131,7 +131,7 @@ export const VoicePlayer = ({
         <button
           type="button"
           onClick={cycleSpeed}
-          className="rounded-full bg-black/15 px-2.5 py-1 text-xs font-semibold tabular-nums"
+          className="rounded-full bg-black/15 px-3 py-1 text-sm font-semibold tabular-nums"
           aria-label={`Playback speed ${speed}x. Change speed`}
         >
           {speed}x
