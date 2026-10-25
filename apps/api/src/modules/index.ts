@@ -13,6 +13,7 @@ import { healthRoutes } from './health/http/routes.js';
 import { userRoutes } from './users/http/routes.js';
 import { mediaRoutes } from './media/http/routes.js';
 import { messageRoutes } from './messages/index.js';
+import { notificationRoutes } from './notifications/routes.js';
 import { pushRoutes } from './push/routes.js';
 import { scheduledRoutes } from './scheduled/http/routes.js';
 
@@ -24,6 +25,7 @@ export const modules = [
   conversationRoutes,
   callRoutes,
   pushRoutes,
+  notificationRoutes,
   aiRoutesModule,
   userRoutes,
   scheduledRoutes,

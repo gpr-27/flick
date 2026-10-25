@@ -402,7 +402,7 @@ describe('dispatching a sent message', () => {
     await eventually(() => b.of('new_message').length === 1);
   });
 
-  it('queues a notify job for an offline, unmuted recipient only', async () => {
+  it('queues a notify job for each unmuted recipient (delayed for a connected one)', async () => {
     const api = await startInstance({ dispatch: true });
     const [alice, bob, carol, dave] = [
       await makeUser(),
@@ -417,19 +417,19 @@ describe('dispatching a sent message', () => {
       .where('user_id', '=', carol.id)
       .execute();
     const a = await connect(api, alice.id, alice.devices[0]!);
-    await connect(api, dave.id, dave.devices[0]!); // online: no job
+    await connect(api, dave.id, dave.devices[0]!); // online: a delayed job
 
     const sent = await send(a.socket, conv);
     await eventually(async () => {
       const { rows } = await sql<{ data: { user_id: string; seq: number } }>`
         SELECT data FROM pgboss.job WHERE name = ${NOTIFY_QUEUE}`.execute(db);
       const users = rows.filter((r) => r.data.seq === sent.data!.seq).map((r) => r.data.user_id);
-      return users.includes(bob.id);
+      return users.includes(bob.id) && users.includes(dave.id);
     });
-    const { rows } = await sql<{ data: { user_id: string; seq: number } }>`
+    const { rows } = await sql<{ data: { user_id: string; seq: number; conversation_id: string } }>`
       SELECT data FROM pgboss.job WHERE name = ${NOTIFY_QUEUE}`.execute(db);
-    const users = rows.filter((r) => r.data.seq === sent.data!.seq).map((r) => r.data.user_id);
-    expect(users).toEqual([bob.id]); // not carol (muted), not dave (connected), not the sender
+    const users = rows.filter((r) => r.data.conversation_id === conv).map((r) => r.data.user_id);
+    expect(users.sort()).toEqual([bob.id, dave.id].sort()); // not carol (muted), not the sender
   });
 });
 

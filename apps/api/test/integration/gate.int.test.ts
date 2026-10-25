@@ -472,10 +472,11 @@ describe('6. receipts', () => {
 });
 
 describe('7. offline notification', () => {
-  // Guarantee: a member with no connected socket gets exactly one "notify" job per message (not
-  // one per dispatch attempt), a muted member gets none, and neither does an online member or
-  // the sender. The worker later re-checks presence and mute before sending anything.
-  it('queues one notify job for the offline member, none for muted / online / sender', async () => {
+  // Guarantee: every unmuted member (not the sender) gets exactly one "notify" job per message (not
+  // one per dispatch attempt); a muted member gets none. A member with no connected socket gets it
+  // at once; a connected member's job waits a few seconds, because a frozen tab or a just-closed app
+  // still looks connected, and the worker pushes only if no delivery receipt arrived by then.
+  it('queues one notify job per unmuted member: at once if offline, delayed if connected', async () => {
     const [alice, bob, carol, dave] = [
       await env.makeUser(),
       await env.makeUser(),
@@ -493,18 +494,24 @@ describe('7. offline notification', () => {
     const d = await api.connect(dave); // Bob and Carol stay offline
 
     const sent = await a.send(conv, 'ping');
-    await eventually(async () => (await env.notifyJobs(conv)).length > 0, 'the notify job');
+    await eventually(async () => (await env.notifyJobs(conv)).length > 1, 'the notify jobs');
     await eventually(() => env.outboxDone(conv), 'the dispatcher to finish');
     await d.flush();
     expect(d.of('new_message')).toHaveLength(1);
-    expect(await env.notifyJobs(conv)).toEqual([
-      {
-        user_id: bob.id,
-        conversation_id: conv,
-        message_id: sent.data.message_id,
-        seq: sent.data.seq,
-      },
-    ]);
+    const jobs = await env.notifyJobs(conv);
+    expect(jobs.map((j) => j.user_id).sort()).toEqual([bob.id, dave.id].sort()); // not carol, not alice
+    expect(jobs.find((j) => j.user_id === bob.id)).toEqual({
+      user_id: bob.id,
+      conversation_id: conv,
+      message_id: sent.data.message_id,
+      seq: sent.data.seq,
+      kind: 'message',
+    });
+    const { rows } = await sql<{ user_id: string; delayed: boolean }>`
+      SELECT data->>'user_id' AS user_id, start_after > now() + interval '3 seconds' AS delayed
+      FROM pgboss.job WHERE name = 'notify' AND data->>'conversation_id' = ${conv}`.execute(env.db);
+    expect(rows.find((r) => r.user_id === bob.id)!.delayed).toBe(false);
+    expect(rows.find((r) => r.user_id === dave.id)!.delayed).toBe(true);
 
     // Dispatching the same row again (as after a crash) must not queue a second notification.
     await env.db
@@ -513,6 +520,6 @@ describe('7. offline notification', () => {
       .where('partition_key', '=', conv)
       .execute();
     await eventually(() => env.outboxDone(conv), 'the row to be dispatched again');
-    expect(await env.notifyJobs(conv)).toHaveLength(1);
+    expect(await env.notifyJobs(conv)).toHaveLength(2);
   });
 });

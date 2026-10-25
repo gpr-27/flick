@@ -11,6 +11,7 @@ import { containsNul, errorBodyForStatus, normalizeErrorPayload } from './http-e
 import { httpRequestDuration, rateLimitRejections, registry } from './metrics.js';
 import { modules } from './modules/index.js';
 import type { AiService } from './modules/ai/service.js';
+import type { PushSender } from './modules/push/sender.js';
 import type { Redis } from './redis.js';
 import { registerRealtime } from './ws.js';
 
@@ -30,6 +31,8 @@ export interface AppDeps {
   authenticateSocket?: (token: string, deviceId: string) => Promise<AuthContext | null>;
   /** The AI chain. Built from the config when not given (tests pass one with fake providers). */
   ai?: AiService;
+  /** Sends one Web Push. Built from the VAPID keys when not given (tests pass a fake). */
+  pushSender?: PushSender;
 }
 
 /** Builds the app without listening, so tests can call app.inject() and main.ts owns startup. */

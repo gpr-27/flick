@@ -70,8 +70,11 @@ const schema = z.object({
   GEMINI_API_KEY_1: z.string().optional(),
   GEMINI_API_KEY_2: z.string().optional(),
 
-  // Web Push: the browser needs the public key to subscribe. The worker holds the private key.
+  // Web Push: the browser needs the public key to subscribe. The worker sends the message pushes;
+  // the API only uses the private key for "Send me a test notification" (POST /push/test).
   VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;

@@ -111,8 +111,19 @@ a `seq` it already has.
 Other server events: `receipt_update` (delivered or read cursor of a member),
 `conversation_updated` (the conversation changed; `conversation` is `null` if you lost access),
 `pins_changed` (a message was pinned or unpinned; it takes no seq, so sync does not replay it),
+`notification_created` (a new alert for the notification centre: the bell goes up by one),
 `presence_update`, `typing_start` / `typing_stop` / `activity` (with `user_id`, ephemeral),
 and the 1:1 call events below.
+
+```json server notification_created
+{
+  "id": "0192f5a0-0000-7000-8000-000000000031",
+  "kind": "mention",
+  "conversation_id": "0192f5a0-0000-7000-8000-000000000014",
+  "message_id": "0192f5a0-0000-7000-8000-000000000015",
+  "created_at": "2026-01-01T12:00:00.000Z"
+}
+```
 
 ```json server receipt_update
 {

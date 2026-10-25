@@ -73,6 +73,9 @@ describe('migrations', () => {
       ).rows.length;
     expect(await aiLanguageColumn()).toBe(1);
 
+    await migrateDown(t.db); // undoes 0017 (notification centre)
+    expect(await tables()).not.toContain('notifications');
+
     await migrateDown(t.db); // undoes 0012 (saved and scheduled messages)
     expect(await tables()).not.toContain('scheduled_messages');
 

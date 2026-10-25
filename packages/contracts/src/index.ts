@@ -15,6 +15,7 @@ export * from './rest/extras.js';
 export * from './rest/media.js';
 export * from './rest/messages.js';
 export * from './rest/moderation.js';
+export * from './rest/notifications.js';
 export * from './rest/push.js';
 export * from './rest/scheduled.js';
 export * from './rest/users.js';

@@ -650,6 +650,18 @@ const SCENARIOS: Record<string, Scenario> = {
       await call(f.alice, def, { body: { endpoint: 'https://push.example.test/abc' } }),
     ),
 
+  'push.status': async (f, def) => conforms(def, await call(f.alice, def)),
+  // No VAPID private key in this test app: the answer says "not_configured".
+  'push.test': async (f, def) => conforms(def, await call(f.alice, def)),
+
+  // ------------------------------------------------------------------ notifications
+  'notifications.list': async (f, def) =>
+    conforms(def, await call(f.alice, def, { query: { limit: '5' } })),
+  'notifications.unread': async (f, def) => conforms(def, await call(f.alice, def)),
+  'notifications.markRead': async (f, def) =>
+    conforms(def, await call(f.alice, def, { body: { all: true } })),
+  'notifications.clear': async (f, def) => conforms(def, await call(f.alice, def)),
+
   // ------------------------------------------------------------------ moderation
   'moderation.block': async (f, def) =>
     conforms(def, await call(f.alice, def, { body: { user_id: f.dave.id } })),

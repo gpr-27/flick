@@ -284,6 +284,24 @@ export interface PushSubscriptionsTable {
   auth: string;
   created_at: CreatedAt;
   disabled_at: Timestamp | null;
+  /** The device's own choices: { previews?, quiet?: { from, to, offset_min } }. */
+  prefs: ColumnType<Record<string, unknown>, string | undefined, string>;
+  last_attempt_at: Timestamp | null;
+  last_success_at: Timestamp | null;
+  last_status: number | null;
+}
+
+export type NotificationKind = 'message' | 'mention' | 'reply' | 'reminder' | 'missed_call';
+
+/** One alert in the notification centre. Holds no message text (read live from the message). */
+export interface NotificationsTable {
+  id: Generated<string>;
+  user_id: string;
+  conversation_id: string | null;
+  message_id: string | null;
+  kind: NotificationKind;
+  created_at: CreatedAt;
+  read_at: Timestamp | null;
 }
 
 export interface ReportsTable {
@@ -363,6 +381,7 @@ export interface Database {
   hidden_messages: HiddenMessagesTable;
   view_once_opens: ViewOnceOpensTable;
   scheduled_messages: ScheduledMessagesTable;
+  notifications: NotificationsTable;
 }
 
 // Every application table; the seed truncates these and a test checks they all exist.
@@ -395,6 +414,7 @@ export const APP_TABLES: ReadonlyArray<keyof Database> = [
   'hidden_messages',
   'view_once_opens',
   'scheduled_messages',
+  'notifications',
 ];
 
 export type User = Selectable<UsersTable>;

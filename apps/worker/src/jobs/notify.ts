@@ -1,10 +1,9 @@
 import type { Database } from '@chat/db';
-import type { Redis } from 'ioredis';
 import { sql, type Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Logger } from '../logger.js';
 import { notificationsTotal } from '../metrics.js';
-import type { NotificationProvider } from '../notifications.js';
+import { emptySummary, type NotificationProvider, type PushSummary } from '../notifications.js';
 
 export const NOTIFY_QUEUE = 'notify';
 
@@ -14,61 +13,112 @@ export interface NotifyJob {
   conversation_id: string;
   message_id: string;
   seq: number;
+  /** Why the person is alerted. Jobs queued before this field existed count as plain messages. */
+  kind?: 'message' | 'mention' | 'reply';
 }
 
 export interface NotifyDeps {
   db: Kysely<Database>;
-  redis: Redis;
   provider: NotificationProvider;
 }
 
-export type NotifyResult = 'sent' | 'skipped_gone' | 'skipped_muted' | 'skipped_online';
+/**
+ * What the job decided, in words for the log:
+ *   sent                  at least one push service accepted the push
+ *   no_subscription       the person has no working push subscription (the centre row still exists)
+ *   all_devices_skipped   every device already had the message or is in quiet hours
+ *   push_failed           every attempt was refused (expired subscriptions are disabled)
+ *   skipped_gone / skipped_muted / skipped_seen   decided before sending anything
+ */
+export type NotifyResult =
+  | 'sent'
+  | 'no_subscription'
+  | 'all_devices_skipped'
+  | 'push_failed'
+  | 'skipped_gone'
+  | 'skipped_muted'
+  | 'skipped_seen';
 
-// Same meaning as the API's presence (see docs/messaging/gateway-notes.md): `presence:user:<id>` is a
-// sorted set of socket ids scored by when each entry expires, so online = at least one entry that
-// has not expired yet.
-async function isOnline(redis: Redis, userId: string): Promise<boolean> {
-  return (await redis.zcount(`presence:user:${userId}`, Date.now(), '+inf')) > 0;
+export interface NotifyOutcome {
+  result: NotifyResult;
+  summary: PushSummary;
 }
 
-const excerptOf = (text: string | null, type: string): string => {
-  if (!text) return `Sent a ${type.replace('_', ' ')}`;
-  return text.length <= 80 ? text : `${text.slice(0, 79)}…`;
-};
-
 /**
- * The job may run late (retries, a stopped worker), so it decides again with fresh data:
- * the message may be deleted, the user may have muted the chat or left, or may be online by now
- * (then the live connection already delivered it).
+ * The job may run late (retries, a stopped worker, or the short wait given to people whose socket
+ * still looked connected), so it decides again with fresh data: the message may be deleted, the
+ * user may have muted the chat or left, or may have read it already. Which of their devices
+ * already received it is decided per device when sending.
  */
-export async function handleNotify(deps: NotifyDeps, job: NotifyJob): Promise<NotifyResult> {
+export async function handleNotify(deps: NotifyDeps, job: NotifyJob): Promise<NotifyOutcome> {
+  const kind = job.kind ?? 'message';
   const row = await deps.db
     .selectFrom('messages as m')
     .innerJoin('conversation_members as cm', (join) =>
       join.onRef('cm.conversation_id', '=', 'm.conversation_id').on('cm.user_id', '=', job.user_id),
     )
+    .innerJoin('conversations as c', 'c.id', 'm.conversation_id')
     .leftJoin('users as sender', 'sender.id', 'm.sender_id')
     .select([
       'm.body_text',
       'm.type',
+      'm.view_once',
       'm.deleted_at',
+      'm.seq',
       'sender.display_name as sender_name',
+      'c.type as conversation_type',
+      'c.name as conversation_name',
       'cm.left_at',
+      'cm.read_seq',
       sql<boolean>`coalesce(cm.muted_until > now(), false)`.as('muted'),
+      sql<boolean>`(m.expire_at IS NOT NULL AND m.expire_at <= now())`.as('expired'),
     ])
     .where('m.id', '=', job.message_id)
     .executeTakeFirst();
 
-  if (!row || row.deleted_at || row.left_at) return 'skipped_gone';
-  if (row.muted) return 'skipped_muted';
-  if (await isOnline(deps.redis, job.user_id)) return 'skipped_online';
+  const skip = (result: NotifyResult): NotifyOutcome => ({ result, summary: emptySummary() });
+  if (!row || row.deleted_at || row.expired || row.left_at) return skip('skipped_gone');
+  // A muted chat is silent, unless the message names the person or answers one of theirs.
+  if (row.muted && kind === 'message') return skip('skipped_muted');
+  // Read already (for example on another device).
+  if (Number(row.read_seq) >= Number(row.seq)) return skip('skipped_seen');
 
-  await deps.provider.send({
-    ...job,
+  // The centre lists this alert whether or not any device can be pushed to. (The API may have
+  // written it already when the message was dispatched; a message alerts a person once.)
+  await deps.db
+    .insertInto('notifications')
+    .values({
+      user_id: job.user_id,
+      conversation_id: job.conversation_id,
+      message_id: job.message_id,
+      kind,
+      created_at: sql<Date>`clock_timestamp()`,
+    })
+    .onConflict((oc) => oc.columns(['user_id', 'message_id']).doNothing())
+    .execute();
+
+  const summary = await deps.provider.send({
+    user_id: job.user_id,
+    conversation_id: job.conversation_id,
+    message_id: job.message_id,
+    seq: job.seq,
+    kind,
     sender_name: row.sender_name ?? 'Someone',
-    excerpt: excerptOf(row.body_text, row.type),
+    group_name: row.conversation_type === 'group' ? (row.conversation_name ?? 'Group') : null,
+    type: row.type,
+    body_text: row.body_text,
+    view_once: row.view_once,
   });
-  return 'sent';
+  const skipped = summary.skipped_delivered + summary.skipped_quiet;
+  const result: NotifyResult =
+    summary.sent > 0
+      ? 'sent'
+      : summary.subscriptions === 0
+        ? 'no_subscription'
+        : skipped === summary.subscriptions
+          ? 'all_devices_skipped'
+          : 'push_failed';
+  return { result, summary };
 }
 
 export async function registerNotify(
@@ -78,9 +128,27 @@ export async function registerNotify(
 ): Promise<void> {
   await boss.work<NotifyJob>(NOTIFY_QUEUE, async (jobs) => {
     for (const job of jobs) {
-      const result = await handleNotify(deps, job.data);
-      notificationsTotal.inc({ result });
-      logger.debug({ jobId: job.id, userId: job.data.user_id, result }, 'notify job handled');
+      const base = {
+        jobId: job.id,
+        userId: job.data.user_id,
+        conversationId: job.data.conversation_id,
+        messageId: job.data.message_id,
+        kind: job.data.kind ?? 'message',
+      };
+      try {
+        const { result, summary } = await handleNotify(deps, job.data);
+        notificationsTotal.inc({ result });
+        // One line per attempt: why a notification did or did not go out. Hosts and status codes only.
+        logger.info({ ...base, result, ...summary }, 'notify');
+      } catch (error) {
+        notificationsTotal.inc({ result: 'error' });
+        const summary = (error as { summary?: PushSummary }).summary;
+        logger.warn(
+          { ...base, result: 'error', ...summary, err: error },
+          'notify failed, will retry',
+        );
+        throw error;
+      }
     }
   });
 }
