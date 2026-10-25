@@ -11,6 +11,7 @@ import {
   Star,
   Users,
   UsersRound,
+  Pin,
 } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { EmptyState, ErrorState, Input, cn } from '@/components/ui';
@@ -82,7 +83,10 @@ const SavedRow = ({
           <Bookmark className="size-6" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold">{SAVED_TITLE}</span>
+          <span className="flex items-center gap-2 truncate text-base font-semibold">
+            <span className="truncate">{SAVED_TITLE}</span>
+            <Pin className="size-4 shrink-0 text-primary" aria-label="Pinned" role="img" />
+          </span>
           <span className="block truncate text-sm text-base-content/60">
             {last ? previewContent(last.content) : 'Notes to yourself'}
           </span>
