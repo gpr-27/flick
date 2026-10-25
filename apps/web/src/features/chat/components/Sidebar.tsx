@@ -57,6 +57,9 @@ const SavedRow = ({
   const [menu, setMenu] = useState(false);
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const last = conversation?.last_message;
+  // WhatsApp style: your own name with "(You)" and the subtitle "Message yourself".
+  const myName = useSessionStore((s) => s.user?.display_name);
+  const selfTitle = myName ? `${myName} (You)` : SAVED_TITLE;
   return (
     <div className="group relative mb-2">
       <button
@@ -84,11 +87,11 @@ const SavedRow = ({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2 truncate text-base font-semibold">
-            <span className="truncate">{SAVED_TITLE}</span>
+            <span className="truncate">{selfTitle}</span>
             <Pin className="size-4 shrink-0 text-primary" aria-label="Pinned" role="img" />
           </span>
           <span className="block truncate text-sm text-base-content/60">
-            {last ? previewContent(last.content) : 'Notes to yourself'}
+            {last ? previewContent(last.content) : 'Message yourself'}
           </span>
         </span>
       </button>
