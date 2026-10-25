@@ -253,6 +253,19 @@ export async function keysetHistory(
   return { messages: page, nextCursor };
 }
 
+/**
+ * "tha you" becomes "'tha':* & 'you':*": every word matches by its beginning, and a word marked
+ * "-word" is excluded as a whole word. Only letters and digits are kept, so the text cannot change
+ * the query. Null when no searchable word is left.
+ */
+export function prefixTsQuery(query: string): string | null {
+  const WORD = /[\p{L}\p{N}_]+/gu;
+  const excluded = [...query.matchAll(/(?:^|\s)-([\p{L}\p{N}_]+)/gu)].map((m) => m[1] ?? '');
+  const words = query.replace(/(?:^|\s)-[\p{L}\p{N}_]+/gu, ' ').match(WORD);
+  if (!words?.length) return null;
+  return [...words.map((w) => `'${w}':*`), ...excluded.map((w) => `!'${w}'`)].join(' & ');
+}
+
 export interface SearchOptions {
   conversationId?: string;
   // Position of the last hit of the previous page. `createdAtText` is the exact value returned
@@ -270,7 +283,12 @@ export async function searchMessages(
   limit = 20,
   options: SearchOptions = {},
 ) {
-  const tsquery = sql`websearch_to_tsquery('simple', ${query})`;
+  // Whole words as before (quotes, "or" and "-word" still work), plus the start of a word: typing
+  // "tha" finds "thank". The two are OR-ed, so everything the old search found is still found.
+  const prefix = prefixTsQuery(query);
+  const tsquery = prefix
+    ? sql`(websearch_to_tsquery('simple', ${query}) || to_tsquery('simple', ${prefix}))`
+    : sql`websearch_to_tsquery('simple', ${query})`;
   let q = db
     .selectFrom('messages')
     .innerJoin('conversation_members as cm', 'cm.conversation_id', 'messages.conversation_id')
