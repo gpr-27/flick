@@ -167,6 +167,13 @@ export const SERVER_EVENTS = {
   presence_update: { user_id: BOB, online: false, last_seen_at: NOW },
   conversation_updated: { conversation_id: CONV, conversation: SUMMARY },
   pins_changed: { conversation_id: CONV, message_id: MSG, pinned: true, actor_user_id: BOB },
+  notification_created: {
+    id: MSG,
+    kind: 'mention',
+    conversation_id: CONV,
+    message_id: MSG,
+    created_at: NOW,
+  },
   user_updated: { user_id: BOB, display_name: 'Bob B', username: 'bob', avatar_url: null },
   call_offer: { call_id: CALL, conversation_id: CONV, media: 'audio', sdp: SDP, from_user_id: BOB },
   call_answer: { call_id: CALL, sdp: ANSWER, from_user_id: BOB },

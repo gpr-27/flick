@@ -73,6 +73,13 @@ describe('migrations', () => {
       ).rows.length;
     expect(await aiLanguageColumn()).toBe(1);
 
+    await migrateDown(t.db); // undoes 0017 (notification centre)
+    expect(await tables()).not.toContain('notifications');
+
+    expect(await tables()).toContain('reminders');
+    await migrateDown(t.db); // undoes 0016 (reminders)
+    expect(await tables()).not.toContain('reminders');
+
     const memberColumn = async (name: string) =>
       (
         await sql<{ column_name: string }>`
@@ -92,10 +99,6 @@ describe('migrations', () => {
           WHERE table_name = 'user_settings' AND column_name = 'guide'`.execute(t.db)
       ).rows.length;
     expect(await guideColumn()).toBe(1);
-
-    expect(await tables()).toContain('reminders');
-    await migrateDown(t.db); // undoes 0016 (reminders)
-    expect(await tables()).not.toContain('reminders');
 
     await migrateDown(t.db); // undoes 0013 (the in-app guide)
     expect(await guideColumn()).toBe(0);

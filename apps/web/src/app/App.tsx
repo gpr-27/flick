@@ -23,6 +23,9 @@ import { GroupCallOverlay } from '@/features/groupcall/components/GroupCallOverl
 import { startChatSession } from '@/features/chat/chatSession';
 import { HomePage } from '@/features/chat/HomePage';
 import { IncomingBanner } from '@/features/notifications/IncomingBanner';
+import { NotificationsPage } from '@/features/notifications/center/NotificationsPage';
+import { useNotificationBindings } from '@/features/notifications/center/useNotificationBindings';
+import { usePushLifecycle } from '@/features/notifications/usePushLifecycle';
 import { useUnreadIndicators } from '@/features/notifications/useUnreadIndicators';
 import { useOpenPendingConversation } from '@/features/notifications/useOpenPendingConversation';
 import { PeoplePage } from '@/features/directory/PeoplePage';
@@ -79,6 +82,7 @@ const SignedInApp = () => {
   }, [status]);
 
   useRealtimeBindings(userId);
+  useNotificationBindings(userId);
   useClerkProfileSync();
   useOpenPendingConversation();
   useUnreadIndicators();
@@ -113,6 +117,7 @@ const SignedInApp = () => {
           <Route path="/people" element={<PeoplePage />} />
           <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route path="/calls" element={<CallLogPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/join/:code" element={<InvitePage />} />
           <Route path="/call/:token" element={<CallLinkPage />} />
           <Route path="/settings" element={<SettingsPage />} />
@@ -131,8 +136,11 @@ const SignedInApp = () => {
 };
 
 export const App = () => {
+  const { isSignedIn } = useAuth();
+  const sessionReady = useSessionStore((s) => s.status === 'authenticated');
   const initTheme = useThemeStore((s) => s.initTheme);
   useClerkBridge();
+  usePushLifecycle(Boolean(isSignedIn), Boolean(isSignedIn) && sessionReady);
 
   // Re-assert the persisted theme on the DOM (safety net for the no-flash script).
   useEffect(() => {

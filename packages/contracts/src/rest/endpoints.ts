@@ -10,6 +10,7 @@ import * as Extras from './extras.js';
 import * as Media from './media.js';
 import * as Msg from './messages.js';
 import * as Mod from './moderation.js';
+import * as Notif from './notifications.js';
 import * as Push from './push.js';
 import * as Reminders from './reminders.js';
 import * as Scheduled from './scheduled.js';
@@ -639,6 +640,32 @@ export const ENDPOINTS = {
       body: Push.PushUnsubscribeRequest,
       response: null,
     },
+    status: { method: 'GET', path: '/push/status', auth: true, response: Push.PushStatus },
+    // Sends a test push to the caller's own devices (3 a minute) and says what each one answered.
+    test: { method: 'POST', path: '/push/test', auth: true, response: Push.PushTestResult },
+  },
+  notifications: {
+    list: {
+      method: 'GET',
+      path: '/notifications',
+      auth: true,
+      query: Notif.NotificationListQuery,
+      response: Notif.NotificationList,
+    },
+    unread: {
+      method: 'GET',
+      path: '/notifications/unread',
+      auth: true,
+      response: Notif.NotificationUnread,
+    },
+    markRead: {
+      method: 'POST',
+      path: '/notifications/read',
+      auth: true,
+      body: Notif.MarkReadRequest,
+      response: Notif.NotificationUnread,
+    },
+    clear: { method: 'DELETE', path: '/notifications', auth: true, response: null },
   },
   moderation: {
     block: { method: 'POST', path: '/blocks', auth: true, body: Mod.BlockRequest, response: null },

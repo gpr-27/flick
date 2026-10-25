@@ -1,30 +1,20 @@
 // Turns one outbox row into Socket.IO emits. Recipients are read from Postgres NOW (never from a
 // cache), so a member who was just removed does not get the next message. Emitting twice is safe:
 // clients ignore a seq they already have.
-import { createHash } from 'node:crypto';
 import { LIMITS, TOPICS } from '@chat/contracts';
 import { MESSAGE_COLUMNS, MESSAGE_TOPIC, type MessageRow, type OutboxRow } from '@chat/db';
 import { sql } from 'kysely';
-import { fromKysely, type PgBoss } from 'pg-boss';
+import type { PgBoss } from 'pg-boss';
 import type { Server } from 'socket.io';
 import type { Config } from '../../config.js';
 import type { Db } from '../../db.js';
-import { messageDispatchLatency, messagesDelivered } from '../../metrics.js';
+import { messageDispatchLatency } from '../../metrics.js';
 import { fromRow } from '../messages/domain/content.js';
 import { toSummary } from '../users/domain/present.js';
 import { getConversation } from '../conversations/repo/summaries.js';
+import { queueNotifications } from './notify.js';
 
-export const NOTIFY_QUEUE = 'notify';
-
-/**
- * The same outbox row dispatched again (after a crash) must not queue a second notification.
- * A job id is a primary key, so a fixed id per (event, user) makes the second insert a no-op.
- * (singletonKey does not do this on a standard queue.)
- */
-function notifyJobId(eventId: string, userId: string): string {
-  const h = createHash('sha256').update(`${eventId}:${userId}`).digest('hex');
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
-}
+export { NOTIFY_QUEUE } from './notify.js';
 
 export interface DispatchContext {
   /** The transaction that claimed the row: reads see current membership, and the notify job is
@@ -143,24 +133,7 @@ async function newMessage(row: OutboxRow, p: Payload, ctx: DispatchContext): Pro
   ctx.onMessageCreated?.(message);
   messageDispatchLatency.observe((Date.now() - message.created_at.getTime()) / 1000);
 
-  // Recipients with no connected socket on any API replica get a notification job, unless muted.
-  if (others.length === 0) return;
-  const sockets = await ctx.io.in(others.map((m) => `user:${m.user_id}`)).fetchSockets();
-  const connected = new Set(sockets.flatMap((s) => [...s.rooms]));
-  messagesDelivered.inc(others.filter((m) => connected.has(`user:${m.user_id}`)).length);
-  for (const member of others) {
-    if (connected.has(`user:${member.user_id}`) || !member.unmuted) continue;
-    await ctx.boss.send(
-      NOTIFY_QUEUE,
-      {
-        user_id: member.user_id,
-        conversation_id: message.conversation_id,
-        message_id: message.id,
-        seq: message.seq,
-      },
-      { db: fromKysely(ctx.db), id: notifyJobId(row.event_id, member.user_id) },
-    );
-  }
+  await queueNotifications(row, message, others, ctx);
 }
 
 /** Edits, deletes and reactions: sent to everyone in the conversation, including the actor. */

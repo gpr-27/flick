@@ -62,7 +62,7 @@ if (config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY && config.VAPID_SUBJECT)
     privateKey: config.VAPID_PRIVATE_KEY,
   });
   pushSender = sender;
-  provider = new WebPushNotificationProvider(db, sender, logger);
+  provider = new WebPushNotificationProvider(db, sender);
 } else {
   logger.warn('VAPID keys not set: notifications are SIMULATED (logged, nothing is sent)');
   provider = new SimulatedLogNotificationProvider(logger);
@@ -92,7 +92,7 @@ await startJobs({
   boss,
   db,
   logger,
-  notify: { db, redis, provider },
+  notify: { db, provider },
   callPush: { db, redis, sender: pushSender, logger },
   reminderPush: { db, sender: pushSender, logger },
   storage,

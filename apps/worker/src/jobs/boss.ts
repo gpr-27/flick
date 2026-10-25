@@ -5,6 +5,7 @@ import type { Logger } from '../logger.js';
 import { CALL_PUSH_QUEUE, registerCallPush, type CallPushDeps } from './call-push.js';
 import { EXPIRE_QUEUE, registerExpireMessages } from './expire-messages.js';
 import { NOTIFY_QUEUE, registerNotify, type NotifyDeps } from './notify.js';
+import { registerPurgeNotifications } from './purge-notifications.js';
 import {
   REMINDER_PUSH_QUEUE,
   SEND_REMINDERS_QUEUE,
@@ -38,6 +39,7 @@ export async function startJobs(deps: {
   await registerNotify(boss, notify, logger);
   await registerCallPush(boss, callPush, logger);
   await registerExpireMessages(boss, db, logger);
+  await registerPurgeNotifications(boss, db, logger);
   await boss.createQueue(SEND_SCHEDULED_QUEUE);
   await registerSendScheduled(boss, db, logger);
   // The reminder push is retried like a message push (the push service may be briefly down).

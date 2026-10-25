@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
 import {
+  Bell,
   CircleHelp,
   MessageSquare,
   MoreVertical,
@@ -14,6 +15,8 @@ import {
 import { startWelcome } from '@/features/guide/welcomeRules';
 import { Avatar, PopoverMenu, cn, type PopoverMenuItem } from '@/components/ui';
 import { useSessionStore } from '@/features/auth/useSessionStore';
+import { BellLink } from '@/features/notifications/center/BellLink';
+import { useNotificationStore } from '@/features/notifications/center/useNotificationStore';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { InstallButton } from '@/pwa/InstallButton';
 import { startInstall, useInstallMode } from '@/pwa/install';
@@ -25,6 +28,7 @@ const PhoneMenu = () => {
   const isDark = useThemeStore((s) => s.theme === 'dark');
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const canInstall = useInstallMode() !== 'none';
+  const unread = useNotificationStore((st) => st.unread);
   const items: PopoverMenuItem[] = [
     {
       label: isDark ? 'Switch to light mode' : 'Switch to dark mode',
@@ -36,6 +40,11 @@ const PhoneMenu = () => {
       onClick: toggleTheme,
     },
     ...(canInstall ? [{ label: 'Install app', onClick: () => void startInstall() }] : []),
+    {
+      label: unread > 0 ? `Notifications (${unread})` : 'Notifications',
+      to: '/notifications',
+      icon: <Bell className="size-5" aria-hidden="true" />,
+    },
     { label: 'People', to: '/people', icon: <Users className="size-5" aria-hidden="true" /> },
     {
       label: 'Settings',
@@ -96,6 +105,7 @@ export const Navbar = () => {
           {/* Desktop/tablet: every control inline. Phones: only Calls + a menu + the avatar. */}
           <InstallButton className="max-sm:hidden" />
           <ThemeToggle className="max-sm:hidden" />
+          <BellLink />
           <Link
             to="/calls"
             data-guide="nav.calls"

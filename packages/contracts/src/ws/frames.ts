@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import type { ErrorBody } from '../errors.js';
 import type { MessageAccepted } from '../message.js';
 import { SendMessageInput } from '../message.js';
+import { NotificationCreatedPayload } from '../rest/notifications.js';
 import * as E from './events.js';
 
 // The Socket.IO event map. Plain event names with a payload: no envelope, no version, no
@@ -46,6 +47,7 @@ export const SERVER_PAYLOADS = {
   presence_update: E.PresenceUpdatePayload,
   conversation_updated: E.ConversationUpdatedPayload,
   pins_changed: E.PinsChangedPayload,
+  notification_created: NotificationCreatedPayload,
   user_updated: E.UserUpdatedPayload,
   call_offer: E.RelayedCall.call_offer,
   call_answer: E.RelayedCall.call_answer,
