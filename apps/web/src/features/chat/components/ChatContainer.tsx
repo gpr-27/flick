@@ -25,6 +25,8 @@ import { toggleStar, usePinsStore } from '../../organise/messageActions';
 import { PinnedBar } from '../../organise/PinnedBar';
 import { wallpaperStyle } from '../../organise/wallpapers';
 import { useSettingsStore } from '../../settings/useSettingsStore';
+import { SelectionBar } from '../selection/SelectionBar';
+import { useSelectedIds, useSelectionStore } from '../selection/useSelectionStore';
 import { buildRows, firstUnreadKey, groupPosition, rowStatus, type ThreadRow } from '../threadRows';
 import { useChatStore, userName, type Activity } from '../useChatStore';
 import { ChatHeader } from './ChatHeader';
@@ -251,6 +253,22 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   const pinnedIds = useMemo(() => new Set((pins ?? []).map((m) => m.message_id)), [pins]);
   const togglePin = usePinsStore((s) => s.toggle);
   const [forwarding, setForwarding] = useState<MessageRecord | null>(null);
+  // Choosing several messages: the ticked ids, and a tap that ticks or unticks one.
+  const selectedIds = useSelectedIds(id);
+  const selecting = selectedIds.length > 0;
+  const selectMessage = useCallback(
+    (m: MessageRecord) => {
+      useSelectionStore.getState().toggle(id, m.message_id);
+    },
+    [id],
+  );
+  // Leaving the chat ends the selection.
+  useEffect(
+    () => () => {
+      useSelectionStore.getState().clear();
+    },
+    [id],
+  );
   const contentContext = useMemo<ContentContext>(() => ({ onOpenImage: setLightbox }), []);
   const retry = useOutboxStore.getState().retry;
   const discard = useOutboxStore.getState().discard;
@@ -371,6 +389,9 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
               onForward={setForwarding}
               pinned={pinnedIds.has(message.message_id)}
               highlighted={flashId === message.message_id}
+              selecting={selecting}
+              selected={selectedIds.includes(message.message_id)}
+              onSelect={selectMessage}
             />
           );
         }}
@@ -383,7 +404,11 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
       className="flex min-w-0 flex-1 flex-col overflow-hidden"
       aria-label={`Chat with ${title}`}
     >
-      <ChatHeader conversation={conversation} />
+      {selecting ? (
+        <SelectionBar messages={messages ?? []} ids={selectedIds} myId={myId} />
+      ) : (
+        <ChatHeader conversation={conversation} />
+      )}
       {isGroup && <GroupCallBanner conversationId={id} messages={messages ?? []} />}
       <PinnedBar conversationId={id} />
       <div
