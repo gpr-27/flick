@@ -135,7 +135,7 @@ export function pushRoutes(app: FastifyInstance, deps: AppDeps): void {
     const devices: PushTestResult['devices'] = [];
     for (const sub of subs) {
       const service = pushServiceHost(sub.endpoint);
-      let status = 0;
+      let status: number;
       try {
         const res = await sender(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },

@@ -157,7 +157,7 @@ export class WebPushNotificationProvider implements NotificationProvider {
         continue;
       }
       const host = serviceHost(sub.endpoint);
-      let status = 0;
+      let status: number;
       try {
         const result = await this.sender(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },

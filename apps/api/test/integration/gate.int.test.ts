@@ -247,7 +247,10 @@ describe('3. restart after commit, before live delivery', () => {
     await b.flush();
     expect(b.of('new_message').length).toBeGreaterThanOrEqual(2);
     expect(dedupeBySeq(b.of('new_message').map((p) => p.message))).toHaveLength(1);
-    expect((await env.notifyJobs(conv)).map((j) => j.user_id)).toEqual([carol.id]);
+    // Carol is away; Bob is connected, so his job is the delayed one.
+    expect((await env.notifyJobs(conv)).map((j) => j.user_id).sort()).toEqual(
+      [bob.id, carol.id].sort(),
+    );
   });
 });
 

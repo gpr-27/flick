@@ -4,11 +4,11 @@
 import { LIMITS, TOPICS } from '@chat/contracts';
 import { MESSAGE_COLUMNS, MESSAGE_TOPIC, type MessageRow, type OutboxRow } from '@chat/db';
 import { sql } from 'kysely';
-import { fromKysely, type PgBoss } from 'pg-boss';
+import type { PgBoss } from 'pg-boss';
 import type { Server } from 'socket.io';
 import type { Config } from '../../config.js';
 import type { Db } from '../../db.js';
-import { messageDispatchLatency, messagesDelivered } from '../../metrics.js';
+import { messageDispatchLatency } from '../../metrics.js';
 import { fromRow } from '../messages/domain/content.js';
 import { getConversation } from '../conversations/repo/summaries.js';
 import { queueNotifications } from './notify.js';

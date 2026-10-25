@@ -1,6 +1,6 @@
 // The notification centre's queries. A row says "this person was alerted about this message"; the
 // text, sender and chat name are read live, so a deleted, expired or hidden message cannot leak.
-import type { NotificationItem, NotificationKind } from '@chat/contracts';
+import type { NotificationItem } from '@chat/contracts';
 import type { NotificationKind as StoredKind } from '@chat/db';
 import { previewOf } from '@chat/shared';
 import { sql } from 'kysely';
@@ -115,7 +115,7 @@ export async function listAlerts(
     const isGroup = r.conversation_type === 'group';
     return {
       id: r.id,
-      kind: r.kind as NotificationKind,
+      kind: r.kind,
       created_at: r.created_at.toISOString(),
       read: r.is_read,
       conversation_id: r.conversation_id,

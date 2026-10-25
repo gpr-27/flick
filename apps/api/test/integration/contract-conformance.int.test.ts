@@ -656,7 +656,7 @@ const SCENARIOS: Record<string, Scenario> = {
 
   // ------------------------------------------------------------------ notifications
   'notifications.list': async (f, def) =>
-    conforms(def, await call(f.alice, def, { query: { limit: '5' } })),
+    conforms(def, await call(f.alice, def, { query: 'limit=5' })),
   'notifications.unread': async (f, def) => conforms(def, await call(f.alice, def)),
   'notifications.markRead': async (f, def) =>
     conforms(def, await call(f.alice, def, { body: { all: true } })),

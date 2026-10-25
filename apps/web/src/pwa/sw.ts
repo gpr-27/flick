@@ -18,13 +18,25 @@ import {
   missedCallNotification,
   parseCallPush,
   planClick,
+  type ShownCallNotification,
 } from './callPush';
-import { parsePushPayload, toNotification } from './pushPayload';
+import { pickWindow } from './clickTarget';
+import {
+  chatTag,
+  parsePushPayload,
+  parseTestPush,
+  previousOf,
+  testNotification,
+  toNotification,
+  type ShownNotification,
+} from './pushPayload';
 
 // This file is compiled with the DOM lib (not "webworker"), so declare the few worker APIs used.
 interface WorkerClient {
   focus: () => Promise<unknown>;
   postMessage: (message: unknown) => void;
+  focused: boolean;
+  visibilityState: string;
 }
 interface WorkerEvent extends Event {
   waitUntil: (promise: Promise<unknown>) => void;
@@ -37,6 +49,9 @@ interface ClickEventLike extends WorkerEvent {
   action: string;
   notification: { close: () => void; data?: { url?: string } };
 }
+interface SubscriptionChangeEventLike extends WorkerEvent {
+  oldSubscription?: { options?: { applicationServerKey?: ArrayBuffer | null } } | null;
+}
 interface MessageEventLike extends Event {
   data: unknown;
 }
@@ -44,7 +59,11 @@ interface WorkerManifest {
   __WB_MANIFEST: { url: string; revision: string | null }[];
 }
 interface WorkerScope {
-  registration: { showNotification: (title: string, options: object) => Promise<void> };
+  registration: {
+    showNotification: (title: string, options: object) => Promise<void>;
+    getNotifications: (filter: { tag: string }) => Promise<{ data?: unknown }[]>;
+    pushManager: { subscribe: (options: object) => Promise<unknown> };
+  };
   clients: {
     matchAll: (options: object) => Promise<WorkerClient[]>;
     openWindow: (url: string) => Promise<unknown>;
@@ -64,21 +83,73 @@ registerRoute(
   }),
 );
 
-sw.addEventListener('push', (event: PushEventLike) => {
-  let raw: unknown = null;
-  try {
-    raw = event.data?.json() ?? null;
-  } catch {
-    // not JSON: fall back to the generic notification
-  }
-  // A call push rings (Answer / Decline); its cancel turns the ring into "Missed call".
+/**
+ * Turns one push into the notification to show. A call push rings (Answer / Decline); a message
+ * push joins the open notification of the same chat ("Bob: 3 new messages"); anything unreadable
+ * still becomes a generic notification, because a push that shows nothing costs the site its
+ * notification permission.
+ */
+async function notificationFor(raw: unknown): Promise<ShownNotification | ShownCallNotification> {
   const call = parseCallPush(raw);
-  const shown = call
-    ? call.type === 'call'
-      ? callNotification(call)
-      : missedCallNotification(call)
-    : toNotification(parsePushPayload(raw));
-  event.waitUntil(sw.registration.showNotification(shown.title, shown.options));
+  if (call) return call.type === 'call' ? callNotification(call) : missedCallNotification(call);
+  const test = parseTestPush(raw);
+  if (test) return testNotification(test);
+  const payload = parsePushPayload(raw);
+  let previous = null;
+  if (payload) {
+    try {
+      const open = await sw.registration.getNotifications({
+        tag: chatTag(payload.conversation_id),
+      });
+      previous = previousOf(open[0]?.data);
+    } catch {
+      // cannot look: show it as a first message
+    }
+  }
+  return toNotification(payload, previous);
+}
+
+sw.addEventListener('push', (event: PushEventLike) => {
+  event.waitUntil(
+    (async () => {
+      let raw: unknown = null;
+      try {
+        raw = event.data?.json() ?? null;
+      } catch {
+        // not JSON: fall back to the generic notification
+      }
+      let shown;
+      try {
+        shown = await notificationFor(raw);
+      } catch {
+        shown = toNotification(null);
+      }
+      await sw.registration.showNotification(shown.title, shown.options);
+    })(),
+  );
+});
+
+// The browser replaced our subscription (the push service rotated it). Subscribe again with the
+// same key at once, then tell open windows: the service worker has no login, so the page tells the
+// server about the new endpoint.
+sw.addEventListener('pushsubscriptionchange', (event: SubscriptionChangeEventLike) => {
+  event.waitUntil(
+    (async () => {
+      const key = event.oldSubscription?.options?.applicationServerKey;
+      if (key) {
+        try {
+          await sw.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: key,
+          });
+        } catch {
+          // the page will try again when it opens
+        }
+      }
+      const open = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of open) client.postMessage({ type: 'push-subscription-changed' });
+    })(),
+  );
 });
 
 sw.addEventListener('notificationclick', (event: ClickEventLike) => {
@@ -103,13 +174,17 @@ sw.addEventListener('notificationclick', (event: ClickEventLike) => {
   event.waitUntil(
     (async () => {
       const open = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      const existing = open[0];
+      const existing = pickWindow(open);
       if (existing) {
         existing.postMessage({ type: 'open-url', url });
-        await existing.focus();
-      } else {
-        await sw.clients.openWindow(url);
+        try {
+          await existing.focus();
+          return;
+        } catch {
+          // the browser refused to focus it: open a window instead
+        }
       }
+      await sw.clients.openWindow(url);
     })(),
   );
 });

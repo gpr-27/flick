@@ -24,7 +24,11 @@ describe('enablePush', () => {
       applicationServerKey: new Uint8Array([1, 2, 3]),
     });
     expect(api.call).toHaveBeenCalledWith(ENDPOINTS.push.subscribe, {
-      body: { endpoint: 'https://push.example/abc', keys: { p256dh: 'p', auth: 'a' } },
+      body: {
+        endpoint: 'https://push.example/abc',
+        keys: { p256dh: 'p', auth: 'a' },
+        prefs: { previews: true, quiet: null },
+      },
     });
   });
 

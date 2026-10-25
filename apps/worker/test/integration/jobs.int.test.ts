@@ -13,7 +13,7 @@ import {
   handleCallPush,
   type CallPushJob,
 } from '../../src/jobs/call-push.js';
-import { NOTIFY_QUEUE, handleNotify } from '../../src/jobs/notify.js';
+import { NOTIFY_QUEUE } from '../../src/jobs/notify.js';
 import { sweepUploads } from '../../src/jobs/sweep-uploads.js';
 import { createLogger } from '../../src/logger.js';
 import {
