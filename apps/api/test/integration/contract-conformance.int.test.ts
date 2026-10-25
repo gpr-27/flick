@@ -607,6 +607,30 @@ const SCENARIOS: Record<string, Scenario> = {
     conforms(def, await call(f.alice, def, { params: { scheduled_id: made.body.id } }));
   },
 
+  // ------------------------------------------------------------------ reminders
+  'reminders.create': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, {
+        body: { message_id: f.messageId, remind_at: inOneHour(), note: 'look again' },
+      }),
+      201,
+    ),
+  'reminders.list': async (f, def) => {
+    await call(f.alice, E.reminders.create, {
+      body: { conversation_id: f.conv, remind_at: inOneHour() },
+    });
+    const res = await call(f.alice, def, { query: 'limit=5' });
+    conforms(def, res);
+    expect(res.body.items.length).toBeGreaterThan(0);
+  },
+  'reminders.cancel': async (f, def) => {
+    const made = await call(f.alice, E.reminders.create, {
+      body: { message_id: f.messageId, remind_at: inOneHour() },
+    });
+    conforms(def, await call(f.alice, def, { params: { reminder_id: made.body.id } }));
+  },
+
   // ------------------------------------------------------------------ ai (fake provider)
   'ai.status': async (f, def) => {
     const res = await call(f.alice, def);

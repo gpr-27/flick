@@ -81,6 +81,10 @@ describe('migrations', () => {
       ).rows.length;
     expect(await guideColumn()).toBe(1);
 
+    expect(await tables()).toContain('reminders');
+    await migrateDown(t.db); // undoes 0016 (reminders)
+    expect(await tables()).not.toContain('reminders');
+
     await migrateDown(t.db); // undoes 0013 (the in-app guide)
     expect(await guideColumn()).toBe(0);
 
