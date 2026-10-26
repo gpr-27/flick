@@ -11,9 +11,11 @@ import { messageAcceptLatency, messagesAccepted, messagesDuplicate } from '../..
 import { ApiError, toApiError } from '../errors.js';
 import type { MessageDeps } from '../deps.js';
 import { toStored, type StoredContent } from './content.js';
+import { slowModeWait } from '../../grouptools/flagging.js';
 
 /** One message's content may be at most this many bytes of JSON (a max-length text fits). */
-const MAX_CONTENT_BYTES = 64 * 1024;
+// 65,000 characters, worst case: JSON escapes a control character to 6 bytes (\u0000).
+const MAX_CONTENT_BYTES = 400 * 1024;
 
 const VIEW_ONCE_TYPES = ['image', 'video', 'voice'];
 
@@ -32,6 +34,7 @@ export async function sendMessage(
   const startedAt = process.hrtime.bigint(); // monotonic: unaffected by clock changes
   const stored = validateContent(input);
   await checkSenderAllowed(deps, input.conversation_id, auth.userId);
+  await checkSlowMode(deps, input.conversation_id, auth.userId, input.client_message_id);
   if (stored.replyToId) await checkReplyTarget(deps, input.conversation_id, stored.replyToId);
 
   let result;
@@ -95,8 +98,13 @@ function validateContent(input: SendMessageInput): StoredContent {
 
 /** Membership and block checks in one query. The send transaction re-checks membership. */
 async function checkSenderAllowed(deps: MessageDeps, conversationId: string, userId: string) {
-  const { rows } = await sql<{ is_member: boolean; blocked: boolean }>`
+  const { rows } = await sql<{ is_member: boolean; blocked: boolean; admins_only: boolean }>`
     SELECT
+      EXISTS (SELECT 1 FROM conversation_members m
+              JOIN conversations c ON c.id = m.conversation_id
+              WHERE m.conversation_id = ${conversationId} AND m.user_id = ${userId}
+                AND m.left_at IS NULL AND c.admin_only_send AND m.role = 'member'
+             ) AS admins_only,
       EXISTS (SELECT 1 FROM conversation_members
               WHERE conversation_id = ${conversationId} AND user_id = ${userId} AND left_at IS NULL
              ) AS is_member,
@@ -109,6 +117,32 @@ async function checkSenderAllowed(deps: MessageDeps, conversationId: string, use
     throw new ApiError('NOT_A_MEMBER', 'You are not a member of this conversation.');
   }
   if (rows[0].blocked) throw new ApiError('BLOCKED', 'You cannot message this user.');
+  if (rows[0].admins_only) throw new ApiError('ADMINS_ONLY', 'Only admins can send messages.');
+}
+
+/** Group slow mode: members wait `slow_mode_seconds` between messages. Admins are exempt. */
+async function checkSlowMode(
+  deps: MessageDeps,
+  conversationId: string,
+  userId: string,
+  clientMessageId: string,
+) {
+  const { rows } = await sql<{ slow: number; role: string; last: Date | null }>`
+    SELECT c.slow_mode_seconds AS slow, m.role,
+      (SELECT max(created_at) FROM messages
+        WHERE conversation_id = c.id AND sender_id = ${userId}
+          AND client_message_id <> ${clientMessageId}) AS last
+    FROM conversations c
+    JOIN conversation_members m ON m.conversation_id = c.id AND m.user_id = ${userId}
+    WHERE c.id = ${conversationId}`.execute(deps.db);
+  const row = rows[0];
+  if (!row || row.slow <= 0 || row.role !== 'member') return;
+  const wait = slowModeWait(row.slow, row.last ? row.last.getTime() : null, Date.now());
+  if (wait > 0) {
+    throw new ApiError('SLOW_MODE', `Slow mode is on. Wait ${wait}s to send again.`, {
+      wait_seconds: wait,
+    });
+  }
 }
 
 async function checkReplyTarget(deps: MessageDeps, conversationId: string, replyToId: string) {

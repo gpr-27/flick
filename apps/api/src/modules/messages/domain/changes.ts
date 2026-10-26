@@ -3,13 +3,7 @@ import { sql } from 'kysely';
 import type { AuthContext } from '../../../auth-guard.js';
 import { ApiError } from '../errors.js';
 import type { MessageDeps } from '../deps.js';
-import {
-  EDIT_WINDOW_MINUTES,
-  loadMessage,
-  lockAndRequireMember,
-  recordChange,
-  requireMember,
-} from '../repo/access.js';
+import { loadMessage, lockAndRequireMember, recordChange, requireMember } from '../repo/access.js';
 import { TEXT_FIELD } from './content.js';
 
 // Only text and captions can be edited.
@@ -21,7 +15,7 @@ interface Target {
 }
 
 /**
- * Edit: the sender only, within 15 minutes, text or caption only. Takes the next seq.
+ * Edit: the sender only, any time, text or caption only. The old text goes to message_edits. Takes the next seq.
  * Returns that seq.
  */
 export async function editMessage(
@@ -38,12 +32,6 @@ export async function editMessage(
     if (message.sender_id !== auth.userId) {
       throw new ApiError('FORBIDDEN', 'You can only edit your own messages.');
     }
-    if (message.edit_window_closed) {
-      throw new ApiError(
-        'EDIT_WINDOW_EXPIRED',
-        `Messages can only be edited for ${String(EDIT_WINDOW_MINUTES)} minutes.`,
-      );
-    }
     if (!EDITABLE_TYPES.includes(message.type) || target.content.type !== message.type) {
       throw new ApiError(
         'VALIDATION_FAILED',
@@ -53,6 +41,10 @@ export async function editMessage(
 
     const field = TEXT_FIELD[message.type]!;
     const newText = (target.content as Record<string, unknown>)[field] as string | undefined;
+    await trx
+      .insertInto('message_edits')
+      .values({ message_id: message.id, body_text: message.body_text })
+      .execute();
     await trx
       .updateTable('messages')
       .set({ body_text: newText ?? null, edited_at: sql<Date>`now()` })

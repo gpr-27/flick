@@ -13,6 +13,7 @@ import type {
   PresignUploadRequest,
   PresignUploadResponse,
 } from '@chat/contracts';
+import { formatBytes } from '@chat/contracts';
 import { fileTypeFromBuffer } from 'file-type';
 import type { Readable } from 'node:stream';
 import type { z } from 'zod';
@@ -28,11 +29,13 @@ import {
 import { avatarVariantKey, resizeAvatar } from './avatars.js';
 import { MediaError } from './errors.js';
 import {
-  ALLOWED_TYPES,
   MAX_BYTES,
+  canShowInline,
+  declaredMatches,
+  downloadContentType,
   isAvatarKey,
+  isTypeAllowed,
   objectKey,
-  sameType,
   sanitizeFileName,
 } from './rules.js';
 import type { Storage } from './storage.js';
@@ -41,8 +44,6 @@ const UPLOAD_URL_SECONDS = 10 * 60;
 const DOWNLOAD_URL_SECONDS = 5 * 60;
 // file-type needs only the start of a file to recognise it.
 const SNIFF_BYTES = 4_100;
-// Types a browser may show in the page. Anything else is forced to download.
-const INLINE_PREFIXES = ['image/', 'audio/', 'video/'];
 
 type PresignBody = z.infer<typeof PresignUploadRequest>;
 
@@ -53,7 +54,7 @@ export async function presignUpload(
   userId: string,
   body: PresignBody,
 ): Promise<z.infer<typeof PresignUploadResponse>> {
-  if (!ALLOWED_TYPES[body.purpose].includes(body.mime)) {
+  if (!isTypeAllowed(body.purpose, body.mime)) {
     throw new MediaError(
       'UNSUPPORTED_MEDIA_TYPE',
       `${body.mime} is not allowed for ${body.purpose}`,
@@ -62,7 +63,7 @@ export async function presignUpload(
   if (body.size > MAX_BYTES[body.purpose]) {
     throw new MediaError(
       'PAYLOAD_TOO_LARGE',
-      `Maximum size for ${body.purpose} is ${MAX_BYTES[body.purpose]} bytes`,
+      `This file is ${formatBytes(body.size)}, but ${body.purpose === 'message' ? 'files' : 'profile pictures'} can be at most ${formatBytes(MAX_BYTES[body.purpose])}. Larger uploads are rejected so they stay reliable for everyone. Send a smaller file or a link instead.`,
     );
   }
 
@@ -133,7 +134,7 @@ export async function completeUpload(
     row.object_key,
     row.declared_mime,
   );
-  if (!detected || !sameType(row.declared_mime, detected)) {
+  if (!declaredMatches(row.declared_mime, detected)) {
     await reject(
       db,
       storage,
@@ -149,7 +150,8 @@ export async function completeUpload(
     );
   }
 
-  // The declared type is kept: it has just been shown to be the same container as the bytes.
+  // The declared type is kept. Where we can verify it, it has just been shown to match the bytes;
+  // other types are served as downloads only (see canShowInline).
   await markUploaded(db, id, row.declared_mime, sha256);
   const done = await findAttachment(db, id);
   return toDto(done!);
@@ -173,14 +175,14 @@ export async function downloadUrl(
   if (!ready || !allowed) throw new MediaError('NOT_FOUND', 'Attachment not found');
 
   const mime = row.verified_mime ?? row.declared_mime;
-  const inline = INLINE_PREFIXES.some((p) => mime.startsWith(p));
+  const inline = canShowInline(mime);
   const isAvatar = isAvatarKey(row.object_key);
   const url = await getSignedUrl(
     storage.signer,
     new GetObjectCommand({
       Bucket: storage.bucket,
       Key: isAvatar ? avatarVariantKey(row.object_key, 256) : row.object_key,
-      ResponseContentType: isAvatar ? 'image/webp' : mime,
+      ResponseContentType: isAvatar ? 'image/webp' : downloadContentType(mime),
       ResponseContentDisposition: inline
         ? 'inline'
         : `attachment; filename="${row.file_name ?? 'file'}"`,

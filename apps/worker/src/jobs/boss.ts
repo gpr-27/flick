@@ -3,6 +3,7 @@ import type { Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Logger } from '../logger.js';
 import { CALL_PUSH_QUEUE, registerCallPush, type CallPushDeps } from './call-push.js';
+import { DIGEST_QUEUE, registerDigest } from './digest.js';
 import { EXPIRE_QUEUE, registerExpireMessages } from './expire-messages.js';
 import { NOTIFY_QUEUE, registerNotify, type NotifyDeps } from './notify.js';
 import { registerPurgeNotifications } from './purge-notifications.js';
@@ -50,6 +51,8 @@ export async function startJobs(deps: {
   });
   await boss.createQueue(SEND_REMINDERS_QUEUE);
   await registerSendReminders(boss, db, reminderPush, logger);
+  await boss.createQueue(DIGEST_QUEUE);
+  await registerDigest(boss, db, logger);
   if (storage) {
     await boss.createQueue(SWEEP_UPLOADS_QUEUE);
     await registerSweepUploads(boss, db, storage, logger);

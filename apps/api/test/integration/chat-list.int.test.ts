@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument -- test responses are untyped JSON */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- test responses are untyped JSON */
 import { allocateSeqAndInsertMessage } from '@chat/db';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -89,7 +89,11 @@ describe('DELETE /conversations/:id (delete for me)', () => {
     expect(summary.unread_count).toBe(1);
 
     const replay = await sync(a, id);
-    expect(replay.body.events.map((e: any) => e.payload.message.content.text)).toEqual(['fresh']);
+    expect(
+      (replay.body.events as { payload: { message: { content: { text: string } } } }[]).map(
+        (e) => e.payload.message.content.text,
+      ),
+    ).toEqual(['fresh']);
     expect(replay.body.removed_conversation_ids).toEqual([]);
   });
 

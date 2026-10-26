@@ -531,6 +531,10 @@ describe('login (the real authenticate, with a fake Clerk)', () => {
       device_id: randomUUID(),
       scheduled_id: randomUUID(),
       reminder_id: randomUUID(),
+      webhook_id: randomUUID(),
+      list_id: randomUUID(),
+      collection_id: randomUUID(),
+      id: randomUUID(),
       username: 'someone',
       code: 'AAAAAAAAAAAAAAAAAAAA',
     });

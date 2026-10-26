@@ -25,7 +25,9 @@ class FakeProvider implements ProviderAdapter {
   systems: string[] = [];
 
   complete({ request }: ProviderCallParams): Promise<string> {
-    this.prompts.push(request.messages.map((m) => m.content).join('\n'));
+    this.prompts.push(
+      request.messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join('\n'),
+    );
     this.systems.push(request.system ?? '');
     if (this.mode === 'down') {
       return Promise.reject(Object.assign(new Error('provider down'), { status: 503 }));
@@ -188,6 +190,34 @@ describe('AI routes', () => {
       headers: { 'x-user-id': user },
     });
     expect(status.json()).toEqual({ enabled: false });
+  });
+
+  it('compose polishes, rewrites and writes, and rejects bad bodies', async () => {
+    const user = await makeUser();
+    const polished = await post(user, '/ai/compose', { mode: 'polish', text: 'helo' });
+    expect(polished.statusCode).toBe(200);
+    expect(polished.json()).toMatchObject({ text: 'fake answer', provider: 'groq' });
+    expect(
+      (await post(user, '/ai/compose', { mode: 'rewrite', text: 'hi', tone: 'formal' })).statusCode,
+    ).toBe(200);
+    expect(
+      (await post(user, '/ai/compose', { mode: 'write', text: 'tell Ravi hi' })).statusCode,
+    ).toBe(200);
+    expect(
+      (await post(user, '/ai/compose', { mode: 'refine', text: 'hi', action: 'shorten' }))
+        .statusCode,
+    ).toBe(200);
+    // reply reads the chat on the server: a chat the caller is not in is a 404
+    expect(
+      (
+        await post(user, '/ai/compose', {
+          mode: 'reply',
+          conversation_id: '0190f1a0-0000-7000-8000-000000000001',
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect((await post(user, '/ai/compose', { mode: 'polish', text: '' })).statusCode).toBe(400);
+    expect((await post(null, '/ai/compose', { mode: 'polish', text: 'x' })).statusCode).toBe(401);
   });
 
   it('summarize, suggest-replies, translate and chat work for a member', async () => {
@@ -382,8 +412,11 @@ describe('@flick bot', () => {
     const bot = await botMessages(chat.id);
     expect(bot.map((m) => m.reply_to_id)).toEqual([hi.id, question.id]);
     // It used the assistant prompt for one-to-one chats, not the short group one.
-    expect(fake.prompts).toHaveLength(2);
-    expect(fake.prompts[1]).toContain('Reply to the latest message, written by');
+    // (A direct chat also runs a background "pick out lasting facts" pass on longer messages;
+    // that is a separate, fire-and-forget call, so it is left out of the count.)
+    const replies = fake.prompts.filter((p) => !p.startsWith('<message>\n'));
+    expect(replies).toHaveLength(2);
+    expect(replies[1]).toContain('Reply to the latest message, written by');
   });
 
   it('still needs a mention in a group, and in a direct chat between two people', async () => {

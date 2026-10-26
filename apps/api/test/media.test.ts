@@ -5,7 +5,15 @@ import { loadConfig } from '../src/config.js';
 import { createDb } from '../src/db.js';
 import { createLogger } from '../src/logger.js';
 import { Redis } from '../src/redis.js';
-import { objectKey, sameType, sanitizeFileName } from '../src/modules/media/domain/rules.js';
+import {
+  canShowInline,
+  declaredMatches,
+  downloadContentType,
+  isTypeAllowed,
+  objectKey,
+  sameType,
+  sanitizeFileName,
+} from '../src/modules/media/domain/rules.js';
 import { gifRoutes } from '../src/modules/extras/http/gifs.js';
 import { TEST_ENV } from './helpers.js';
 
@@ -23,6 +31,49 @@ describe('upload rules', () => {
     expect(sameType('audio/mp4', 'video/mp4')).toBe(true);
     expect(sameType('audio/webm', 'video/webm')).toBe(true);
     expect(sameType('image/png', 'image/jpeg')).toBe(false);
+  });
+
+  it('accepts any type for messages but only photos for avatars', () => {
+    for (const mime of [
+      'image/heic',
+      'video/x-matroska',
+      'audio/flac',
+      'application/octet-stream',
+      'image/svg+xml',
+    ]) {
+      expect(isTypeAllowed('message', mime)).toBe(true);
+      expect(isTypeAllowed('avatar', mime)).toBe(false);
+    }
+    expect(isTypeAllowed('group_avatar', 'image/png')).toBe(true);
+    expect(isTypeAllowed('avatar', 'image/avif')).toBe(true);
+  });
+
+  it('only checks bytes against declared types it can verify', () => {
+    expect(declaredMatches('application/octet-stream', undefined)).toBe(true);
+    expect(declaredMatches('video/x-matroska', 'video/webm')).toBe(true);
+    expect(declaredMatches('image/heic', undefined)).toBe(true);
+    expect(declaredMatches('image/png', undefined)).toBe(false);
+    expect(declaredMatches('image/png', 'image/jpeg')).toBe(false);
+    expect(declaredMatches('image/png', 'image/png')).toBe(true);
+  });
+
+  it('never lets the browser run an uploaded page, script or svg', () => {
+    for (const mime of [
+      'text/html',
+      'image/svg+xml',
+      'application/xhtml+xml',
+      'text/xml',
+      'application/javascript',
+      'application/pdf',
+      'application/octet-stream',
+    ]) {
+      expect(canShowInline(mime)).toBe(false);
+      expect(downloadContentType(mime)).toBe('application/octet-stream');
+    }
+    for (const mime of ['image/png', 'image/heic', 'video/x-matroska', 'audio/flac']) {
+      expect(canShowInline(mime)).toBe(true);
+      expect(downloadContentType(mime)).toBe(mime);
+    }
   });
 });
 

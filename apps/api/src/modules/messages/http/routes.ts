@@ -141,6 +141,12 @@ export function messageRoutes(app: FastifyInstance, deps: { db: MessageDeps['db'
       search(deps, auth, {
         q: query.q,
         conversationId: query.conversation_id,
+        senderId: query.sender_id,
+        from: query.from,
+        to: query.to,
+        media: query.media,
+        starred: query.starred === 'true',
+        pinned: query.pinned === 'true',
         cursor: query.cursor,
         limit: query.limit,
       }),

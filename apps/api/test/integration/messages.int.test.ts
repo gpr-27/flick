@@ -355,20 +355,19 @@ describe('edit, delete, react and sync', () => {
     expect(second.removed_conversation_ids).toEqual([left]);
   });
 
-  it('only the sender can edit, and only within 15 minutes', async () => {
+  it('only the sender can edit, at any time', async () => {
     const { alice, bob, conv } = await twoPeople();
     const m = await send(alice, conv, 'typo');
     const url = `/conversations/${conv}/messages/${m.message_id}`;
     expect((await api(bob, 'PATCH', url, { content: text('hax') })).status).toBe(403);
     expect((await api(alice, 'PATCH', url, { content: text('fixed') })).status).toBe(204);
+    // No time limit any more: an old message can still be edited.
     await db
       .updateTable('messages')
       .set({ created_at: sql<Date>`now() - interval '16 minutes'` })
       .where('id', '=', m.message_id)
       .execute();
-    const late = await api(alice, 'PATCH', url, { content: text('too late') });
-    expect(late.status).toBe(409);
-    expect(late.body?.error.code).toBe('EDIT_WINDOW_EXPIRED');
+    expect((await api(alice, 'PATCH', url, { content: text('later fix') })).status).toBe(204);
   });
 
   it('delete for everyone: sender or group admin; a plain member is refused; a retry takes no new seq', async () => {

@@ -166,7 +166,7 @@ async function deliverOne(
 }
 
 /** The person's one-to-one chat with the Flick bot, or null if they have none. */
-async function flickChatOf(db: Kysely<Database>, userId: string): Promise<string | null> {
+export async function flickChatOf(db: Kysely<Database>, userId: string): Promise<string | null> {
   const [lo, hi] =
     userId < FLICK_BOT_USER_ID ? [userId, FLICK_BOT_USER_ID] : [FLICK_BOT_USER_ID, userId];
   const pair = await db

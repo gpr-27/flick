@@ -14,12 +14,29 @@ import { toRecords } from './records.js';
 export async function search(
   deps: MessageDeps,
   auth: AuthContext,
-  query: { q: string; conversationId?: string; cursor?: string; limit: number },
+  query: {
+    q: string;
+    conversationId?: string;
+    senderId?: string;
+    from?: string;
+    to?: string;
+    media?: 'images' | 'video' | 'audio' | 'files' | 'links';
+    starred?: boolean;
+    pinned?: boolean;
+    cursor?: string;
+    limit: number;
+  },
 ): Promise<{ items: z.infer<typeof SearchHit>[]; next_cursor: string | null }> {
   if (query.conversationId) await requireMember(deps.db, query.conversationId, auth.userId);
   const after = query.cursor ? decodeKeyset(query.cursor) : undefined;
   const hits = await searchMessages(deps.db, auth.userId, query.q, query.limit + 1, {
     conversationId: query.conversationId,
+    senderId: query.senderId,
+    from: query.from,
+    to: query.to,
+    media: query.media,
+    starred: query.starred,
+    pinned: query.pinned,
     after: after && { createdAtText: after.at, id: after.id },
   });
 

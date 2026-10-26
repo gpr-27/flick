@@ -5,12 +5,13 @@ import { sql, type Expression, type SqlBool } from 'kysely';
 import type { Db } from '../../../db.js';
 import { toRecords } from '../../messages/domain/records.js';
 
-export type SharedKind = 'media' | 'files' | 'links';
+export type SharedKind = 'media' | 'files' | 'links' | 'voice';
 
 /** Which messages belong to each tab. A link is any text message that contains http(s)://. */
 const FILTERS: Record<SharedKind, Expression<SqlBool>> = {
   media: sql<SqlBool>`messages.type IN ('image', 'video', 'gif')`,
   files: sql<SqlBool>`messages.type = 'file'`,
+  voice: sql<SqlBool>`messages.type = 'voice'`,
   links: sql<SqlBool>`messages.type = 'text' AND messages.body_text ~* 'https?://'`,
 };
 

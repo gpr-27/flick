@@ -1,11 +1,13 @@
 import type { Server as HttpServer } from 'node:http';
 import { ENDPOINTS, LIMITS } from '@chat/contracts';
+import type { MessageRow } from '@chat/db';
 import { createAdapter } from '@socket.io/redis-adapter';
 import type { FastifyInstance } from 'fastify';
 import { PgBoss } from 'pg-boss';
 import { Server } from 'socket.io';
 import type { AppDeps } from './app.js';
 import { flickBotOnMessage, type FlickTrigger } from './modules/ai/bot.js';
+import { autoTranscribeOnMessage } from './modules/ai/transcripts.js';
 import { CALL_PUSH_QUEUE, type CallPushJob } from './modules/gateway/call-push.js';
 import { attachGateway } from './modules/gateway/index.js';
 import { createDispatcher, NOTIFY_QUEUE } from './modules/dispatcher/index.js';
@@ -131,7 +133,7 @@ export function registerRealtime(app: FastifyInstance, deps: AppDeps): void {
 
     // The @flick bot runs after delivery and is not awaited: a slow AI call never delays messages.
     const { ai } = deps;
-    const onMessageCreated = ai
+    const flickHook = ai
       ? (message: FlickTrigger) =>
           void flickBotOnMessage(
             {
@@ -145,6 +147,14 @@ export function registerRealtime(app: FastifyInstance, deps: AppDeps): void {
             message,
           ).catch((error: unknown) => deps.logger.warn({ error }, 'flick bot failed'))
       : undefined;
+    // Voice notes are transcribed after delivery too (opt-in per chat or globally, and voicemail).
+    const onMessageCreated = (message: MessageRow): void => {
+      flickHook?.(message);
+      void autoTranscribeOnMessage(
+        { db: deps.db, redis: deps.redis, config: deps.config, logger: deps.logger, ai },
+        message,
+      ).catch((error: unknown) => deps.logger.warn({ error }, 'auto transcribe failed'));
+    };
     const dispatcher = createDispatcher({ ...deps, io: server, boss, onMessageCreated });
     dispatcher.start();
     stops.push(

@@ -131,11 +131,11 @@ const SENDABLE: Case[] = [
     make: (c) => sendAsAlice(c, { type: 'text', text: `héllo wörld 👋🏽\nline two ${c.token}` }),
   },
   {
-    name: 'text of the maximum length (16000 characters)',
+    name: 'text of the maximum length (65000 characters)',
     type: 'text',
     searchable: true,
     forwardable: true,
-    make: (c) => sendAsAlice(c, { type: 'text', text: `${c.token} ${'a'.repeat(15_980)}` }),
+    make: (c) => sendAsAlice(c, { type: 'text', text: `${c.token} ${'a'.repeat(64_980)}` }),
   },
   {
     name: 'text that mentions a member',

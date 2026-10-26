@@ -92,3 +92,34 @@ export async function cancelScheduled(db: Db, userId: string, id: string): Promi
     .executeTakeFirst();
   if (!deleted) throw new ApiError('NOT_FOUND', 'Scheduled message not found');
 }
+
+/** Changes the text and/or send time of a waiting message (a failed one is retried at the new time). */
+export async function updateScheduled(
+  db: Db,
+  userId: string,
+  id: string,
+  input: { text?: string; sendAt?: Date },
+): Promise<ScheduledMessage> {
+  if (input.sendAt) {
+    const lead = (input.sendAt.getTime() - Date.now()) / 1000;
+    if (lead < LIMITS.SCHEDULE_MIN_LEAD_S || lead > LIMITS.SCHEDULE_MAX_LEAD_S) {
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        'Pick a time at least a minute from now and within a year.',
+      );
+    }
+  }
+  const row = await db
+    .updateTable('scheduled_messages')
+    .set({
+      ...(input.text !== undefined ? { body_text: input.text } : {}),
+      ...(input.sendAt ? { send_at: input.sendAt, status: 'pending', failed_reason: null } : {}),
+    })
+    .where('id', '=', id)
+    .where('user_id', '=', userId)
+    .where('status', '!=', 'sent')
+    .returningAll()
+    .executeTakeFirst();
+  if (!row) throw new ApiError('NOT_FOUND', 'Scheduled message not found');
+  return toScheduled(row);
+}

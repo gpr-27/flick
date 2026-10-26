@@ -65,6 +65,7 @@ const schema = z.object({
   // AI assistant and the @flick bot. Every key is optional; entries without a key are skipped, and
   // with none set the AI routes answer 503. Order: Anthropic, Groq (2 accounts), Gemini (2 accounts).
   ANTHROPIC_API_KEY: z.string().optional(),
+  AI_DAILY_LIMIT: z.coerce.number().int().positive().default(200), // AI requests per user per UTC day
   GROQ_API_KEY_1: z.string().optional(),
   GROQ_API_KEY_2: z.string().optional(),
   GEMINI_API_KEY_1: z.string().optional(),
@@ -75,6 +76,12 @@ const schema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().optional(),
+
+  // Email-to-chat: the inbound email provider (Postmark/SendGrid) calls POST /inbound/email with this
+  // secret in the x-inbound-secret header. Unset = the endpoint answers 404. INBOUND_EMAIL_DOMAIN is
+  // only shown to users as their forwarding address (<username>@domain).
+  INBOUND_EMAIL_SECRET: z.string().optional(),
+  INBOUND_EMAIL_DOMAIN: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;

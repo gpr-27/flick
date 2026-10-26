@@ -2,34 +2,64 @@ import { LIMITS } from '@chat/contracts';
 
 export type Purpose = 'message' | 'avatar' | 'group_avatar';
 
-const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+// Avatars are decoded and re-encoded by sharp, so only formats it reads everywhere are allowed.
+// HEIC/HEIF are not accepted: the prebuilt libvips has no HEVC decoder, so they could not be
+// converted. AVIF is decoded by the same build.
+const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 
-// Voice notes are just audio files; the waveform and duration travel inside the message content.
-const MESSAGE_TYPES = [
-  ...AVATAR_TYPES,
-  'image/gif',
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-  'audio/mpeg',
-  'audio/ogg',
-  'audio/webm',
-  'audio/mp4',
-  'audio/aac',
-  'audio/wav',
-  'application/pdf',
-  'text/plain',
-  'application/zip',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-];
+/**
+ * Message attachments accept any file type (photos, video, audio, documents, archives, ...).
+ * Safety does not come from an allowlist but from how downloads are served (see canShowInline).
+ */
+export function isTypeAllowed(purpose: Purpose, mime: string): boolean {
+  if (purpose === 'message') return true;
+  return AVATAR_TYPES.includes(mime.toLowerCase());
+}
 
-export const ALLOWED_TYPES: Record<Purpose, string[]> = {
-  message: MESSAGE_TYPES,
+/** Kept for callers that list the restricted purposes. `message` accepts everything. */
+export const ALLOWED_TYPES: Record<Exclude<Purpose, 'message'>, string[]> = {
   avatar: AVATAR_TYPES,
   group_avatar: AVATAR_TYPES,
 };
+
+// Declared types whose bytes we can and do verify. If one of these is declared, the content
+// must really be that container, otherwise the upload is rejected. Every other type (including
+// application/octet-stream and types file-type does not know) is accepted as declared.
+const VERIFIED_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+  'video/mp4',
+  'video/webm',
+  'application/pdf',
+]);
+
+/** Decides if the sniffed type is acceptable for the declared one. `detected` may be unknown. */
+export function declaredMatches(declared: string, detected: string | undefined): boolean {
+  const d = declared.toLowerCase();
+  if (!VERIFIED_TYPES.has(d)) return true;
+  if (!detected) return false;
+  return sameType(d, detected);
+}
+
+/**
+ * Only plain media may be shown by the browser itself. HTML, SVG, XML, JavaScript, PDF and
+ * everything unknown are always sent as a download, so an uploaded file can never run as a page.
+ */
+export function canShowInline(mime: string): boolean {
+  const m = mime.toLowerCase();
+  if (m === 'image/svg+xml' || m.includes('xml') || m.includes('html') || m.includes('script')) {
+    return false;
+  }
+  return m.startsWith('image/') || m.startsWith('audio/') || m.startsWith('video/');
+}
+
+/** The Content-Type a download is served with: the real one for inline media, else opaque. */
+export function downloadContentType(mime: string): string {
+  return canShowInline(mime) ? mime : 'application/octet-stream';
+}
 
 export const MAX_BYTES: Record<Purpose, number> = {
   message: LIMITS.MAX_UPLOAD_BYTES,

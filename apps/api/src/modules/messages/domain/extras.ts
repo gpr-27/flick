@@ -176,6 +176,7 @@ export interface PollTally {
   message_id: string;
   question: string;
   allow_multiple: boolean;
+  closes_at?: string | undefined;
   options: { index: number; text: string; voter_ids: string[] }[];
 }
 
@@ -195,7 +196,14 @@ export async function votePoll(
     if (poll.type !== 'poll' || poll.deleted_at) {
       throw new ApiError('NOT_FOUND', 'Poll not found.');
     }
-    const content = poll.content as { options: string[]; allow_multiple: boolean };
+    const content = poll.content as {
+      options: string[];
+      allow_multiple: boolean;
+      closes_at?: string;
+    };
+    if (content.closes_at && new Date(content.closes_at).getTime() <= Date.now()) {
+      throw new ApiError('CONFLICT', 'This poll is closed.');
+    }
     const indexes = [...new Set(target.optionIndexes)];
     if (indexes.some((i) => i >= content.options.length)) {
       throw new ApiError('VALIDATION_FAILED', 'That option does not exist.');
@@ -229,7 +237,11 @@ export async function getPollTally(
   await requireMember(deps.db, target.conversationId, auth.userId);
   const poll = await loadMessage(deps.db, target.conversationId, target.messageId);
   if (poll.type !== 'poll' || poll.deleted_at) throw new ApiError('NOT_FOUND', 'Poll not found.');
-  const content = poll.content as { options: string[]; allow_multiple: boolean };
+  const content = poll.content as {
+    options: string[];
+    allow_multiple: boolean;
+    closes_at?: string;
+  };
   const votes = await deps.db
     .selectFrom('poll_votes')
     .select(['option_index', 'user_id'])
@@ -240,6 +252,7 @@ export async function getPollTally(
     message_id: poll.id,
     question: poll.body_text ?? '',
     allow_multiple: content.allow_multiple,
+    closes_at: content.closes_at,
     options: content.options.map((text, index) => ({
       index,
       text,

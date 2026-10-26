@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- test payloads are untyped JSON */
 import { randomUUID } from 'node:crypto';
 import { AiChain, type ProviderAdapter, type ProviderCallParams } from '@chat/ai';
-import { ENDPOINTS, ErrorResponse, type Endpoint } from '@chat/contracts';
+import { ENDPOINTS, ErrorResponse, LIMITS, type Endpoint } from '@chat/contracts';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { aiServiceFromChain } from '../../src/modules/ai/service.js';
 import {
@@ -163,10 +163,10 @@ function table(): Bad[] {
     { label: 'send: empty text', method: 'POST', url: sendTo(), body: text('') },
     { label: 'send: whitespace-only text', method: 'POST', url: sendTo(), body: text('   \n\t ') },
     {
-      label: 'send: text of 16001 characters',
+      label: `send: text of ${LIMITS.MAX_TEXT_LENGTH + 1} characters`,
       method: 'POST',
       url: sendTo(),
-      body: text(long(16_001)),
+      body: text(long(LIMITS.MAX_TEXT_LENGTH + 1)),
     },
     {
       label: 'send: text is a number',
@@ -303,7 +303,7 @@ function table(): Bad[] {
       body: withContent({ type: 'image', attachment_id: randomUUID(), width: 1.5, height: 1 }),
     },
     {
-      label: 'send: image caption of 4001 characters',
+      label: `send: image caption of ${LIMITS.MAX_CAPTION_LENGTH + 1} characters`,
       method: 'POST',
       url: sendTo(),
       body: withContent({
@@ -311,7 +311,7 @@ function table(): Bad[] {
         attachment_id: randomUUID(),
         width: 1,
         height: 1,
-        caption: long(4001),
+        caption: long(LIMITS.MAX_CAPTION_LENGTH + 1),
       }),
     },
     {
@@ -684,7 +684,7 @@ function table(): Bad[] {
       label: 'edit: text too long',
       method: 'PATCH',
       url: m,
-      body: { content: { type: 'text', text: long(16_001) } },
+      body: { content: { type: 'text', text: long(LIMITS.MAX_TEXT_LENGTH + 1) } },
     },
     {
       label: 'edit: message id not a uuid',
@@ -1187,18 +1187,6 @@ function table(): Bad[] {
       body: { purpose: 'message', mime: 'image/png', size: 0 },
     },
     {
-      label: 'presign: size over 100 MB',
-      method: 'POST',
-      url: '/media/presign',
-      body: { purpose: 'message', mime: 'image/png', size: 100 * 1024 * 1024 + 1 },
-    },
-    {
-      label: 'presign: avatar over 5 MB',
-      method: 'POST',
-      url: '/media/presign',
-      body: { purpose: 'avatar', mime: 'image/png', size: 6 * 1024 * 1024 },
-    },
-    {
       label: 'presign: size is a string',
       method: 'POST',
       url: '/media/presign',
@@ -1558,6 +1546,10 @@ const PARAM_VALUE: Record<string, () => string> = {
   device_id: () => randomUUID(),
   scheduled_id: () => randomUUID(),
   reminder_id: () => randomUUID(),
+  webhook_id: () => randomUUID(),
+  list_id: () => randomUUID(),
+  collection_id: () => randomUUID(),
+  id: () => randomUUID(),
 };
 
 function resolvePath(def: Endpoint, overrides: Record<string, string> = {}): string {

@@ -49,7 +49,7 @@ export const signLivekitToken: SignToken = async (settings, userId, conversation
     room: roomName(conversationId),
     canPublish: true,
     canSubscribe: true,
-    canPublishData: false,
+    canPublishData: true,
   });
   return {
     url: settings.url,

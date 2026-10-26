@@ -129,6 +129,26 @@ afterAll(async () => {
 });
 
 describe('presigned upload', () => {
+  it('accepts a file of exactly 1 GB and says why it refuses anything bigger', async () => {
+    const GiB = 1024 * 1024 * 1024;
+    const ok = await presign(alice, { purpose: 'message', mime: 'video/mp4', size: GiB });
+    expect(ok.statusCode).toBe(200);
+
+    const tooBig = await presign(alice, { purpose: 'message', mime: 'video/mp4', size: GiB + 1 });
+    expect(tooBig.statusCode).toBe(413);
+    const message = tooBig.json<{ error: { code: string; message: string } }>().error;
+    expect(message.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(message.message).toContain('at most 1 GB');
+
+    const bigAvatar = await presign(alice, {
+      purpose: 'avatar',
+      mime: 'image/png',
+      size: 6 * 1024 * 1024,
+    });
+    expect(bigAvatar.statusCode).toBe(413);
+    expect(bigAvatar.json<{ error: { message: string } }>().error.message).toContain('5 MB');
+  });
+
   it('accepts a file within the declared size and S3 rejects one over it', async () => {
     const bytes = await png();
     const res = await presign(alice, {
@@ -201,21 +221,32 @@ describe('presigned upload', () => {
     });
   });
 
-  it('refuses binary data, invalid UTF-8 and disguised files declared as text/plain', async () => {
+  it('still refuses disguised files for the types whose bytes can be verified', async () => {
+    // text/plain is no longer sniffed (any file type is allowed), but a declared image, video or
+    // PDF must really be one.
     const bad = [
-      Buffer.from([0x68, 0x69, 0x00, 0x01, 0x02, 0x03]), // NUL bytes
-      Buffer.from([0x68, 0x69, 0xff, 0xfe, 0xfd]), // not UTF-8
-      await png(), // has a signature of another type
+      { mime: 'image/png', bytes: Buffer.from('hello, I am not a picture') },
+      { mime: 'application/pdf', bytes: Buffer.from([0x68, 0x69, 0x00, 0x01, 0x02, 0x03]) },
+      { mime: 'image/jpeg', bytes: await png() }, // has a signature of another type
     ];
-    for (const bytes of bad) {
+    for (const { mime, bytes } of bad) {
       const p = (
-        await presign(alice, { purpose: 'message', mime: 'text/plain', size: bytes.length })
+        await presign(alice, { purpose: 'message', mime, size: bytes.length })
       ).json<Presigned>();
       expect((await upload(p, bytes)).status).toBe(204);
       const res = await complete(alice, p.attachment_id);
-      expect(res.statusCode).toBe(415);
+      expect(res.statusCode, mime).toBe(415);
       expect(await objectExists(`messages/${alice}/${p.attachment_id}`)).toBe(false);
     }
+  });
+
+  it('accepts binary data declared as text/plain, as it accepts any other file type', async () => {
+    const bytes = Buffer.from([0x68, 0x69, 0x00, 0x01, 0xff, 0xfe]);
+    const p = (
+      await presign(alice, { purpose: 'message', mime: 'text/plain', size: bytes.length })
+    ).json<Presigned>();
+    expect((await upload(p, bytes)).status).toBe(204);
+    expect((await complete(alice, p.attachment_id)).statusCode).toBe(200);
   });
 
   it('does not allow text/plain for avatars', async () => {
@@ -224,18 +255,24 @@ describe('presigned upload', () => {
     ).toBe(415);
   });
 
-  it('refuses types that are not allowed and sizes over the purpose limit', async () => {
-    expect(
-      (await presign(alice, { purpose: 'message', mime: 'application/x-msdownload', size: 10 }))
-        .statusCode,
-    ).toBe(415);
-    expect(
-      (await presign(alice, { purpose: 'avatar', mime: 'image/gif', size: 10 })).statusCode,
-    ).toBe(415);
+  it('accepts any file type for messages, but avatars stay jpeg/png/webp/avif and under 5 MB', async () => {
+    for (const mime of ['application/x-msdownload', 'application/octet-stream', 'text/csv']) {
+      expect((await presign(alice, { purpose: 'message', mime, size: 10 })).statusCode, mime).toBe(
+        200,
+      );
+    }
+    for (const purpose of ['avatar', 'group_avatar'] as const) {
+      for (const mime of ['image/gif', 'application/x-msdownload', 'image/svg+xml']) {
+        expect((await presign(alice, { purpose, mime, size: 10 })).statusCode, mime).toBe(415);
+      }
+      expect((await presign(alice, { purpose, mime: 'image/avif', size: 10 })).statusCode).toBe(
+        200,
+      );
+    }
     expect(
       (await presign(alice, { purpose: 'avatar', mime: 'image/png', size: 6 * 1024 * 1024 }))
         .statusCode,
-    ).toBe(400);
+    ).toBe(413);
   });
 
   it('asks the client to retry when the file has not arrived yet', async () => {

@@ -304,8 +304,11 @@ describe('buildFlickContext', () => {
 
     await flickBotOnMessage(deps, await say(direct, hana.id, 'how many chats do I have?'));
     await flickBotOnMessage(deps, await say(group, hana.id, '@flick what can you do?'));
-    expect(recorder.systems).toHaveLength(2);
-    for (const system of recorder.systems) {
+    // (A direct chat also runs a background "pick out lasting facts" pass on a longer message; it
+    // has its own system prompt and is not a reply.)
+    const replySystems = recorder.systems.filter((s) => !s.includes('lasting personal facts'));
+    expect(replySystems).toHaveLength(2);
+    for (const system of replySystems) {
       expect(system).toContain('<app_knowledge>');
       expect(system).toContain('You are read-only');
       expect(system).toContain('Name: Hana;');

@@ -34,7 +34,14 @@ class FakeProvider implements ProviderAdapter {
   complete({ request }: ProviderCallParams): Promise<string> {
     return Promise.resolve(
       request.responseFormat === 'json'
-        ? '{"replies":["Sounds good","Not today","Maybe later?"]}'
+        ? JSON.stringify({
+            replies: ['Sounds good', 'Not today', 'Maybe later?'],
+            question: 'Pizza or sushi?',
+            options: ['Pizza', 'Sushi'],
+            cards: [{ front: 'Sky colour', back: 'Blue' }],
+            quiz: [],
+            actions: [],
+          })
         : 'fake answer',
     );
   }
@@ -45,6 +52,18 @@ class FakeProvider implements ProviderAdapter {
 
 /** Endpoints that are not exercised by a live call, with the reason. */
 const NOT_CALLED: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.keys(ENDPOINTS.flick).map((k) => [
+      `flick.${k}`,
+      'needs the Flick chat and its bot user; covered by apps/api/test/flick-extras.test.ts',
+    ]),
+  ),
+  'ai.transcribe':
+    'speech-to-text needs a Groq Whisper key and real audio; the fake provider only does chat. Covered by test/integration/ai.int.test.ts.',
+  'ai.dictate':
+    'speech-to-text needs a Groq Whisper key and real audio; the fake provider only does chat.',
+  'ai.analyze':
+    'reads the file with a vision/document model and the stored object from MinIO; the fake provider is text only (answers AI_UNAVAILABLE). Covered by test/integration/ai.int.test.ts.',
   'media.linkPreview':
     'fetches a public web page; the SSRF guard (correctly) refuses loopback/private addresses, so a local fixture server cannot be used, and CI has no internet. Covered by packages/link-preview tests; only its error path is checked below.',
 };
@@ -207,6 +226,7 @@ type Scenario = (f: Fixture, def: Endpoint) => Promise<void>;
 const E = ENDPOINTS;
 const JSON_ONLY = { accept: 'application/json' };
 const C = (f: Fixture) => ({ conversation_id: f.conv });
+const ID = (f: Fixture) => ({ conversation_id: f.conv });
 const M = (f: Fixture, id = f.messageId) => ({ conversation_id: f.conv, message_id: id });
 
 /** The harness login does not look at revocation (the real one does), so the table is checked. */
@@ -218,6 +238,27 @@ const revokedAt = async (deviceId: string) =>
       .where('id', '=', deviceId)
       .executeTakeFirstOrThrow()
   ).revoked_at;
+
+/** A shared event in the group; returns the message id of the event card. */
+async function makeEvent(f: Fixture): Promise<string> {
+  await call(f.alice, E.productivity.createEvent, {
+    body: { conversation_id: f.conv, title: 'Event', starts_at: inOneHour() },
+  });
+  const list = await call(f.alice, E.productivity.listEvents);
+  return list.body.items[0].message_id;
+}
+
+/** A voice note by alice in the group, with its attachment id. */
+async function voiceNote(f: Fixture): Promise<{ attachmentId: string; messageId: string }> {
+  const attachmentId = await attachment(stack.db, f.alice, 'voice');
+  const m = await send(stack, f.alice, f.conv, {
+    type: 'voice',
+    attachment_id: attachmentId,
+    duration_ms: 2000,
+    waveform: [10, 20, 30],
+  });
+  return { attachmentId, messageId: m.body.message_id };
+}
 
 const inOneHour = () => new Date(Date.now() + 3_600_000).toISOString();
 
@@ -659,6 +700,11 @@ const SCENARIOS: Record<string, Scenario> = {
       def,
       await call(f.bob, def, { body: { text: 'hello', targetLang: 'fr' }, headers: JSON_ONLY }),
     ),
+  'ai.compose': async (f, def) =>
+    conforms(
+      def,
+      await call(f.bob, def, { body: { mode: 'polish', text: 'helo there' }, headers: JSON_ONLY }),
+    ),
   'ai.ask': async (f, def) =>
     conforms(
       def,
@@ -718,6 +764,365 @@ const SCENARIOS: Record<string, Scenario> = {
       await call(f.bob, def, {
         body: { conversation_id: f.conv, message_id: f.messageId, reason: 'spam', block: false },
       }),
+    ),
+  // ------------------------------------------------------------------ scheduled (update)
+  'scheduled.update': async (f, def) => {
+    const made = await call(f.alice, E.scheduled.create, {
+      params: C(f),
+      body: { text: 'edit me', send_at: inOneHour() },
+    });
+    const res = await call(f.alice, def, {
+      params: { scheduled_id: made.body.id },
+      body: { text: 'edited' },
+    });
+    conforms(def, res);
+    expect(res.body.text).toBe('edited');
+  },
+
+  // ------------------------------------------------------------------ chat lists
+  'chatLists.create': async (f, def) =>
+    conforms(def, await call(f.alice, def, { body: { kind: 'folder', name: 'Work' } }), 201),
+  'chatLists.list': async (f, def) => {
+    await call(f.alice, E.chatLists.create, { body: { kind: 'tag', name: 'Listed' } });
+    const res = await call(f.alice, def);
+    conforms(def, res);
+    expect(res.body.items.length).toBeGreaterThan(0);
+  },
+  'chatLists.update': async (f, def) => {
+    const made = await call(f.alice, E.chatLists.create, { body: { kind: 'folder', name: 'Old' } });
+    const res = await call(f.alice, def, {
+      params: { list_id: made.body.id },
+      body: { name: 'New', conversation_ids: [f.conv] },
+    });
+    conforms(def, res);
+    expect(res.body.conversation_ids).toEqual([f.conv]);
+  },
+  'chatLists.remove': async (f, def) => {
+    const made = await call(f.alice, E.chatLists.create, { body: { kind: 'tag', name: 'Gone' } });
+    conforms(def, await call(f.alice, def, { params: { list_id: made.body.id } }));
+  },
+
+  // ------------------------------------------------------------------ group tools
+  'groupTools.get': async (f, def) => conforms(def, await call(f.alice, def, { params: C(f) })),
+  'groupTools.update': async (f, def) => {
+    const res = await call(f.alice, def, {
+      params: C(f),
+      body: { slow_mode_seconds: 0, welcome_text: 'Welcome!' },
+    });
+    conforms(def, res);
+    expect(res.body.welcome_text).toBe('Welcome!');
+  },
+  'groupTools.flagged': async (f, def) => conforms(def, await call(f.alice, def, { params: C(f) })),
+  'groupTools.analytics': async (f, def) => {
+    const res = await call(f.alice, def, { params: C(f) });
+    conforms(def, res);
+    expect(res.body.total).toBeGreaterThan(0);
+  },
+  'groupTools.card': async (f, def) => {
+    const m = await send(stack, f.alice, f.conv, {
+      type: 'checklist',
+      title: 'Todo',
+      items: [{ text: 'one', done: false }],
+    });
+    conforms(def, await call(f.bob, def, { params: M(f, m.body.message_id) }));
+  },
+  'groupTools.cardAct': async (f, def) => {
+    const m = await send(stack, f.alice, f.conv, {
+      type: 'checklist',
+      title: 'Todo 2',
+      items: [{ text: 'one', done: false }],
+    });
+    conforms(
+      def,
+      await call(f.bob, def, {
+        params: M(f, m.body.message_id),
+        body: { op: 'toggle', index: 0 },
+      }),
+    );
+  },
+  'groupTools.ai': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, { params: C(f), body: { task: 'icebreaker' }, headers: JSON_ONLY }),
+    ),
+  'groupTools.linkCheck': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, { body: { url: 'https://example.com/a' }, headers: JSON_ONLY }),
+    ),
+
+  // ------------------------------------------------------------------ private notes
+  'notes.put': async (f, def) =>
+    conforms(def, await call(f.bob, def, { params: M(f), body: { body: 'remember this' } })),
+  'notes.list': async (f, def) => {
+    await call(f.bob, E.notes.put, { params: M(f), body: { body: 'listed note' } });
+    const res = await call(f.bob, def, { params: C(f) });
+    conforms(def, res);
+    expect(res.body.notes.length).toBeGreaterThan(0);
+  },
+  'notes.delete': async (f, def) => {
+    await call(f.bob, E.notes.put, { params: M(f), body: { body: 'to delete' } });
+    conforms(def, await call(f.bob, def, { params: M(f) }));
+  },
+  'notes.editHistory': async (f, def) => {
+    const m = await send(stack, f.alice, f.conv, { type: 'text', text: 'v1' });
+    await call(f.alice, E.messages.edit, {
+      params: M(f, m.body.message_id),
+      body: { content: { type: 'text', text: 'v2' } },
+    });
+    const res = await call(f.alice, def, { params: M(f, m.body.message_id) });
+    conforms(def, res);
+    expect(res.body.edits).toHaveLength(1);
+  },
+
+  // ------------------------------------------------------------------ drafts
+  'drafts.put': async (f, def) =>
+    conforms(def, await call(f.alice, def, { params: C(f), body: { body: 'half typed' } })),
+  'drafts.get': async (f, def) => {
+    await call(f.alice, E.drafts.put, { params: C(f), body: { body: 'half typed' } });
+    const res = await call(f.alice, def, { params: C(f) });
+    conforms(def, res);
+    expect(res.body.body).toBe('half typed');
+  },
+  'drafts.delete': async (f, def) => {
+    await call(f.alice, E.drafts.put, { params: C(f), body: { body: 'bye' } });
+    conforms(def, await call(f.alice, def, { params: C(f) }));
+  },
+
+  // ------------------------------------------------------------------ productivity
+  'productivity.askSaved': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, { body: { question: 'what did I save?' }, headers: JSON_ONLY }),
+    ),
+  'productivity.tagSaved': async (f, def) =>
+    conforms(def, await call(f.alice, def, { headers: JSON_ONLY })),
+  'productivity.tags': async (f, def) => conforms(def, await call(f.alice, def)),
+  'productivity.extractReminder': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, { body: { message_id: f.messageId }, headers: JSON_ONLY }),
+    ),
+  'productivity.meetingNotes': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, {
+        body: { conversation_id: f.conv, count: 20 },
+        headers: JSON_ONLY,
+      }),
+    ),
+  'productivity.digest': async (f, def) => conforms(def, await call(f.alice, def)),
+  'productivity.getSettings': async (f, def) => conforms(def, await call(f.alice, def)),
+  'productivity.putSettings': async (f, def) => {
+    const body = {
+      digest: 'daily',
+      quiet_enabled: true,
+      quiet_start: '22:00',
+      quiet_end: '07:00',
+      quiet_timezone: 'UTC',
+      quiet_days: [0, 1, 2, 3, 4, 5, 6],
+      priority_contacts: [],
+    };
+    const res = await call(f.alice, def, { body });
+    conforms(def, res);
+    expect(res.body).toEqual(body);
+  },
+  'productivity.collections': async (f, def) => conforms(def, await call(f.alice, def)),
+  'productivity.createCollection': async (f, def) =>
+    conforms(def, await call(f.alice, def, { body: { name: 'Reading' } }), 201),
+  'productivity.deleteCollection': async (f, def) => {
+    const made = await call(f.alice, E.productivity.createCollection, { body: { name: 'Temp' } });
+    conforms(def, await call(f.alice, def, { params: { collection_id: made.body.id } }));
+  },
+  'productivity.bookmarks': async (f, def) => conforms(def, await call(f.alice, def)),
+  'productivity.addBookmark': async (f, def) => {
+    const made = await call(f.alice, E.productivity.createCollection, { body: { name: 'Marks' } });
+    conforms(
+      def,
+      await call(f.alice, def, {
+        body: { message_id: f.messageId, collection_id: made.body.id },
+      }),
+    );
+  },
+  'productivity.removeBookmark': async (f, def) => {
+    const made = await call(f.alice, E.productivity.createCollection, { body: { name: 'Marks2' } });
+    await call(f.alice, E.productivity.addBookmark, {
+      body: { message_id: f.messageId, collection_id: made.body.id },
+    });
+    conforms(
+      def,
+      await call(f.alice, def, {
+        params: { collection_id: made.body.id, message_id: f.messageId },
+      }),
+    );
+  },
+  'productivity.createEvent': async (f, def) =>
+    conforms(
+      def,
+      await call(f.alice, def, {
+        body: { conversation_id: f.conv, title: 'Picnic', starts_at: inOneHour(), place: 'Park' },
+      }),
+    ),
+  'productivity.listEvents': async (f, def) => conforms(def, await call(f.alice, def)),
+  'productivity.rsvp': async (f, def) => {
+    const eventId = await makeEvent(f);
+    conforms(
+      def,
+      await call(f.bob, def, { params: { message_id: eventId }, body: { response: 'going' } }),
+    );
+  },
+  'productivity.rsvps': async (f, def) => {
+    const eventId = await makeEvent(f);
+    await call(f.bob, E.productivity.rsvp, {
+      params: { message_id: eventId },
+      body: { response: 'maybe' },
+    });
+    const res = await call(f.bob, def, { params: { message_id: eventId } });
+    conforms(def, res);
+    expect(res.body.mine).toBe('maybe');
+  },
+  'productivity.nudges': async (f, def) => conforms(def, await call(f.alice, def)),
+
+  // ------------------------------------------------------------------ platform
+  'platform.createWebhook': async (f, def) =>
+    conforms(def, await call(f.alice, def, { params: C(f), body: { name: 'CI' } }), 201),
+  'platform.webhooks': async (f, def) => {
+    await call(f.alice, E.platform.createWebhook, { params: C(f), body: { name: 'Listed' } });
+    const res = await call(f.alice, def, { params: C(f) });
+    conforms(def, res);
+    expect(res.body.items.length).toBeGreaterThan(0);
+  },
+  'platform.revokeWebhook': async (f, def) => {
+    const made = await call(f.alice, E.platform.createWebhook, {
+      params: C(f),
+      body: { name: 'Revoked' },
+    });
+    conforms(
+      def,
+      await call(f.alice, def, {
+        params: { conversation_id: f.conv, webhook_id: made.body.id },
+      }),
+    );
+  },
+  'platform.mediaUsage': async (f, def) => conforms(def, await call(f.alice, def)),
+  'platform.weekStats': async (f, def) => conforms(def, await call(f.alice, def)),
+  'platform.loginAlerts': async (f, def) => conforms(def, await call(f.alice, def)),
+  'platform.setLoginAlerts': async (f, def) => {
+    const res = await call(f.alice, def, { body: { enabled: false } });
+    conforms(def, res);
+    expect(res.body).toEqual({ enabled: false });
+  },
+
+  // ------------------------------------------------------------------ ai (more)
+  'ai.usage': async (f, def) => conforms(def, await call(f.alice, def)),
+  'ai.translationSettings': async (f, def) => conforms(def, await call(f.alice, def)),
+  'ai.updateTranslationSettings': async (f, def) => {
+    const res = await call(f.alice, def, { body: { dont_translate: ['Flick'] } });
+    conforms(def, res);
+    expect(res.body.dont_translate).toEqual(['Flick']);
+  },
+  'ai.translateBatch': async (f, def) =>
+    conforms(
+      def,
+      await call(f.bob, def, {
+        body: { target_language: 'French', items: [{ id: 'a', text: 'hello' }] },
+        headers: JSON_ONLY,
+      }),
+    ),
+  'ai.understand': async (f, def) =>
+    conforms(
+      def,
+      await call(f.bob, def, {
+        body: { mode: 'catchup', conversation_id: f.conv },
+        headers: JSON_ONLY,
+      }),
+    ),
+  'ai.autoTranslate': async (f, def) => conforms(def, await call(f.bob, def, { params: ID(f) })),
+  'ai.setAutoTranslate': async (f, def) =>
+    conforms(def, await call(f.bob, def, { params: ID(f), body: { target_language: 'French' } })),
+  'ai.chatTranscribe': async (f, def) => conforms(def, await call(f.bob, def, { params: ID(f) })),
+  'ai.setChatTranscribe': async (f, def) =>
+    conforms(def, await call(f.bob, def, { params: ID(f), body: { enabled: true } })),
+  'ai.chatPrivacy': async (f, def) => conforms(def, await call(f.bob, def, { params: ID(f) })),
+  'ai.setChatPrivacy': async (f, def) =>
+    conforms(def, await call(f.bob, def, { params: ID(f), body: { allow: false } })),
+  'ai.preference': async (f, def) => conforms(def, await call(f.bob, def)),
+  'ai.setPreference': async (f, def) =>
+    conforms(def, await call(f.bob, def, { body: { speed: 'quality' } })),
+  'ai.exportData': async (f, def) => conforms(def, await call(f.bob, def)),
+  'ai.clearData': async (f, def) => {
+    const temp = await stack.user('aiclearer');
+    conforms(def, await call(temp, def));
+  },
+  'ai.styleProfile': async (f, def) => conforms(def, await call(f.bob, def)),
+  'ai.refreshStyleProfile': async (f, def) => {
+    const temp = await stack.user('stylist');
+    const chat = await direct(stack, temp, f.bob);
+    for (let i = 0; i < 9; i++)
+      await send(stack, temp, chat, { type: 'text', text: `style sample number ${i}` });
+    conforms(def, await call(temp, def, { headers: JSON_ONLY }));
+  },
+  'ai.transcript': async (f, def) => {
+    const { attachmentId, messageId } = await voiceNote(f);
+    const none = await call(f.bob, def, { params: { attachment_id: attachmentId } });
+    conforms(def, none);
+    expect(none.body).toEqual({ transcript: null });
+    await stack.db
+      .insertInto('message_transcripts')
+      .values({ message_id: messageId, language: 'en', text: 'spoken words', summary: null })
+      .execute();
+    const res = await call(f.bob, def, { params: { attachment_id: attachmentId } });
+    conforms(def, res);
+    expect(res.body.transcript.text).toBe('spoken words');
+  },
+  'ai.editTranscript': async (f, def) => {
+    const { attachmentId, messageId } = await voiceNote(f);
+    await stack.db
+      .insertInto('message_transcripts')
+      .values({ message_id: messageId, language: 'en', text: 'before', summary: null })
+      .execute();
+    const res = await call(f.bob, def, {
+      params: { attachment_id: attachmentId },
+      body: { text: 'edited words' },
+    });
+    conforms(def, res);
+    expect(res.body.transcript.text).toBe('edited words');
+  },
+  'ai.chatStyle': async (f, def) => conforms(def, await call(f.bob, def, { params: ID(f) })),
+  'ai.setChatStyle': async (f, def) =>
+    conforms(def, await call(f.bob, def, { params: ID(f), body: { style: 'casual' } })),
+  'ai.persona': async (f, def) => conforms(def, await call(f.bob, def)),
+  'ai.setPersona': async (f, def) =>
+    conforms(def, await call(f.bob, def, { body: { persona: 'concise' } })),
+  'ai.actions': async (f, def) =>
+    conforms(
+      def,
+      await call(f.bob, def, {
+        body: {
+          text: 'remind me tomorrow to call mom',
+          now: new Date().toISOString(),
+          tz_offset_min: 0,
+        },
+        headers: JSON_ONLY,
+      }),
+    ),
+  'ai.plan': async (f, def) =>
+    conforms(
+      def,
+      await call(f.bob, def, {
+        body: { text: 'plan dinner on friday', now: new Date().toISOString(), tz_offset_min: 0 },
+        headers: JSON_ONLY,
+      }),
+    ),
+  'ai.pollDraft': async (f, def) =>
+    conforms(
+      def,
+      await call(f.bob, def, { body: { text: 'pizza or sushi?' }, headers: JSON_ONLY }),
+    ),
+  'ai.flashcards': async (f, def) =>
+    conforms(
+      def,
+      await call(f.bob, def, { body: { text: 'The sky is blue.' }, headers: JSON_ONLY }),
     ),
 };
 

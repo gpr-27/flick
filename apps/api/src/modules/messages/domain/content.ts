@@ -10,6 +10,9 @@ export const TEXT_FIELD: Partial<Record<ContentType, string>> = {
   file: 'caption',
   gif: 'caption',
   poll: 'question',
+  checklist: 'title',
+  expense: 'description',
+  event: 'title',
 };
 
 export interface StoredContent {

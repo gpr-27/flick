@@ -2,7 +2,12 @@ import { ENDPOINTS } from '@chat/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../../../app.js';
 import { handle, parse } from '../../users/errors.js';
-import { cancelScheduled, createScheduled, listScheduled } from '../repo/scheduled.js';
+import {
+  cancelScheduled,
+  createScheduled,
+  listScheduled,
+  updateScheduled,
+} from '../repo/scheduled.js';
 
 const { scheduled } = ENDPOINTS;
 
@@ -32,6 +37,19 @@ export function scheduledRoutes(app: FastifyInstance, deps: AppDeps): void {
     scheduled.list.path,
     guard,
     handle(async (req) => ({ items: await listScheduled(db, req.auth!.userId) })),
+  );
+
+  app.patch(
+    scheduled.update.path,
+    guard,
+    handle(async (req) => {
+      const { scheduled_id } = parse(scheduled.update.params, req.params);
+      const body = parse(scheduled.update.body, req.body);
+      return updateScheduled(db, req.auth!.userId, scheduled_id, {
+        ...(body.text !== undefined ? { text: body.text } : {}),
+        ...(body.send_at !== undefined ? { sendAt: new Date(body.send_at) } : {}),
+      });
+    }),
   );
 
   app.delete(

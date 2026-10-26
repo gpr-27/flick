@@ -1,6 +1,7 @@
 import { ERROR_CODES, makeError, type ErrorCode } from '@chat/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
+import { ApiError as MessagesApiError } from '../messages/errors.js';
 
 /** Throw this from a handler wrapped in `handle()`; it becomes the standard `{ error }` body. */
 export class ApiError extends Error {
@@ -28,6 +29,10 @@ export function handle(handler: Handler): Handler {
       return await handler(req, reply);
     } catch (error) {
       if (error instanceof ApiError) return sendError(reply, error);
+      // The messages module's helpers (requireMember, loadMessage) throw their own ApiError.
+      if (error instanceof MessagesApiError) {
+        return reply.code(error.httpStatus).send({ error: error.toBody() });
+      }
       throw error;
     }
   };

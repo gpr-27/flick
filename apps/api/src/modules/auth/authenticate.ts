@@ -5,6 +5,7 @@ import type { AuthContext, Authenticate } from '../../auth-guard.js';
 import type { Db } from '../../db.js';
 import type { Redis } from '../../redis.js';
 import { ensureFlickWelcome } from '../ai/welcome.js';
+import { alertNewDevice } from '../platform/loginAlert.js';
 import { deviceName } from '../devices/domain/name.js';
 import type { Clerk, ClerkProfile } from './clerk.js';
 
@@ -130,6 +131,11 @@ export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
     deviceId: string,
     userAgent: string | undefined,
   ): Promise<void> {
+    const known = await db
+      .selectFrom('devices')
+      .select('id')
+      .where('id', '=', deviceId)
+      .executeTakeFirst();
     const row = await db
       .insertInto('devices')
       .values({ id: deviceId, user_id: userId, name: deviceName(userAgent) })
@@ -147,7 +153,10 @@ export function createAuth(deps: { db: Db; redis: Redis; clerk: Clerk }): Auth {
       )
       .returning('id')
       .executeTakeFirst();
-    if (row) return;
+    if (row) {
+      if (!known) void alertNewDevice(db, userId, deviceName(userAgent));
+      return;
+    }
     const existing = await db
       .selectFrom('devices')
       .select('user_id')

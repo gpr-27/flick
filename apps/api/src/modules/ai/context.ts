@@ -1,6 +1,7 @@
 import { visibleTo } from '@chat/db';
 import { sql } from 'kysely';
 import type { Db } from '../../db.js';
+import { assertAiAllowed } from './privacy.js';
 
 // Chat text sent to the AI is always read here, from Postgres, for ONE requesting user: they must
 // be an active member, and they only get what they could read themselves in the app (no expired
@@ -11,6 +12,9 @@ export interface ChatLine {
   text: string;
   sentAt: string;
   fromMe: boolean;
+  /** Set by loadLines; lets a feature point back at the message. */
+  id?: string;
+  seq?: number;
 }
 
 export interface Membership {
@@ -55,10 +59,14 @@ export async function loadLines(
   membership: Membership,
   limits: LineLimits,
 ): Promise<ChatLine[]> {
+  // Every AI path reads chat text through here, so the per-chat "AI off" switch is enforced here too.
+  await assertAiAllowed(db, userId, conversationId);
   let q = db
     .selectFrom('messages')
     .leftJoin('users', 'users.id', 'messages.sender_id')
     .select([
+      'messages.id',
+      'messages.seq',
       'messages.sender_id',
       'messages.body_text',
       'messages.created_at',
@@ -87,6 +95,8 @@ export async function loadLines(
       text,
       sentAt: row.created_at.toISOString(),
       fromMe: row.sender_id === userId,
+      id: row.id,
+      seq: Number(row.seq),
     });
   }
   return lines.reverse();

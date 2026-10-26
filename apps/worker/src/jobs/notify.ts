@@ -2,6 +2,7 @@ import type { Database } from '@chat/db';
 import { sql, type Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Logger } from '../logger.js';
+import { isQuietNow } from '../quiet.js';
 import { notificationsTotal } from '../metrics.js';
 import { emptySummary, type NotificationProvider, type PushSummary } from '../notifications.js';
 
@@ -61,6 +62,7 @@ export async function handleNotify(deps: NotifyDeps, job: NotifyJob): Promise<No
     .leftJoin('users as sender', 'sender.id', 'm.sender_id')
     .select([
       'm.body_text',
+      'm.sender_id',
       'm.type',
       'm.view_once',
       'm.deleted_at',
@@ -80,6 +82,8 @@ export async function handleNotify(deps: NotifyDeps, job: NotifyJob): Promise<No
   if (!row || row.deleted_at || row.expired || row.left_at) return skip('skipped_gone');
   // A muted chat is silent, unless the message names the person or answers one of theirs.
   if (row.muted && kind === 'message') return skip('skipped_muted');
+  // Quiet hours: silent unless the sender is one of the person's priority contacts.
+  if (await inQuietHours(deps.db, job.user_id, row.sender_id)) return skip('skipped_muted');
   // Read already (for example on another device).
   if (Number(row.read_seq) >= Number(row.seq)) return skip('skipped_seen');
 
@@ -151,4 +155,26 @@ export async function registerNotify(
       }
     }
   });
+}
+
+/** The person's quiet hours (settings table), except for messages from priority contacts. */
+async function inQuietHours(
+  db: NotifyDeps['db'],
+  userId: string,
+  senderId: string | null,
+): Promise<boolean> {
+  const s = await db
+    .selectFrom('productivity_settings')
+    .select([
+      'quiet_enabled',
+      'quiet_start',
+      'quiet_end',
+      'quiet_timezone',
+      'quiet_days',
+      'priority_contacts',
+    ])
+    .where('user_id', '=', userId)
+    .executeTakeFirst();
+  if (!s || !isQuietNow(s)) return false;
+  return !(senderId && s.priority_contacts.includes(senderId));
 }
