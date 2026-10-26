@@ -1,7 +1,13 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Lock } from 'lucide-react';
 import { Modal } from '@/components/ui';
-import { pinMatches, useAppLock, useIsAppLocked } from '../screenLock';
+import {
+  pinMatches,
+  readLockMinutes,
+  shouldRelock,
+  useAppLock,
+  useIsAppLocked,
+} from '../screenLock';
 import { useSettingsStore } from '../useSettingsStore';
 
 /** Covers the app until the PIN is typed. Rendered once, for signed-in users. */
@@ -12,6 +18,22 @@ export const AppLock = () => {
   const [pin, setPin] = useState('');
   const [wrong, setWrong] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Lock again when the tab comes back after being away for the chosen time.
+  useEffect(() => {
+    if (hash === null) return;
+    let hiddenAt = 0;
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+      else if (hiddenAt && shouldRelock(hiddenAt, Date.now(), readLockMinutes())) {
+        useAppLock.getState().lockNow();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [hash]);
 
   const submit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();

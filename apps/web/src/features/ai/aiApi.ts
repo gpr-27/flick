@@ -1,7 +1,7 @@
 // Calls to /ai/*. These use fetch directly (not api.call) because the answer can be a stream of
 // server-sent events. The error body is either the app's { error: { code, message } } or the
 // AI package's { error: 'ai_unavailable', message }; both become an ApiError.
-import { ENDPOINTS } from '@chat/contracts';
+import { ENDPOINTS, type AiComposeRequest } from '@chat/contracts';
 import { config } from '@/config/env';
 import { ApiError, NETWORK_ERROR } from '@/lib/api';
 import { getDeviceId, getSessionToken } from '@/features/auth/authBridge';
@@ -158,5 +158,54 @@ export async function translateText(text: string, targetLang: string, signal?: A
   const data = E.translate.response.parse(
     await jsonOf(E.translate.path, { text, targetLang }, signal),
   );
+  return { text: data.text, model: modelLabel(data.provider, data.model) };
+}
+
+/** "Explain with Flick": Flick reads an image, PDF, text file or voice note and answers about it. */
+export async function analyzeAttachment(
+  attachmentId: string,
+  question?: string,
+  signal?: AbortSignal,
+) {
+  const q = question?.trim();
+  const data = E.analyze.response.parse(
+    await jsonOf(
+      E.analyze.path,
+      { attachment_id: attachmentId, ...(q ? { question: q } : {}) },
+      signal,
+    ),
+  );
+  return data.text;
+}
+
+export type AnalyzeMode = 'explain' | 'table' | 'translate' | 'highlight' | 'compare' | 'receipt';
+
+/** Flick works on one or several files: a mode (table, translate, receipt...) or a question. */
+export async function analyzeFiles(
+  attachmentIds: string[],
+  options: { question?: string; mode?: AnalyzeMode; language?: string },
+  signal?: AbortSignal,
+) {
+  const q = options.question?.trim();
+  const data = E.analyze.response.parse(
+    await jsonOf(
+      E.analyze.path,
+      {
+        attachment_ids: attachmentIds,
+        ...(q ? { question: q } : {}),
+        ...(options.mode ? { mode: options.mode } : {}),
+        ...(options.language ? { language: options.language } : {}),
+      },
+      signal,
+    ),
+  );
+  return data.text;
+}
+
+export type ComposeRequest = AiComposeRequest;
+
+/** "Write with Flick": polish, rewrite or write text for the composer. Never sends anything. */
+export async function composeText(request: ComposeRequest, signal?: AbortSignal) {
+  const data = E.compose.response.parse(await jsonOf(E.compose.path, request, signal));
   return { text: data.text, model: modelLabel(data.provider, data.model) };
 }

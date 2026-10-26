@@ -846,7 +846,7 @@ describe('group call error messages', () => {
 });
 
 describe('avatar and toasts', () => {
-  it('uses the default picture without a src and when the image fails, once', () => {
+  it('uses the default picture without a src; initials when the image fails', () => {
     const { container } = render(<Avatar name="Ann" src="https://img.test/a.png" />);
     const img = container.querySelector('img')!;
     expect(img).toHaveAttribute('alt', 'Ann');
@@ -854,7 +854,8 @@ describe('avatar and toasts', () => {
     act(() => {
       img.dispatchEvent(new Event('error'));
     });
-    expect(img.getAttribute('src')).toBe('/avatar.png');
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Ann' })).toHaveTextContent('A');
     const { container: bare } = render(<Avatar name="" />);
     expect(bare.querySelector('img')).toHaveAttribute('src', '/avatar.png');
   });

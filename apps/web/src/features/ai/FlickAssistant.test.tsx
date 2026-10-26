@@ -1,4 +1,5 @@
 import { act, render, renderHook, screen } from '@testing-library/react';
+import { RouterWrapper } from '../../../test/router';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FLICK_BOT_USER_ID } from '@chat/contracts';
@@ -66,10 +67,11 @@ describe('the Flick chat in the list', () => {
   it('shows the avatar and AI badge in the chat list', () => {
     const flick = botChat();
     useChatStore.setState({ listStatus: 'ready', conversations: { [flick.id]: flick } });
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     expect(screen.getByRole('img', { name: 'Flick' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Flick AI assistant' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Pinned' })).toBeInTheDocument();
+    // The Saved messages row is always pinned too, so the Flick row's pin is the second one.
+    expect(screen.getAllByRole('img', { name: 'Pinned' }).length).toBeGreaterThanOrEqual(2);
   });
 });
 

@@ -1,21 +1,24 @@
-import { useEffect, useLayoutEffect } from 'react';
+import { Suspense, lazy, useEffect, useLayoutEffect } from 'react';
 import { ClerkLoading, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ConnectionStatusBanner } from '@/components/app/ConnectionStatusBanner';
 import { FullScreenError, FullScreenLoader } from '@/components/app/FullScreenStates';
+import { MobileTabBar } from '@/components/app/MobileTabBar';
 import { Navbar } from '@/components/app/Navbar';
+import { useChatStore } from '@/features/chat/useChatStore';
 import { AppToaster } from '@/components/ui';
 import { getTransport } from '@/lib/services';
 import { setClerkBridge } from '@/features/auth/authBridge';
 import { SignInPage } from '@/features/auth/components/SignInPage';
-import { useClerkProfileSync } from '@/features/auth/useClerkProfileSync';
+import { safeReturnTo } from '@/features/auth/returnTo';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CallOverlay } from '@/features/calls/components/CallOverlay';
 import { CallPermissionPrompt } from '@/features/calls/components/CallPermissionPrompt';
 import { IncomingCallModal } from '@/features/calls/components/IncomingCallModal';
 import { useAnswerFromNotification } from '@/features/calls/useAnswerFromNotification';
 import { bindCallRealtime } from '@/features/calls/useCallStore';
-import { CallLogPage } from '@/features/calllog/CallLogPage';
+import { CalendarPage } from '@/features/calendar/CalendarPage';
+import { GlobalKeys } from '@/features/palette/GlobalKeys';
 import { GuideHost } from '@/features/guide/GuideHost';
 import { InvitePage } from '@/features/chat/InvitePage';
 import { CallLinkPage } from '@/features/groupcall/CallLinkPage';
@@ -23,21 +26,41 @@ import { GroupCallOverlay } from '@/features/groupcall/components/GroupCallOverl
 import { startChatSession } from '@/features/chat/chatSession';
 import { HomePage } from '@/features/chat/HomePage';
 import { IncomingBanner } from '@/features/notifications/IncomingBanner';
-import { NotificationsPage } from '@/features/notifications/center/NotificationsPage';
 import { useNotificationBindings } from '@/features/notifications/center/useNotificationBindings';
 import { usePushLifecycle } from '@/features/notifications/usePushLifecycle';
 import { useUnreadIndicators } from '@/features/notifications/useUnreadIndicators';
 import { useOpenPendingConversation } from '@/features/notifications/useOpenPendingConversation';
-import { PeoplePage } from '@/features/directory/PeoplePage';
-import { ProfilePage } from '@/features/profile/ProfilePage';
-import { PublicProfilePage } from '@/features/profile/PublicProfilePage';
 import { AppLock } from '@/features/settings/components/AppLock';
-import { SettingsPage } from '@/features/settings/SettingsPage';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { useThemeStore } from '@/features/settings/useThemeStore';
 import { InstallGuide } from '@/pwa/InstallGuide';
 import { ServerWakeNotice } from '@/features/serverWake/ServerWakeNotice';
 import { OfflineNotice, UpdateBanner } from '@/pwa/PwaBanners';
+
+// Heavy pages load when first visited, so the chat list opens faster.
+const CallLogPage = lazy(() =>
+  import('@/features/calllog/CallLogPage').then((m) => ({ default: m.CallLogPage })),
+);
+const PeoplePage = lazy(() =>
+  import('@/features/directory/PeoplePage').then((m) => ({ default: m.PeoplePage })),
+);
+const ProfilePage = lazy(() =>
+  import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+);
+const PublicProfilePage = lazy(() =>
+  import('@/features/profile/PublicProfilePage').then((m) => ({ default: m.PublicProfilePage })),
+);
+const SettingsPage = lazy(() =>
+  import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
+const SharePage = lazy(() => import('@/pwa/SharePage').then((m) => ({ default: m.SharePage })));
+const BookmarksPage = lazy(() => import('@/features/productivity/BookmarksPage'));
+const MemoryPage = lazy(() => import('@/features/ai/flick/MemoryPage'));
+const NotificationsPage = lazy(() =>
+  import('@/features/notifications/center/NotificationsPage').then((m) => ({
+    default: m.NotificationsPage,
+  })),
+);
 
 /** Wire chat and call events to the transport for as long as someone is signed in. */
 const useRealtimeBindings = (userId: string | undefined): void => {
@@ -63,6 +86,12 @@ const useClerkBridge = (): void => {
   }, [getToken, signOut]);
 };
 
+/** Clerk finished on /sign-in or /sign-up: go where the person was headed, else the app. */
+const AfterSignIn = () => {
+  const { search } = useLocation();
+  return <Navigate to={safeReturnTo(search)} replace />;
+};
+
 /** Everything a signed-in user sees. Mounted only while Clerk says signed in. */
 const SignedInApp = () => {
   const status = useSessionStore((s) => s.status);
@@ -81,9 +110,13 @@ const SignedInApp = () => {
     if (status === 'authenticated') getTransport().connect();
   }, [status]);
 
+  const { pathname } = useLocation();
+  const chatOpen = useChatStore((st) => st.selectedId !== null);
+  // The phone tab bar steps aside inside an open chat and on call-link pages.
+  const showTabBar = !(chatOpen && pathname === '/') && !pathname.startsWith('/call/');
+
   useRealtimeBindings(userId);
   useNotificationBindings(userId);
-  useClerkProfileSync();
   useOpenPendingConversation();
   useUnreadIndicators();
   useAnswerFromNotification(status === 'authenticated');
@@ -101,7 +134,7 @@ const SignedInApp = () => {
     );
   }
   return (
-    <>
+    <div className={showTabBar ? 'has-tabbar' : undefined}>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-xl focus:bg-base-100 focus:px-4 focus:py-2"
@@ -109,20 +142,29 @@ const SignedInApp = () => {
         Skip to content
       </a>
       <Navbar />
+      {showTabBar && <MobileTabBar />}
       <ConnectionStatusBanner />
       <div id="main" tabIndex={-1} className="outline-none">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/people" element={<PeoplePage />} />
-          <Route path="/u/:username" element={<PublicProfilePage />} />
-          <Route path="/calls" element={<CallLogPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/join/:code" element={<InvitePage />} />
-          <Route path="/call/:token" element={<CallLinkPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+        <Suspense fallback={<FullScreenLoader />}>
+          <Routes>
+            <Route path="/sign-in/*" element={<AfterSignIn />} />
+            <Route path="/sign-up/*" element={<AfterSignIn />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/people" element={<PeoplePage />} />
+            <Route path="/u/:username" element={<PublicProfilePage />} />
+            <Route path="/calls" element={<CallLogPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/bookmarks" element={<BookmarksPage />} />
+            <Route path="/memory" element={<MemoryPage />} />
+            <Route path="/share" element={<SharePage />} />
+            <Route path="/join/:code" element={<InvitePage />} />
+            <Route path="/call/:token" element={<CallLinkPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
       </div>
       <IncomingBanner />
       <AppLock />
@@ -131,7 +173,8 @@ const SignedInApp = () => {
       <CallOverlay />
       <GroupCallOverlay />
       <GuideHost />
-    </>
+      <GlobalKeys />
+    </div>
   );
 };
 

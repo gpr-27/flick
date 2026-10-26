@@ -17,9 +17,9 @@ export const Card = ({
   return (
     <section
       aria-labelledby={id}
-      className={cn('glass-card space-y-1 rounded-3xl p-5 sm:p-6', className)}
+      className={cn('glass-card space-y-1 rounded-2xl p-4 sm:p-5', className)}
     >
-      <h3 id={id} className="mb-2 font-display text-lg font-bold">
+      <h3 id={id} className="mb-2 text-[17px] font-semibold">
         {title}
       </h3>
       {children}
@@ -29,8 +29,8 @@ export const Card = ({
 
 const Text = ({ label, hint }: { label: string; hint?: string | undefined }) => (
   <span className="min-w-0">
-    <span className="block font-semibold">{label}</span>
-    {hint && <span className="block text-sm text-base-content/60">{hint}</span>}
+    <span className="block font-medium">{label}</span>
+    {hint && <span className="block text-sm text-[var(--text-2)]">{hint}</span>}
   </span>
 );
 
@@ -116,7 +116,7 @@ export const ChoiceRow = <T extends string>({
       <p id={id} className="font-semibold">
         {label}
       </p>
-      {hint && <p className="text-sm text-base-content/60">{hint}</p>}
+      {hint && <p className="text-sm text-[var(--text-2)]">{hint}</p>}
       <div role="radiogroup" aria-labelledby={id} className="mt-2 flex flex-wrap gap-2">
         {options.map((o) => (
           <button

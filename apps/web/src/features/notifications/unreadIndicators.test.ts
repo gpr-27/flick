@@ -60,6 +60,7 @@ describe('in-app banner', () => {
   });
 
   it('notifyIncoming fills the banner store', () => {
+    installFakeServices(); // quiet hours are looked up on the server
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
     useIncomingBanner.getState().dismiss();
     const summary = { id: CONV, type: 'direct', title: null, prefs: { muted_until: null } };

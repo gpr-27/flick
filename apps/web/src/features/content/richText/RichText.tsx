@@ -1,10 +1,13 @@
 // Draws a chat message as rich text. Everything is built as React elements from the parser's
 // data (React escapes all text), so message text can never inject HTML. Links must be
 // http, https or mailto.
+import { ExplainCode } from '@/features/ai/writing/ExplainCode';
 import { Fragment, createElement, useMemo, useState, type ReactNode } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { cn } from '@/components/ui';
 import { ChatLink } from './ChatLink';
+import { LinkWarning } from '@/features/safety/LinkWarning';
+import { assessLink } from '@/features/safety/linkSafety';
 import { chatLinkId } from './chatLinkId';
 import { safeHref } from './safeHref';
 import { parseBlocks, type Align, type Block } from './parse';
@@ -37,16 +40,36 @@ const trimUrl = (url: string): string => {
   return url.slice(0, end);
 };
 
-const Link = ({ href, children }: { href: string; children: ReactNode }) => (
-  <a
-    href={href}
-    target="_blank"
-    rel="noopener noreferrer nofollow"
-    className="link link-primary break-all"
-  >
-    {children}
-  </a>
-);
+const Link = ({ href, children }: { href: string; children: ReactNode }) => {
+  const [warning, setWarning] = useState(false);
+  const risk = useMemo(() => assessLink(href), [href]);
+  return (
+    <>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="link link-primary break-all"
+        onClick={(e) => {
+          if (risk.level === 'ok') return;
+          e.preventDefault();
+          setWarning(true);
+        }}
+      >
+        {children}
+      </a>
+      {warning && (
+        <LinkWarning
+          href={href}
+          risk={risk}
+          onClose={() => {
+            setWarning(false);
+          }}
+        />
+      )}
+    </>
+  );
+};
 
 const renderInline = (
   text: string,
@@ -119,8 +142,9 @@ const CodeBlock = ({ code, lang }: { code: string; lang: string }) => {
   };
   return (
     <div className="max-w-full overflow-hidden rounded-xl bg-black/25 text-left" dir="ltr">
-      <div className="flex items-center justify-between gap-2 px-3 py-1 text-[11px] opacity-80">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1 text-[11px] opacity-80">
         <span>{lang || 'code'}</span>
+        <ExplainCode code={code} />
         <button
           type="button"
           onClick={copy}

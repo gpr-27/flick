@@ -1,5 +1,16 @@
 import { useState, type ReactNode } from 'react';
-import { ArrowLeft, Bookmark, Info, Phone, Sparkles, Timer, Users, Video, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bookmark,
+  Info,
+  Phone,
+  Sparkles,
+  Timer,
+  Users,
+  Video,
+  Wrench,
+  X,
+} from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, type PopoverMenuItem } from '@/components/ui';
 import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
@@ -17,6 +28,8 @@ import { useFeatureGuides, useMarkUsedWhen } from '@/features/guide/useFeatureGu
 import { markUsed } from '@/features/guide/useGuideStore';
 import { useContactInfo } from './useContactInfo';
 import { GroupInfoModal } from './GroupInfoModal';
+import { ChatToolsDialog } from '@/features/grouptools/ChatToolsDialog';
+import { useJoinRequestCount } from './useJoinRequestCount';
 
 export const ChatHeader = ({ conversation }: { conversation: ConversationSummary }) => {
   const select = useChatStore((s) => s.select);
@@ -30,11 +43,17 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
   const [searchOpen, setSearchOpen] = useState(false);
   const [flickOpen, setFlickOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const contact = useContactInfo();
 
   const title = conversationTitle(conversation);
   const isGroup = conversation.type === 'group';
   const isBot = isFlickChat(conversation);
+  const waiting = useJoinRequestCount(
+    conversation.id,
+    isGroup && conversation.my_role !== 'member',
+    infoOpen,
+  );
   const busy = Object.values(activity ?? {})[0];
 
   // First-open tips for what the header offers (see features/guide), dropped once used.
@@ -65,7 +84,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
     select(null);
   };
 
-  // Phones keep only back, name, voice call and "⋮": the other actions live in that menu
+  // Phones keep back, name, voice call, video call and "⋮": the other actions live in that menu
   // (the inline buttons below are `max-sm:hidden`, the menu items `sm:hidden`).
   const icon = (Icon: typeof Video): ReactNode => <Icon className="size-5" aria-hidden="true" />;
   const phoneItems: PopoverMenuItem[] = [
@@ -76,19 +95,6 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
         setTimerOpen(true);
       },
     },
-    ...(peer
-      ? [
-          {
-            label: 'Video call',
-            icon: icon(Video),
-            disabled: callsDisabled,
-            onClick: () => {
-              markUsed('calls.video');
-              void initiateCall(conversation.id, peer, 'video');
-            },
-          },
-        ]
-      : []),
     {
       label: 'Ask Flick',
       icon: icon(Sparkles),
@@ -119,8 +125,8 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
   ];
 
   return (
-    <header className="glass flex items-center justify-between gap-3 border-b border-base-content/10 px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="flex min-h-14 items-center justify-between gap-2 border-b border-base-content/10 bg-base-100/95 px-2 py-1.5 backdrop-blur sm:px-4">
+      <div className="flex min-w-0 items-center gap-1 sm:gap-2">
         <button
           type="button"
           onClick={close}
@@ -137,7 +143,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
               {isBot ? (
                 <FlickAvatar size="sm" />
               ) : conversation.is_saved ? (
-                <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
                   <Bookmark className="size-5" aria-hidden="true" />
                 </span>
               ) : (
@@ -146,17 +152,17 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
                   name=""
                   size="sm"
                   online={Boolean(presence?.online)}
-                  imgClassName="ring-2 ring-primary/20 shadow-sm"
+                  imgClassName=""
                 />
               )}
 
               <div className="min-w-0">
-                <h2 className="flex items-center gap-1.5 font-display text-base font-bold tracking-tight">
+                <h2 className="flex items-center gap-1.5 font-display text-[17px] font-semibold leading-tight tracking-tight">
                   <span className="truncate">{title}</span>
                   {isBot && <FlickBadge />}
                 </h2>
                 <p
-                  className={`truncate text-sm ${busy ? 'font-medium text-primary' : 'text-base-content/60'}`}
+                  className={`truncate text-[13px] leading-tight ${busy ? 'font-medium text-primary-text' : 'text-[var(--text-2,oklch(var(--bc)/0.65))]'}`}
                 >
                   {subtitle}
                 </p>
@@ -169,7 +175,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
               onClick={() => {
                 contact.open(peer);
               }}
-              className="flex min-w-0 items-center gap-3 text-left"
+              className="flex min-w-0 items-center gap-3 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-[var(--bg-hover,oklch(var(--bc)/0.05))]"
               aria-label={`View ${title}'s profile`}
             >
               {identity}
@@ -180,7 +186,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
         })()}
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-0.5">
         <DisappearingMenu conversation={conversation} className="max-sm:hidden" />
         {peer && (
           <>
@@ -192,7 +198,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
               }}
               data-guide="call.voice"
               disabled={callsDisabled}
-              className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px] text-base-content/70 hover:text-primary disabled:opacity-40 sm:min-h-8 sm:min-w-8"
+              className="btn btn-circle btn-ghost btn-sm min-h-[44px] min-w-[44px] text-base-content hover:bg-[var(--bg-hover,oklch(var(--bc)/0.06))] hover:text-primary disabled:opacity-40 sm:min-h-8 sm:min-w-8"
               aria-label={`Start voice call with ${title}`}
               title="Voice call"
             >
@@ -206,7 +212,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
               }}
               data-guide="call.video"
               disabled={callsDisabled}
-              className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary disabled:opacity-40 max-sm:hidden"
+              className="btn btn-circle btn-ghost btn-sm text-base-content hover:bg-[var(--bg-hover,oklch(var(--bc)/0.06))] hover:text-primary disabled:opacity-40 min-h-[44px] min-w-[44px] sm:min-h-8 sm:min-w-8"
               aria-label={`Start video call with ${title}`}
               title="Video call"
             >
@@ -219,7 +225,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
           onClick={() => {
             setFlickOpen(true);
           }}
-          className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary max-sm:hidden"
+          className="btn btn-circle btn-ghost btn-sm text-base-content hover:bg-[var(--bg-hover,oklch(var(--bc)/0.06))] hover:text-primary max-sm:hidden"
           aria-label="Ask Flick"
           data-guide="ai.ask"
           title="Ask Flick"
@@ -235,7 +241,7 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
             }}
             data-guide="call.group"
             disabled={callsDisabled || groupCallActive}
-            className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary disabled:opacity-40 max-sm:hidden"
+            className="btn btn-circle btn-ghost btn-sm text-base-content hover:bg-[var(--bg-hover,oklch(var(--bc)/0.06))] hover:text-primary disabled:opacity-40 max-sm:hidden"
             aria-label="Start group call"
             title="Start group call"
           >
@@ -248,12 +254,33 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
             onClick={() => {
               setInfoOpen(true);
             }}
-            className="btn btn-circle btn-ghost btn-sm text-base-content/70 hover:text-primary max-sm:hidden"
+            className="btn btn-circle btn-ghost btn-sm relative text-base-content hover:bg-[var(--bg-hover,oklch(var(--bc)/0.06))] hover:text-primary max-sm:hidden"
             aria-label="Group info"
             data-guide="group.info"
             title="Group info"
           >
             <Info className="size-5" aria-hidden="true" />
+            {waiting > 0 && (
+              <span
+                className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-content"
+                aria-label={`${String(waiting)} join requests waiting`}
+              >
+                {waiting}
+              </span>
+            )}
+          </button>
+        )}
+        {!isBot && (
+          <button
+            type="button"
+            onClick={() => {
+              setToolsOpen(true);
+            }}
+            className="btn btn-circle btn-ghost btn-sm text-base-content hover:bg-[var(--bg-hover,oklch(var(--bc)/0.06))] hover:text-primary"
+            aria-label="Chat tools"
+            title="Chat tools"
+          >
+            <Wrench className="size-5" aria-hidden="true" />
           </button>
         )}
         <ChatOptionsMenu
@@ -298,6 +325,15 @@ export const ChatHeader = ({ conversation }: { conversation: ConversationSummary
       />
 
       {contact.dialog}
+
+      {toolsOpen && (
+        <ChatToolsDialog
+          conversation={conversation}
+          onClose={() => {
+            setToolsOpen(false);
+          }}
+        />
+      )}
 
       {isGroup && (
         <GroupInfoModal

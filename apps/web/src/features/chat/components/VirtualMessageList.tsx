@@ -261,7 +261,10 @@ function VirtualMessageListInner<T>(
 
       {floatingDate && !isLoadingOlder && (
         <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
-          <span className="chip text-[11px] font-semibold" data-testid="floating-date">
+          <span
+            className="rounded-full bg-base-100/90 px-3 py-1 text-xs font-medium text-[var(--text-2)] shadow-[var(--shadow-1)]"
+            data-testid="floating-date"
+          >
             {floatingDate}
           </span>
         </div>
@@ -274,7 +277,7 @@ function VirtualMessageListInner<T>(
             markUsed('chat.jump');
             virtualizer.scrollToEnd({ behavior: 'smooth' });
           }}
-          className="glass-card absolute bottom-3 right-4 grid size-10 place-items-center rounded-full text-primary shadow-lg transition-transform hover:scale-105"
+          className="absolute bottom-3 right-4 grid size-10 place-items-center rounded-full border border-base-content/10 bg-base-100 text-primary-text shadow-[var(--shadow-2)] transition-transform hover:scale-105"
           aria-label="Jump to latest message"
           data-guide="chat.jump"
           title="Jump to latest"

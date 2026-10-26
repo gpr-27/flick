@@ -1,5 +1,8 @@
 import { Copy, ExternalLink } from 'lucide-react';
 import { Modal, cn, notify } from '@/components/ui';
+import { useState } from 'react';
+import { LinkWarning } from '@/features/safety/LinkWarning';
+import { assessLink } from '@/features/safety/linkSafety';
 import { haptic } from './haptics';
 import { useSheetSwipeDown } from './useSheetSwipeDown';
 
@@ -9,6 +12,9 @@ const row =
 /** Holding a link in a message offers these two, instead of the whole message menu. */
 export const LinkMenu = ({ href, onClose }: { href: string; onClose: () => void }) => {
   const sheet = useSheetSwipeDown(onClose);
+  const risk = assessLink(href);
+  const [warning, setWarning] = useState(false);
+  if (warning) return <LinkWarning href={href} risk={risk} onClose={onClose} />;
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(href);
@@ -57,7 +63,14 @@ export const LinkMenu = ({ href, onClose }: { href: string; onClose: () => void 
             target="_blank"
             rel="noopener noreferrer nofollow"
             className={row}
-            onClick={onClose}
+            onClick={(e) => {
+              if (risk.level === 'ok') {
+                onClose();
+                return;
+              }
+              e.preventDefault();
+              setWarning(true);
+            }}
           >
             <ExternalLink className="size-5" aria-hidden="true" />
             Open

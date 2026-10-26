@@ -2,10 +2,15 @@
 import type { ConversationSummary } from '@chat/contracts';
 import { formatCount } from '@/components/ui/format';
 import { isMuted } from '../organise/prefs';
+import { isSnoozed, useSnoozes } from '../understand/snooze';
 
 /** Unread messages across all chats. Muted chats do not count (like the badge on a phone). */
 export const totalUnread = (conversations: readonly ConversationSummary[]): number =>
-  conversations.reduce((sum, c) => (isMuted(c.prefs) ? sum : sum + c.unread_count), 0);
+  conversations.reduce(
+    (sum, c) =>
+      isMuted(c.prefs) || isSnoozed(useSnoozes.getState().until, c.id) ? sum : sum + c.unread_count,
+    0,
+  );
 
 /** "(3) Flick", "(99+) Flick", or plain "Flick" when nothing is unread. */
 export const titleWithUnread = (count: number, base = 'Flick'): string =>

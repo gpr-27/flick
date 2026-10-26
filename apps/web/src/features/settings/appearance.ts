@@ -7,7 +7,7 @@ import type { AccentId, FontFamily, FontSize, Settings } from './settingsSchema'
 
 // Two daisyUI themes back light/dark (see tailwind.config.ts).
 export const THEMES: Record<ThemeMode, string> = { light: 'pastel-glass', dark: 'pastel-night' };
-const PAGE_BG: Record<ThemeMode, string> = { light: '#F4F3FA', dark: '#14111F' };
+const PAGE_BG: Record<ThemeMode, string> = { light: '#F5F4FA', dark: '#121019' };
 
 export const FONT_SIZES_PX: Record<FontSize, number> = {
   small: 14,
@@ -16,22 +16,25 @@ export const FONT_SIZES_PX: Record<FontSize, number> = {
   xlarge: 20,
 };
 
-/** Font stacks. "Rounded" is the app's own look (Nunito and Quicksand), so it sets nothing. */
+/** Font stacks. "Rounded" is the app's own look (the system UI font), so it sets nothing. */
 export const FONT_FAMILIES: Record<FontFamily, { label: string; css: string | null }> = {
   rounded: { label: 'Rounded', css: null },
-  system: { label: 'System', css: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" },
+  system: {
+    label: 'System',
+    css: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', Roboto, 'Helvetica Neue', Inter, system-ui, sans-serif",
+  },
   serif: { label: 'Serif', css: "Georgia, 'Times New Roman', serif" },
   mono: { label: 'Mono', css: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace" },
 };
 
 /** The primary colour as daisyUI's "H S% L%". Violet is the theme's own colour (no override). */
 export const ACCENTS: Record<AccentId, { label: string; hsl: string | null; swatch: string }> = {
-  violet: { label: 'Violet', hsl: null, swatch: '#7C6CF0' },
-  blue: { label: 'Blue', hsl: '217 91% 55%', swatch: 'hsl(217 91% 55%)' },
-  green: { label: 'Green', hsl: '152 60% 38%', swatch: 'hsl(152 60% 38%)' },
-  orange: { label: 'Orange', hsl: '24 90% 48%', swatch: 'hsl(24 90% 48%)' },
-  pink: { label: 'Pink', hsl: '330 75% 55%', swatch: 'hsl(330 75% 55%)' },
-  teal: { label: 'Teal', hsl: '175 75% 33%', swatch: 'hsl(175 75% 33%)' },
+  violet: { label: 'Violet', hsl: null, swatch: '#6252E0' },
+  blue: { label: 'Blue', hsl: '58.69% 0.2079 260', swatch: 'hsl(58.69% 0.2079 260)' },
+  green: { label: 'Green', hsl: '61.3% 0.1307 157.82', swatch: 'hsl(61.3% 0.1307 157.82)' },
+  orange: { label: 'Orange', hsl: '65.99% 0.1832 45.61', swatch: 'hsl(65.99% 0.1832 45.61)' },
+  pink: { label: 'Pink', hsl: '62.11% 0.218 355.32', swatch: 'hsl(62.11% 0.218 355.32)' },
+  teal: { label: 'Teal', hsl: '59.94% 0.1013 185.77', swatch: 'hsl(59.94% 0.1013 185.77)' },
 };
 
 export interface Environment {
@@ -59,7 +62,8 @@ export function applyAppearance(
   settings: Pick<
     Settings,
     'theme' | 'accent' | 'fontSize' | 'fontFamily' | 'density' | 'corners' | 'reduceMotion'
-  >,
+  > &
+    Partial<Pick<Settings, 'dyslexiaFont' | 'highContrast'>>,
   env: Environment = readEnvironment(),
   root: HTMLElement = document.documentElement,
 ): ThemeMode {
@@ -71,7 +75,7 @@ export function applyAppearance(
   const accent = ACCENTS[settings.accent].hsl;
   if (accent) {
     root.style.setProperty('--p', accent);
-    root.style.setProperty('--pc', '0 0% 100%');
+    root.style.setProperty('--pc', '100% 0 0');
   } else {
     root.style.removeProperty('--p');
     root.style.removeProperty('--pc');
@@ -89,6 +93,9 @@ export function applyAppearance(
   // "Normal" leaves the size to the browser, so a person's own browser setting still counts.
   root.style.fontSize =
     settings.fontSize === 'normal' ? '' : `${FONT_SIZES_PX[settings.fontSize]}px`;
+  root.toggleAttribute('data-dyslexia', settings.dyslexiaFont === true);
+  if (settings.highContrast) root.setAttribute('data-contrast', 'high');
+  else root.removeAttribute('data-contrast');
   root.setAttribute('data-density', settings.density);
   root.setAttribute('data-corners', settings.corners);
   root.setAttribute(

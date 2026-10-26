@@ -15,12 +15,20 @@ export const isMuted = (mutedUntil: string | null, now: number): boolean =>
 export const mentionsUser = (content: MessageContent | null, userId: string): boolean =>
   content !== null && 'mentions' in content && (content.mentions?.includes(userId) ?? false);
 
+/** True when a text message contains one of the person's keyword alerts (case-insensitive). */
+export const hasKeyword = (content: MessageContent | null, keywords: readonly string[]): boolean =>
+  content !== null &&
+  content.type === 'text' &&
+  keywords.some((k) => k !== '' && content.text.toLowerCase().includes(k.toLowerCase()));
+
 export interface NotifyInput {
   message: MessageRecord;
   myId: string;
   mutedUntil: string | null;
   tabHidden: boolean;
   now: number;
+  /** Keyword alerts: a match gets through mute like a mention does. */
+  keywords?: readonly string[];
 }
 
 /** Notify for a live message from someone else while the tab is hidden. Mute is bypassed by a mention. */
@@ -30,6 +38,7 @@ export const shouldNotify = ({
   mutedUntil,
   tabHidden,
   now,
+  keywords = [],
 }: NotifyInput): boolean => {
   if (!tabHidden) return false;
   if (message.sender_user_id === null || message.sender_user_id === myId) return false;
@@ -37,7 +46,7 @@ export const shouldNotify = ({
   if (QUIET_TYPES.has(message.content.type)) return false;
   if (now - Date.parse(message.created_at) > MAX_LIVE_AGE_MS) return false;
   if (!isMuted(mutedUntil, now)) return true;
-  return mentionsUser(message.content, myId);
+  return mentionsUser(message.content, myId) || hasKeyword(message.content, keywords);
 };
 
 /**

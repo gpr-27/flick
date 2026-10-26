@@ -5,6 +5,8 @@ import { Spinner, cn } from '@/components/ui';
 import { uploadAttachment } from '@/features/chat/upload';
 import { useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { formatClock } from '../format';
+import { TrimReview } from './TrimReview';
+import { trimRecording } from './trim';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder';
 
 export type VoiceContent = Extract<MessageContent, { type: 'voice' }>;
@@ -14,16 +16,20 @@ export const VoiceComposer = ({
   disabled,
   onSend,
   buttonClassName,
+  voicemail = false,
 }: {
   disabled: boolean;
   onSend: (content: VoiceContent) => void;
   /** Extra classes for the mic button. */
   buttonClassName?: string | undefined;
+  /** Flag the note as a voicemail left after a missed call. */
+  voicemail?: boolean;
 }) => {
   const { state, error, start, stop, cancel } = useVoiceRecorder();
   const [elapsed, setElapsed] = useState(0);
   const [viewOnce, setViewOnce] = useState(false);
   const [pending, setPending] = useState<Recording | null>(null);
+  const [review, setReview] = useState<Recording | null>(null);
   const [upload, setUpload] = useState<'idle' | 'uploading' | 'failed'>('idle');
 
   useEffect(() => {
@@ -53,6 +59,7 @@ export const VoiceComposer = ({
         // The contract needs at least one sample; a single bar is drawn as a plain bar.
         waveform: recording.waveform.length > 0 ? recording.waveform : [50],
         ...(viewOnce ? { view_once: true } : {}),
+        ...(voicemail ? { voicemail: true } : {}),
       });
       setPending(null);
       setUpload('idle');
@@ -72,7 +79,7 @@ export const VoiceComposer = ({
     setUpload('idle');
   };
 
-  const active = state !== 'idle' || pending !== null;
+  const active = state !== 'idle' || pending !== null || review !== null;
   useMarkUsedWhen('composer.voice', state === 'recording');
 
   return (
@@ -88,7 +95,7 @@ export const VoiceComposer = ({
           'btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:order-1 max-sm:min-h-[44px] max-sm:min-w-[44px]',
           buttonClassName,
         )}
-        aria-label="Record voice message"
+        aria-label={voicemail ? 'Leave a voicemail' : 'Record voice message'}
         data-guide="composer.voice"
       >
         <Mic className="size-5" aria-hidden="true" />
@@ -104,7 +111,21 @@ export const VoiceComposer = ({
           aria-label="Voice message"
           className="glass absolute inset-0 z-20 flex items-center gap-3 px-4"
         >
-          {upload === 'idle' ? (
+          {review ? (
+            <TrimReview
+              recording={review}
+              onDiscard={() => {
+                setReview(null);
+              }}
+              onSend={(range) => {
+                const rec = review;
+                setReview(null);
+                void trimRecording(rec, range)
+                  .catch(() => rec)
+                  .then(send);
+              }}
+            />
+          ) : upload === 'idle' ? (
             <>
               <button
                 type="button"
@@ -129,6 +150,18 @@ export const VoiceComposer = ({
               >
                 <Eye className="size-4" aria-hidden="true" />
                 View once
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void stop().then((rec) => {
+                    if (rec) setReview(rec);
+                  });
+                }}
+                disabled={state !== 'recording'}
+                className="btn btn-ghost btn-sm"
+              >
+                Trim
               </button>
               <button
                 type="button"

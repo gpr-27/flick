@@ -401,7 +401,7 @@ describe('MessageMenu through the bubble', () => {
     });
   });
 
-  it('Translate opens the translate dialog; Report opens the report dialog (someone else)', async () => {
+  it('Translate shows the translation under the message; Report opens the report dialog (someone else)', async () => {
     const user = userEvent.setup();
     const [row] = buildRows(
       [makeMessage({ seq: 3, content: { type: 'text', text: 'hello menu' } })],
@@ -411,7 +411,7 @@ describe('MessageMenu through the bubble', () => {
     render(<MessageBubble {...bubble({ row: row! })} />);
     fireEvent.contextMenu(target());
     await user.click(screen.getByRole('menuitem', { name: 'Translate' }));
-    expect(await screen.findByRole('dialog', { name: /translate/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /show original/i })).toBeInTheDocument();
   });
 
   it.each([

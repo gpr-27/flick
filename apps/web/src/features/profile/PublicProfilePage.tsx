@@ -53,8 +53,7 @@ const ProfileView = ({ username }: { username: string }) => {
 
   return (
     <main className="app-bg min-h-dvh-screen px-4 pb-16 pt-24">
-      <div className="blobs" aria-hidden="true" />
-      <section className="glass-card mx-auto max-w-sm animate-fade-in-up rounded-3xl p-6 text-center">
+      <section className="surface-raised mx-auto max-w-sm animate-fade-in-up rounded-2xl p-6 text-center">
         {error && (
           <p role="alert" className="text-sm text-error">
             {error}
@@ -64,7 +63,7 @@ const ProfileView = ({ username }: { username: string }) => {
         {profile && (
           <div className="flex flex-col items-center gap-2">
             <Avatar src={profile.avatar_url} name={profile.display_name} size="xl" />
-            <h1 className="font-display text-2xl font-bold">{profile.display_name}</h1>
+            <h1 className="text-2xl font-semibold">{profile.display_name}</h1>
             <p className="text-sm text-base-content/60">@{profile.username}</p>
             {profile.about && <p className="text-sm">{profile.about}</p>}
             {profile.id !== myId && (

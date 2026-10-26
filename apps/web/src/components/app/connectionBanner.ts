@@ -8,12 +8,16 @@ export interface BannerContent {
   text: string;
 }
 
-export const bannerFor = (state: ConnectionState): BannerContent | null => {
+/** `waiting` is how many written messages the outbox still has to send. */
+export const bannerFor = (state: ConnectionState, waiting = 0): BannerContent | null => {
   switch (state) {
     case 'offline':
       return {
         tone: 'offline',
-        text: "You're offline. Messages will load again when your connection returns.",
+        text:
+          waiting > 0
+            ? `You're offline. ${waiting} ${waiting === 1 ? 'message' : 'messages'} waiting to send`
+            : "You're offline. Messages will load again when your connection returns.",
       };
     case 'reconnecting':
       return { tone: 'reconnecting', text: 'Connection lost. Reconnecting…' };

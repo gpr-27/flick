@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Star, X } from 'lucide-react';
 import { ENDPOINTS, type MessageRecord } from '@chat/contracts';
 import { EmptyState, ErrorState, Modal, Spinner } from '@/components/ui';
@@ -10,12 +10,14 @@ import { conversationTitle } from '../chat/conversationView';
 import { useChatStore, userName } from '../chat/useChatStore';
 import { useJumpStore } from './jump';
 import { toggleStar } from './messageActions';
+import { groupStarred } from './groupStarred';
 
 const StarredBody = ({ onClose }: { onClose: () => void }) => {
   const [items, setItems] = useState<MessageRecord[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState('');
   const conversations = useChatStore((s) => s.conversations);
   const users = useChatStore((s) => s.users);
 
@@ -43,6 +45,13 @@ const StarredBody = ({ onClose }: { onClose: () => void }) => {
     fetchPage();
   }, [fetchPage]);
 
+  const shown = groupStarred(
+    items,
+    (id) => (conversations[id] ? conversationTitle(conversations[id]) : ''),
+    (m) => previewContent(m.content),
+    filter,
+  );
+
   return (
     <>
       <div className="mb-3 flex items-center justify-between">
@@ -59,6 +68,16 @@ const StarredBody = ({ onClose }: { onClose: () => void }) => {
         </button>
       </div>
 
+      <input
+        type="search"
+        aria-label="Search starred messages"
+        placeholder="Search starred"
+        className="input-soft mb-3"
+        value={filter}
+        onChange={(e) => {
+          setFilter(e.target.value);
+        }}
+      />
       <div className="scroll-slim min-h-0 flex-1 overflow-y-auto">
         {status === 'error' && items.length === 0 ? (
           <ErrorState
@@ -76,37 +95,44 @@ const StarredBody = ({ onClose }: { onClose: () => void }) => {
           />
         ) : (
           <ul className="space-y-1">
-            {items.map((m) => {
+            {shown.map((m, i) => {
               const conv = conversations[m.conversation_id];
+              const newGroup = shown[i - 1]?.conversation_id !== m.conversation_id;
               return (
-                <li key={m.message_id} className="flex items-start gap-2">
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 rounded-xl px-3 py-2 text-left hover:bg-base-content/5 focus-visible:bg-base-content/5"
-                    onClick={() => {
-                      onClose();
-                      useJumpStore.getState().jumpTo(m);
-                    }}
-                  >
-                    <span className="block text-xs text-base-content/60">
-                      {conv ? conversationTitle(conv) : 'Chat'} ·{' '}
-                      {userName(users, m.sender_user_id)} · {formatRelativeTime(m.created_at)}
-                    </span>
-                    <span className="block truncate">{previewContent(m.content)}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs mt-2"
-                    aria-label={`Unstar: ${previewContent(m.content)}`}
-                    onClick={() => {
-                      void toggleStar(m).then(() => {
-                        setItems((old) => old.filter((x) => x.message_id !== m.message_id));
-                      });
-                    }}
-                  >
-                    Unstar
-                  </button>
-                </li>
+                <Fragment key={m.message_id}>
+                  {newGroup && (
+                    <li className="px-3 pt-2 text-xs font-semibold uppercase text-base-content/50">
+                      {conv ? conversationTitle(conv) : 'Chat'}
+                    </li>
+                  )}
+                  <li className="flex items-start gap-2">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 rounded-xl px-3 py-2 text-left hover:bg-base-content/5 focus-visible:bg-base-content/5"
+                      onClick={() => {
+                        onClose();
+                        useJumpStore.getState().jumpTo(m);
+                      }}
+                    >
+                      <span className="block text-xs text-base-content/60">
+                        {userName(users, m.sender_user_id)} · {formatRelativeTime(m.created_at)}
+                      </span>
+                      <span className="block truncate">{previewContent(m.content)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs mt-2"
+                      aria-label={`Unstar: ${previewContent(m.content)}`}
+                      onClick={() => {
+                        void toggleStar(m).then(() => {
+                          setItems((old) => old.filter((x) => x.message_id !== m.message_id));
+                        });
+                      }}
+                    >
+                      Unstar
+                    </button>
+                  </li>
+                </Fragment>
               );
             })}
           </ul>

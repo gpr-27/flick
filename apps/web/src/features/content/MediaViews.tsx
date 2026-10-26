@@ -16,11 +16,13 @@ export const VideoView = ({
   width,
   height,
   caption,
+  round,
 }: {
   attachmentId: string;
   width: number;
   height: number;
   caption?: string | undefined;
+  round?: boolean | undefined;
 }) => {
   const gate = useMediaGate();
   const { url, failed, fail, reload } = useAttachmentUrl(attachmentId, gate.go);
@@ -36,8 +38,12 @@ export const VideoView = ({
           playsInline
           onError={fail}
           aria-label={caption ?? 'Video'}
-          style={{ aspectRatio: `${width} / ${height}` }}
-          className="block max-h-80 w-auto max-w-[18rem] rounded-xl bg-black"
+          style={round ? undefined : { aspectRatio: `${width} / ${height}` }}
+          className={
+            round
+              ? 'block size-56 rounded-full bg-black object-cover'
+              : 'block max-h-80 w-auto max-w-[18rem] rounded-xl bg-black'
+          }
         />
       ) : (
         <div

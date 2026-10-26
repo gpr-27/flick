@@ -1,6 +1,6 @@
 // View-once: the recipient taps to open, the server records it, the content shows once, then it
 // is gone. The server stops sending the content to this user after the open (content = null).
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { ENDPOINTS } from '@chat/contracts';
 import { notify } from '@/components/ui';
@@ -35,6 +35,21 @@ export const ViewOnce = ({
     openedHere.has(messageId) ? 'opened' : 'closed',
   );
   const [busy, setBusy] = useState(false);
+  // Protection: the content is blurred while the tab is hidden or the window loses focus.
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    const check = (): void => {
+      setAway(document.hidden || !document.hasFocus());
+    };
+    window.addEventListener('blur', check);
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      window.removeEventListener('blur', check);
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, []);
 
   if (isMine) {
     return (
@@ -73,7 +88,7 @@ export const ViewOnce = ({
   if (phase === 'viewing') {
     return (
       <div>
-        {children}
+        <div className={away ? 'pointer-events-none blur-2xl' : undefined}>{children}</div>
         <button
           type="button"
           onClick={() => {

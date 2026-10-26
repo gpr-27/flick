@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { RouterWrapper } from '../../../test/router';
 import userEvent from '@testing-library/user-event';
 import { ENDPOINTS } from '@chat/contracts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -76,7 +77,7 @@ describe('chat list filters', () => {
       listStatus: 'ready',
       conversations: Object.fromEntries(chats.map((c) => [c.id, c])),
     });
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     expect(screen.getAllByRole('option')).toHaveLength(2);
 
     await user.click(screen.getByRole('tab', { name: 'Unread' }));
@@ -199,7 +200,7 @@ describe('chat lock', () => {
       last_message: makeMessage({ content: { type: 'text', text: 'secret plan' } }),
     };
     useChatStore.setState({ listStatus: 'ready', conversations: { [conv.id]: conv } });
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     expect(screen.queryByText('secret plan')).not.toBeInTheDocument();
     expect(screen.getByText('Locked chat')).toBeInTheDocument();
   });
@@ -272,7 +273,7 @@ describe('drafts', () => {
     };
     useChatStore.setState({ listStatus: 'ready', conversations: { [conv.id]: conv } });
     useDraftStore.setState({ drafts: { [conv.id]: 'not sent yet' } });
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     expect(screen.getByText('Draft:')).toBeInTheDocument();
     expect(screen.getByText('not sent yet')).toBeInTheDocument();
     expect(screen.queryByText('older message')).not.toBeInTheDocument();

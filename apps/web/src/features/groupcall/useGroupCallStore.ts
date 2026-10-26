@@ -1,6 +1,7 @@
 // Group calls through LiveKit (an SFU: everyone sends one stream to the server, which forwards it).
 // The library is loaded with import() the first time someone joins, so it stays out of the main
 // bundle. The store keeps plain snapshots of the room for the UI; the Room object stays private.
+import { handleCaptionMessage, setCaptionSender } from '../platform/captions';
 import { create } from 'zustand';
 import { ENDPOINTS } from '@chat/contracts';
 import type * as LK from 'livekit-client';
@@ -31,7 +32,17 @@ export interface ParticipantTile {
   videoTrack: MediaStreamTrack | null;
 }
 
+/** A floating emoji; `left` is its horizontal spot in percent. */
+export interface Reaction {
+  id: number;
+  emoji: string;
+  left: number;
+}
+
+export const REACTION_EMOJIS = ['👍', '❤️', '😂', '👏', '🎉'];
+
 interface GroupCallState {
+  reactions: Reaction[];
   status: GroupCallStatus;
   error: string | null;
   callId: string | null;
@@ -46,12 +57,14 @@ interface GroupCallState {
   toggleMic: () => Promise<void>;
   toggleCamera: () => Promise<void>;
   toggleScreenShare: () => Promise<void>;
+  sendReaction: (emoji: string) => Promise<void>;
 }
 
 const idle: Pick<
   GroupCallState,
-  'status' | 'error' | 'callId' | 'participants' | 'micOn' | 'cameraOn' | 'sharing'
+  'status' | 'error' | 'callId' | 'participants' | 'micOn' | 'cameraOn' | 'sharing' | 'reactions'
 > = {
+  reactions: [],
   status: 'idle',
   error: null,
   callId: null,
@@ -119,6 +132,7 @@ export const useGroupCallStore = create<GroupCallState>()((set, get) => {
     stopBeats();
     const current = room;
     room = null;
+    setCaptionSender(null);
     removeAudioElements();
     current?.disconnect().catch(() => undefined);
     set({ ...idle });
@@ -139,9 +153,20 @@ export const useGroupCallStore = create<GroupCallState>()((set, get) => {
     stopBeats();
     const current = room;
     room = null;
+    setCaptionSender(null);
     removeAudioElements();
     current?.disconnect().catch(() => undefined);
     set({ ...idle, status: 'error', error: message });
+  };
+
+  let reactionId = 0;
+  const showReaction = (emoji: string): void => {
+    if (!REACTION_EMOJIS.includes(emoji)) return;
+    const reaction = { id: ++reactionId, emoji, left: 10 + Math.random() * 80 };
+    set({ reactions: [...get().reactions, reaction] });
+    setTimeout(() => {
+      set({ reactions: get().reactions.filter((r) => r.id !== reaction.id) });
+    }, 2500);
   };
 
   const watch = (lk: LiveKit, r: Room): void => {
@@ -173,6 +198,11 @@ export const useGroupCallStore = create<GroupCallState>()((set, get) => {
       track.detach().forEach((el) => {
         el.remove();
       });
+    });
+    r.on(E.DataReceived, (payload) => {
+      if (room !== r) return;
+      const text = new TextDecoder().decode(payload);
+      if (!handleCaptionMessage(text)) showReaction(text);
     });
     r.on(E.Reconnecting, () => {
       if (room === r) set({ status: 'reconnecting' });
@@ -217,6 +247,11 @@ export const useGroupCallStore = create<GroupCallState>()((set, get) => {
         await next.connect(token.url, token.token);
         if (room !== next) return;
         set({ status: 'connected', callId: token.call_id });
+        setCaptionSender((text) => {
+          void next.localParticipant
+            .publishData(new TextEncoder().encode(text), { reliable: true })
+            .catch(() => undefined);
+        });
         if ('conversation_id' in target) startBeats(target.conversation_id);
         snapshot(lk);
         void next.startAudio().catch(() => undefined);
@@ -253,6 +288,18 @@ export const useGroupCallStore = create<GroupCallState>()((set, get) => {
         await current.localParticipant.setCameraEnabled(!current.localParticipant.isCameraEnabled);
       } catch {
         notify.error('Could not turn the camera on.');
+      }
+    },
+
+    sendReaction: async (emoji) => {
+      if (!room) return;
+      showReaction(emoji);
+      try {
+        await room.localParticipant.publishData(new TextEncoder().encode(emoji), {
+          reliable: false,
+        });
+      } catch {
+        // others just do not see it
       }
     },
 

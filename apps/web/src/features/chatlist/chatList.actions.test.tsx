@@ -1,4 +1,5 @@
 // The chat list cards, their menu, delete confirmation, archive + undo and select mode.
+import { RouterWrapper } from '../../../test/router';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ENDPOINTS, type ConversationSummary } from '@chat/contracts';
@@ -74,7 +75,7 @@ describe('chat card', () => {
     const amy = chat('Amy');
     load(bob, { ...amy, prefs: { ...amy.prefs, marked_unread: true } });
     useDraftStore.setState({ drafts: { [bob.id]: 'half a thought' } });
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     expect(screen.getByText('Draft:')).toHaveClass('text-primary');
     expect(screen.getByText('half a thought')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Marked as unread' })).toBeInTheDocument();
@@ -82,7 +83,7 @@ describe('chat card', () => {
 
   it('is accessible and has keyboard-reachable actions', async () => {
     load(chat('Bob'));
-    const { container } = render(<Sidebar />);
+    const { container } = render(<Sidebar />, { wrapper: RouterWrapper });
     await expectNoA11yViolations(container);
     const user = userEvent.setup();
     const menu = await openMenu(user, 'Bob');
@@ -102,7 +103,7 @@ describe('chat card', () => {
 describe('swipe buttons', () => {
   it('a swipe to the left reveals mute, archive and delete named after the chat', () => {
     load(chat('Bob'));
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     swipe(screen.getByRole('option'), 300, 150);
     expect(useOpenRow.getState().side).toBe('end');
     for (const label of ['Mute chat with Bob', 'Archive chat with Bob', 'Delete chat with Bob']) {
@@ -112,7 +113,7 @@ describe('swipe buttons', () => {
 
   it('a vertical drag does not swipe', () => {
     load(chat('Bob'));
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     swipe(screen.getByRole('option'), 300, 302); // y moves 2px only: still undecided
     const row = screen.getByRole('option');
     const at = (x: number, y: number) => ({
@@ -138,7 +139,7 @@ describe('swipe buttons', () => {
           : { items: [], next_cursor: null },
       ),
     );
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     swipe(screen.getByRole('option'), 380, 100);
     await waitFor(() => {
       expect(useChatStore.getState().conversations[bob.id]?.prefs.archived).toBe(true);
@@ -152,7 +153,7 @@ describe('delete with confirmation', () => {
     const bob = chat('Bob');
     load(bob);
     api.call.mockResolvedValue(undefined);
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     const menu = await openMenu(user, 'Bob');
     await user.click(within(menu).getByRole('menuitem', { name: 'Delete chat' }));
     const dialog = screen.getByRole('alertdialog', { name: 'Delete this chat?' });
@@ -184,7 +185,7 @@ describe('delete with confirmation', () => {
       title: 'Team',
     } as ConversationSummary;
     load(g);
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     const menu = await openMenu(user, 'Team');
     await user.click(within(menu).getByRole('menuitem', { name: 'Delete chat' }));
     expect(screen.getByRole('button', { name: 'Leave and delete' })).toBeInTheDocument();
@@ -195,7 +196,7 @@ describe('select mode', () => {
   it('starts from the menu, selects all and shows the count; Escape leaves', async () => {
     const user = userEvent.setup();
     load(chat('Bob'), chat('Amy'));
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     const menu = await openMenu(user, 'Bob');
     await user.click(within(menu).getByRole('menuitem', { name: 'Select' }));
     expect(screen.getByText('1 selected')).toBeInTheDocument();

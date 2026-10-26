@@ -22,7 +22,7 @@ describe('settings defaults', () => {
       theme: 'system',
       accent: 'violet',
       fontSize: 'small',
-      fontFamily: 'serif',
+      fontFamily: 'system',
       density: 'comfortable',
       corners: 'rounded',
       enterSends: true,

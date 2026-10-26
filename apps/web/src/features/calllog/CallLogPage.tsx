@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Users, Video } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { ENDPOINTS } from '@chat/contracts';
 import { Button, EmptyState, ErrorState, Spinner } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
@@ -11,6 +12,10 @@ import { useChatStore } from '@/features/chat/useChatStore';
 import { useFeatureGuide } from '@/features/guide/useFeatureGuide';
 import { conversationTitle } from '@/features/chat/conversationView';
 import type { CallLogEntry } from '../groupcall/types';
+import { VoiceComposer } from '@/features/content/voice/VoiceComposer';
+import { sendMessage } from '@/features/chat/outbox/useOutboxStore';
+import { useSessionStore } from '@/features/auth/useSessionStore';
+import { useMissedCalls } from './useMissedCalls';
 import { formatCallDuration, formatCallWhen } from './format';
 
 type Status = 'loading' | 'ready' | 'error';
@@ -38,6 +43,7 @@ const Row = ({ entry, busy }: { entry: CallLogEntry; busy: boolean }) => {
     entry.conversation_id ? s.conversations[entry.conversation_id] : undefined,
   );
   const target = callBackTarget(entry);
+  const myId = useSessionStore((s) => s.user?.id);
   const Icon =
     entry.outcome === 'missed'
       ? PhoneMissed
@@ -47,26 +53,40 @@ const Row = ({ entry, busy }: { entry: CallLogEntry; busy: boolean }) => {
   const name = conversation ? conversationTitle(conversation) : 'Unknown chat';
 
   return (
-    <li className="flex items-center gap-3 rounded-2xl p-3 hover:bg-base-content/5">
-      <Icon
-        className={`size-5 shrink-0 ${entry.outcome === 'missed' ? 'text-error' : 'text-base-content/60'}`}
-        aria-hidden="true"
-      />
+    <li className="relative flex min-h-[68px] items-center gap-3 border-b border-base-content/5 px-4 py-2.5 last:border-b-0 hover:bg-[var(--bg-hover)]">
+      <span
+        className={`grid size-11 shrink-0 place-items-center rounded-full ${entry.outcome === 'missed' ? 'bg-error/10 text-error' : 'bg-[var(--bg-active)] text-primary-text'}`}
+      >
+        <Icon className="size-5" aria-hidden="true" />
+      </span>
       <div className="min-w-0 flex-1">
-        <p className={`truncate font-semibold ${entry.outcome === 'missed' ? 'text-error' : ''}`}>
+        <p
+          className={`truncate text-base font-semibold ${entry.outcome === 'missed' ? 'text-error' : ''}`}
+        >
           {name}
         </p>
-        <p className="truncate text-sm text-base-content/60">
+        <p className="truncate text-sm text-[var(--text-2)]">
           {label(entry)} · {formatCallWhen(entry.started_at)}
           {entry.outcome === 'ended' && ` · ${formatCallDuration(entry.duration_s)}`}
         </p>
       </div>
-      {entry.group && <Users className="size-4 text-base-content/50" aria-label="Group call" />}
+      {entry.outcome === 'missed' && entry.direction === 'outgoing' && target && myId && (
+        // A missed call you made: record a voice note that arrives flagged as a voicemail.
+        <VoiceComposer
+          voicemail
+          disabled={busy}
+          buttonClassName="size-10 min-h-[44px] min-w-[44px] text-primary-text"
+          onSend={(content) => {
+            sendMessage(myId, target.conversation.id, content);
+          }}
+        />
+      )}
+      {entry.group && <Users className="size-4 text-[var(--text-2)]" aria-label="Group call" />}
       {target && (
         <button
           type="button"
           disabled={busy}
-          className="btn btn-circle btn-ghost btn-sm text-primary disabled:opacity-40"
+          className="btn btn-circle btn-ghost size-10 min-h-[44px] min-w-[44px] text-primary-text disabled:opacity-40"
           aria-label={`Call ${name} back`}
           title="Call back"
           onClick={() =>
@@ -88,6 +108,7 @@ const Row = ({ entry, busy }: { entry: CallLogEntry; busy: boolean }) => {
 
 /** The Calls tab: recent calls, newest first, with call back for 1:1 calls. */
 export const CallLogPage = () => {
+  const navigate = useNavigate();
   const [entries, setEntries] = useState<CallLogEntry[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>('loading');
@@ -145,12 +166,21 @@ export const CallLogPage = () => {
         icon={<Phone className="size-10" />}
         title="No calls yet"
         description="Calls you make and receive show up here."
+        action={{
+          label: 'Find people',
+          onClick: () => {
+            navigate('/people');
+          },
+        }}
       />
     );
   } else {
     body = (
       <>
-        <ul aria-label="Recent calls">
+        <ul
+          aria-label="Recent calls"
+          className="overflow-hidden rounded-2xl border border-base-content/10 bg-base-100"
+        >
           {entries.map((entry) => (
             <Row key={entry.call_id} entry={entry} busy={inCall} />
           ))}
@@ -180,12 +210,16 @@ export const CallLogPage = () => {
     );
   }
 
+  useEffect(() => {
+    useMissedCalls.getState().markSeen();
+  }, []);
+
   useFeatureGuide('calls.tab');
   return (
-    <main className="app-bg min-h-dvh-screen px-4 pb-8 pt-20">
-      <div data-guide="calls.list" className="glass-card mx-auto max-w-xl rounded-3xl p-4 sm:p-6">
+    <main className="app-bg min-h-dvh-screen px-4 pb-24 pt-[calc(4.5rem+env(safe-area-inset-top))] sm:pb-12 sm:pt-[calc(5rem+env(safe-area-inset-top))]">
+      <div data-guide="calls.list" className="mx-auto max-w-2xl">
         <div className="mb-3 flex items-center justify-between">
-          <h1 className="font-display text-xl font-bold">Calls</h1>
+          <h1 className="text-[22px] font-bold">Calls</h1>
           <Link to="/" className="btn btn-ghost btn-sm">
             Chats
           </Link>

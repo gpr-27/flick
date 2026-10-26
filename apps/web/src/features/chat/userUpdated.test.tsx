@@ -60,7 +60,11 @@ const ready = (messages: ReturnType<typeof makeMessage>[]): Thread => ({
 beforeEach(() => {
   localStorage.clear();
   ({ transport, api } = installFakeServices());
-  api.call.mockResolvedValue({ items: [group], next_cursor: null });
+  api.call.mockImplementation((endpoint: unknown) =>
+    Promise.resolve(
+      endpoint === ENDPOINTS.chatLists.list ? { items: [] } : { items: [group], next_cursor: null },
+    ),
+  );
   configureOutboxStorage(createMemoryKv<OutboxItem>());
   useOutboxStore.setState({ items: [], ready: false });
   useChatStore.getState().reset();

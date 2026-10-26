@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ENDPOINTS } from '@chat/contracts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderContent } from '@/features/chat/content/registry';
 import { CONV, installFakeServices, nextId, type FakeApi } from '../../../test/fakes';
@@ -11,7 +12,9 @@ beforeEach(() => {
   ({ api } = installFakeServices());
   served = 0;
   // Every call hands out a different signed link, like the real endpoint.
-  api.call.mockImplementation(() => {
+  api.call.mockImplementation((endpoint) => {
+    // Other calls (e.g. the transcript lookup) must not use up a link.
+    if (endpoint !== ENDPOINTS.media.download) return Promise.resolve(undefined);
     served += 1;
     return Promise.resolve({
       url: `https://files.test/signed-${served}`,

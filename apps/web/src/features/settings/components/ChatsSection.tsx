@@ -1,5 +1,6 @@
 import { TIMER_OPTIONS } from '@/features/content/disappearing';
 import { useSetting } from '../useSettingsStore';
+import { SavedRepliesEditor } from './SavedRepliesEditor';
 import { Card, ChoiceRow, SelectRow, ToggleRow } from './controls';
 
 export const ChatsSection = () => {
@@ -54,6 +55,7 @@ export const ChatsSection = () => {
         checked={keepArchived}
         onChange={setKeepArchived}
       />
+      <SavedRepliesEditor />
     </Card>
   );
 };

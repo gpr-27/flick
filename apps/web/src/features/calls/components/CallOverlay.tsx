@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { CaptionsOverlay } from '../../platform/CaptionsOverlay';
 import {
   Maximize,
   Mic,
@@ -276,6 +277,7 @@ export const CallOverlay = () => {
       tabIndex={-1}
       className="fixed inset-0 z-[60] animate-scale-in overflow-hidden outline-none"
     >
+      <CaptionsOverlay />
       <div className="absolute inset-0 bg-gradient-to-br from-[#1b1830] via-[#241f3d] to-[#3a2540]" />
 
       {/* Remote audio sink (always mounted; the remote <video> stays muted). */}

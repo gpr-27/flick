@@ -39,6 +39,7 @@ const setup = (items: NotificationItem[]) => {
       });
     if (endpoint === ENDPOINTS.notifications.unread)
       return Promise.resolve({ unread_count: items.length });
+    if (endpoint === ENDPOINTS.productivity.nudges) return Promise.resolve({ items: [] });
     return Promise.resolve({ unread_count: 0 });
   });
   const transport = new FakeTransport();

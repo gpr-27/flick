@@ -7,7 +7,6 @@ import { ENDPOINTS } from '@chat/contracts';
 import { notify } from '@/components/ui/notify';
 import { ApiError } from '@/lib/api';
 import { BOB, ME, fakeApi, installFakeServices } from '../../../test/fakes';
-import { setClerkUser } from '../auth/clerkProfileSync';
 import { useSessionStore, type Me } from '../auth/useSessionStore';
 import { useChatStore } from '../chat/useChatStore';
 import { ProfilePage } from './ProfilePage';
@@ -210,45 +209,15 @@ describe('saving', () => {
     expect(save()).toBeDisabled(); // nothing left to save
   });
 
-  it('says that the name is shared with the sign-in account, and updates it after saving', async () => {
-    const clerkUser = {
-      id: 'user_1',
-      firstName: 'Sam',
-      lastName: 'Rao',
-      username: 'sam',
-      update: vi.fn(() => Promise.resolve(undefined)),
-    };
-    setClerkUser(clerkUser);
+  it('keeps name edits on Flick only: no sign-in account copy, no note about it', async () => {
     view();
-    expect(
-      screen.getByText('Changing your name here also updates your sign-in account.'),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/updates your sign-in account/)).not.toBeInTheDocument();
     fireEvent.change(name(), { target: { value: 'Sam Rao II' } });
     await userEvent.click(save());
     await waitFor(() => {
-      expect(clerkUser.update).toHaveBeenCalledWith({ firstName: 'Sam', lastName: 'Rao II' });
+      expect(notify.success).toHaveBeenCalledWith('Profile saved.');
     });
     expect(notify.info).not.toHaveBeenCalled();
-    setClerkUser(null);
-  });
-
-  it('keeps the Flick save and shows a small note when the sign-in account cannot be updated', async () => {
-    setClerkUser({
-      id: 'user_1',
-      firstName: 'Sam',
-      lastName: 'Rao',
-      username: 'sam',
-      update: vi.fn(() => Promise.reject(new Error('Clerk says no'))),
-    });
-    view();
-    fireEvent.change(name(), { target: { value: 'Sam Rao II' } });
-    await userEvent.click(save());
-    await waitFor(() => {
-      expect(notify.info).toHaveBeenCalledWith(expect.stringContaining('Saved on Flick'));
-    });
-    expect(notify.success).toHaveBeenCalledWith('Profile saved.');
-    expect(useSessionStore.getState().user?.display_name).toBe('Sam Rao II');
-    setClerkUser(null);
   });
 
   it('a taken username on save (409) shows a clear message and keeps the old profile', async () => {

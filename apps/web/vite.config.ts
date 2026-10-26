@@ -51,6 +51,26 @@ const pwaOptions: Partial<VitePWAOptions> = {
     prefer_related_applications: false,
     theme_color: '#F4F3FA',
     background_color: '#F4F3FA',
+    // "Share" from another app (text and links) opens /share to pick a chat.
+    share_target: {
+      action: '/share',
+      method: 'GET',
+      params: { title: 'title', text: 'text', url: 'url' },
+    },
+    // Long-press the app icon: jump straight to these.
+    shortcuts: [
+      {
+        name: 'New chat',
+        url: '/people',
+        icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+      },
+      {
+        name: 'Saved messages',
+        url: '/?saved=1',
+        icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+      },
+      { name: 'Calls', url: '/calls', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+    ],
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -105,7 +125,26 @@ export default defineConfig(({ mode }) => {
     },
     server: { port },
     // The one big chunk is the LiveKit call SDK, which is only loaded when a call starts.
-    build: { sourcemap: true, chunkSizeWarningLimit: 1000 },
+    build: {
+      sourcemap: true,
+      chunkSizeWarningLimit: 1000,
+      rolldownOptions: {
+        output: {
+          // Big libraries get their own files so they cache between releases.
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('livekit')) return undefined; // already loaded on demand
+            if (id.includes('@clerk')) return 'clerk';
+            if (id.includes('socket.io') || id.includes('engine.io')) return 'socketio';
+            if (
+              /node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)
+            )
+              return 'react';
+            return undefined;
+          },
+        },
+      },
+    },
     test: {
       environment: 'jsdom',
       include: ['src/**/*.test.{ts,tsx}', 'test/**/*.test.{ts,tsx}'],

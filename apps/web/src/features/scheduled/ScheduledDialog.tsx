@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { Pencil, Trash2, X } from 'lucide-react';
 import { ENDPOINTS, type ScheduledMessage } from '@chat/contracts';
 import { Modal, Spinner, notify } from '@/components/ui';
 import { conversationTitle } from '@/features/chat/conversationView';
 import { useChatStore } from '@/features/chat/useChatStore';
 import { getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
+import { parsePicked, toInputValue } from './times';
 
 /** Messages waiting to be sent (or that could not be sent), with a cancel button on each. */
 export const ScheduledDialog = ({ open, onClose }: { open: boolean; onClose: () => void }) =>
@@ -40,6 +41,38 @@ const ScheduledContent = ({ onClose }: { onClose: () => void }) => {
       setItems((list) => list?.filter((i) => i.id !== item.id) ?? null);
     } catch (e) {
       notify.error(getErrorMessage(e, "Couldn't cancel that message."));
+    }
+  };
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [text, setText] = useState('');
+  const [when, setWhen] = useState('');
+
+  const startEdit = (item: ScheduledMessage): void => {
+    setEditingId(item.id);
+    setText(item.text);
+    setWhen(toInputValue(new Date(item.send_at)));
+  };
+
+  const save = async (item: ScheduledMessage): Promise<void> => {
+    const picked = parsePicked(when, new Date());
+    if (!picked.ok) {
+      notify.error(picked.error);
+      return;
+    }
+    if (!text.trim()) {
+      notify.error('Write a message.');
+      return;
+    }
+    try {
+      const updated = await getApi().call(ENDPOINTS.scheduled.update, {
+        params: { scheduled_id: item.id },
+        body: { text: text.trim(), send_at: picked.at.toISOString() },
+      });
+      setItems((list) => list?.map((i) => (i.id === item.id ? updated : i)) ?? null);
+      setEditingId(null);
+    } catch (e) {
+      notify.error(getErrorMessage(e, "Couldn't change that message."));
     }
   };
 
@@ -86,19 +119,69 @@ const ScheduledContent = ({ onClose }: { onClose: () => void }) => {
               key={item.id}
               className="flex items-start gap-3 rounded-2xl bg-base-content/5 p-3 text-sm"
             >
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">To {chatName(item.conversation_id)}</p>
-                <p className="line-clamp-2 break-words">{item.text}</p>
-                {item.status === 'failed' ? (
-                  <p className="mt-1 font-semibold text-error">
-                    Not sent: {item.failed_reason ?? 'something went wrong'}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-base-content/60">
-                    {new Date(item.send_at).toLocaleString()}
-                  </p>
-                )}
-              </div>
+              {editingId === item.id ? (
+                <div className="min-w-0 flex-1 space-y-2">
+                  <textarea
+                    className="textarea textarea-bordered w-full"
+                    aria-label="Message text"
+                    value={text}
+                    onChange={(e) => {
+                      setText(e.target.value);
+                    }}
+                  />
+                  <input
+                    type="datetime-local"
+                    className="input input-bordered w-full"
+                    aria-label="Send time"
+                    value={when}
+                    onChange={(e) => {
+                      setWhen(e.target.value);
+                    }}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        setEditingId(null);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => void save(item)}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">To {chatName(item.conversation_id)}</p>
+                  <p className="line-clamp-2 break-words">{item.text}</p>
+                  {item.status === 'failed' ? (
+                    <p className="mt-1 font-semibold text-error">
+                      Not sent: {item.failed_reason ?? 'something went wrong'}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-base-content/60">
+                      {new Date(item.send_at).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              )}
+              <button
+                type="button"
+                className="btn btn-circle btn-ghost btn-sm"
+                aria-label={`Edit scheduled message to ${chatName(item.conversation_id)}`}
+                onClick={() => {
+                  startEdit(item);
+                }}
+              >
+                <Pencil className="size-4" aria-hidden="true" />
+              </button>
               <button
                 type="button"
                 className="btn btn-circle btn-ghost btn-sm"

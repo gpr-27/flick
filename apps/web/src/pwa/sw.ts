@@ -45,6 +45,8 @@ interface PushEventLike extends WorkerEvent {
   data: { json: () => unknown } | null;
 }
 interface ClickEventLike extends WorkerEvent {
+  /** The text typed into the Reply box (action "reply"). */
+  reply?: string;
   /** The button that was pressed ("answer", "decline"), or "" for a tap on the notification. */
   action: string;
   notification: { close: () => void; data?: { url?: string } };
@@ -124,7 +126,19 @@ sw.addEventListener('push', (event: PushEventLike) => {
       } catch {
         shown = toNotification(null);
       }
-      await sw.registration.showNotification(shown.title, shown.options);
+      // Message notifications get a "Reply" box (Chrome and Edge on desktop; other browsers ignore
+      // the unsupported action and show a plain notification).
+      const data = (shown.options as { data?: { kind?: string } }).data;
+      const options =
+        data?.kind === 'message'
+          ? {
+              ...shown.options,
+              actions: [
+                { action: 'reply', type: 'text', title: 'Reply', placeholder: 'Type a reply' },
+              ],
+            }
+          : shown.options;
+      await sw.registration.showNotification(shown.title, options);
     })(),
   );
 });
@@ -170,7 +184,12 @@ sw.addEventListener('notificationclick', (event: ClickEventLike) => {
     );
     return;
   }
-  const url = plan.url;
+  // "Reply" from the notification: there is no login in the worker, so open the chat with the
+  // typed text waiting in its message box (the page reads ?reply=).
+  const typed = event.action === 'reply' ? event.reply?.trim() : '';
+  const url = typed
+    ? `${plan.url}${plan.url.includes('?') ? '&' : '?'}reply=${encodeURIComponent(typed)}`
+    : plan.url;
   event.waitUntil(
     (async () => {
       const open = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });

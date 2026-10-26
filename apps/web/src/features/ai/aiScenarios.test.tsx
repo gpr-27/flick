@@ -329,8 +329,7 @@ describe('Suggest replies', () => {
 
   it('on phones the chip row scrolls sideways instead of wrapping (class convention)', () => {
     const { container } = render(<SuggestReplies conversationId={CONV} onPick={vi.fn()} />);
-    expect(container.firstElementChild).toHaveClass(
-      'max-sm:flex-nowrap',
+    expect(container.firstElementChild?.firstElementChild).toHaveClass(
       'max-sm:overflow-x-auto',
       'sm:flex-wrap',
     );

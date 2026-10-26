@@ -63,11 +63,11 @@ const InviteView = ({ code }: { code: string }) => {
 
   return (
     <main className="app-bg flex min-h-dvh-screen items-center justify-center px-6 pt-16">
-      <div className="glass-card w-full max-w-sm space-y-4 rounded-3xl p-8 text-center">
+      <div className="surface-raised w-full max-w-sm space-y-4 rounded-2xl p-8 text-center">
         {state.kind === 'loading' && <Spinner size="lg" label="Checking the invite link" />}
         {state.kind === 'invalid' && (
           <>
-            <h1 className="font-display text-2xl font-bold">Link not valid</h1>
+            <h1 className="text-2xl font-semibold">Link not valid</h1>
             <p className="text-base-content/70">
               This invite link is wrong, expired or was revoked.
             </p>
@@ -76,7 +76,7 @@ const InviteView = ({ code }: { code: string }) => {
         )}
         {state.kind === 'requested' && (
           <>
-            <h1 className="font-display text-2xl font-bold">Request sent</h1>
+            <h1 className="text-2xl font-semibold">Request sent</h1>
             <p className="text-base-content/70">An admin of the group has to approve you.</p>
             {home}
           </>
@@ -84,7 +84,7 @@ const InviteView = ({ code }: { code: string }) => {
         {state.kind === 'ready' && (
           <>
             <Avatar src={state.preview.avatar_url} name="" size="xl" className="mx-auto" />
-            <h1 className="font-display text-2xl font-bold">{state.preview.title}</h1>
+            <h1 className="text-2xl font-semibold">{state.preview.title}</h1>
             <p className="text-base-content/70">{state.preview.member_count} members</p>
             {error && (
               <p role="alert" className="text-sm text-error">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DigestSetting } from './DigestSetting';
 import { notify } from '@/components/ui/notify';
 import {
   PUSH_MESSAGES,
@@ -95,6 +96,7 @@ export const PushToggle = () => {
           onChange={() => void toggle()}
         />
       </label>
+      <DigestSetting />
       {message && (
         <p role="alert" className="mt-2 text-sm text-error">
           {PUSH_MESSAGES[message]}

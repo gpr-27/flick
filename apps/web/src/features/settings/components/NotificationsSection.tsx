@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import { Modal } from '@/components/ui';
 import { PushPanel } from '@/features/notifications/PushPanel';
+import { ProductivitySettings } from '@/features/productivity/ProductivitySettings';
 import { playTestSound } from '@/features/notifications/sound';
+import { KeywordAlerts, PriorityContacts } from '@/features/platform/KeywordAlerts';
 import { useSetting } from '../useSettingsStore';
 import { ActionButton, Card, SliderRow, ToggleRow } from './controls';
 
@@ -54,6 +56,9 @@ export const NotificationsSection = () => {
   return (
     <Card title="Notifications">
       <PushPanel />
+      <KeywordAlerts />
+      <PriorityContacts />
+      <ProductivitySettings />
       <ToggleRow
         label="Message sound"
         hint="A short sound when a message arrives while this tab is in the background."

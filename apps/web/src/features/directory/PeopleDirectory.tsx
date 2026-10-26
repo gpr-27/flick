@@ -147,7 +147,7 @@ export const PeopleDirectory = ({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3" onKeyDown={onKeyDown}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-base-content/60" aria-live="polite">
+        <p className="text-sm text-[var(--text-2)]" aria-live="polite">
           {loading || error ? ' ' : countText(people.length, hasMore, searching)}
         </p>
         <InviteButton />
@@ -218,7 +218,7 @@ export const PeopleDirectory = ({
                       role="presentation"
                       data-letter-header={row.letter}
                       style={style}
-                      className="flex items-center rounded-lg bg-base-200 px-3 text-xs font-bold uppercase tracking-wide text-primary"
+                      className="flex items-center rounded-lg bg-base-200 px-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-2)]"
                     >
                       {row.letter}
                     </div>
@@ -243,16 +243,16 @@ export const PeopleDirectory = ({
                     <Avatar src={user.avatar_url} name="" size="xs" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold">{user.display_name}</span>
-                      <span className="block truncate text-xs text-base-content/60">
+                      <span className="block truncate text-xs text-[var(--text-2)]">
                         @{user.username}
                       </span>
                     </span>
                     {off ? (
-                      <span className="text-xs text-base-content/60">{disabledLabel}</span>
+                      <span className="text-xs text-[var(--text-2)]">{disabledLabel}</span>
                     ) : (
                       <button
                         type="button"
-                        className="btn btn-primary btn-outline btn-xs rounded-full"
+                        className="btn btn-sm min-h-[44px] rounded-xl border-0 bg-base-300 font-semibold text-base-content hover:bg-base-content/10"
                         aria-label={actionLabel(user)}
                         onClick={() => {
                           onPick(user);

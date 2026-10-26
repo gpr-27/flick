@@ -17,14 +17,14 @@ export const Input = ({ label, leadingIcon, className, ...rest }: InputProps) =>
       {leadingIcon && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]"
         >
           {leadingIcon}
         </span>
       )}
       <input
         id={id}
-        className={cn('input-soft', Boolean(leadingIcon) && 'pl-9', className)}
+        className={cn('input-soft', Boolean(leadingIcon) && 'pl-10', className)}
         {...rest}
       />
     </div>

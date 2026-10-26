@@ -6,6 +6,7 @@ import { Avatar, Button, EmptyState, ErrorState, Spinner, cn, notify } from '@/c
 import { useChatStore } from '@/features/chat/useChatStore';
 import { useJumpStore } from '@/features/organise/jump';
 import { KIND_LABELS, groupByDay } from './dayGroups';
+import { NudgeList } from '@/features/productivity/NudgeList';
 import { useNotificationStore } from './useNotificationStore';
 
 const timeOf = (iso: string): string =>
@@ -29,8 +30,8 @@ const Row = ({
         }}
         data-unread={!item.read}
         className={cn(
-          'flex min-h-[44px] w-full items-start gap-3 rounded-2xl p-3 text-left hover:bg-base-content/5',
-          !item.read && 'bg-primary/10',
+          'flex min-h-[64px] w-full items-start gap-3 border-b border-base-content/5 px-4 py-3 text-left hover:bg-[var(--bg-hover)]',
+          !item.read && 'bg-[var(--bg-active)]',
         )}
       >
         <Avatar src={item.sender_avatar_url} name="" size="sm" />
@@ -40,11 +41,11 @@ const Row = ({
               {title}
             </span>
             {tag && <span className="badge badge-primary badge-sm shrink-0">{tag}</span>}
-            <span className="ml-auto shrink-0 text-xs text-base-content/60">
+            <span className="ml-auto shrink-0 text-xs tabular-nums text-[var(--text-2)]">
               {timeOf(item.created_at)}
             </span>
           </span>
-          <span className="block truncate text-sm text-base-content/70">
+          <span className="block truncate text-sm text-[var(--text-2)]">
             {item.is_group && item.sender_name ? `${item.sender_name}: ` : ''}
             {item.preview ?? 'This message is no longer available.'}
           </span>
@@ -111,10 +112,10 @@ export const NotificationsPage = () => {
       <>
         {groupByDay(items).map((group) => (
           <section key={group.label} aria-label={group.label} className="mb-2">
-            <h2 className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wide text-base-content/50">
+            <h2 className="px-4 pb-1.5 pt-4 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-2)]">
               {group.label}
             </h2>
-            <ul>
+            <ul className="overflow-hidden rounded-2xl border border-base-content/10 bg-base-100">
               {group.items.map((item) => (
                 <Row key={item.id} item={item} onOpen={open} />
               ))}
@@ -137,10 +138,10 @@ export const NotificationsPage = () => {
   }
 
   return (
-    <main className="app-bg min-h-dvh-screen px-4 pb-8 pt-20">
-      <div className="glass-card mx-auto max-w-xl rounded-3xl p-4 sm:p-6">
+    <main className="app-bg min-h-dvh-screen px-4 pb-24 pt-[calc(4.5rem+env(safe-area-inset-top))] sm:pb-12 sm:pt-[calc(5rem+env(safe-area-inset-top))]">
+      <div className="mx-auto max-w-2xl">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="font-display text-xl font-bold">Notifications</h1>
+          <h1 className="text-[22px] font-bold">Notifications</h1>
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -173,6 +174,7 @@ export const NotificationsPage = () => {
             </Link>
           </div>
         </div>
+        <NudgeList />
         {body}
       </div>
     </main>

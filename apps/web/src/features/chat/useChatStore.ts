@@ -18,6 +18,12 @@ import type { z } from 'zod';
 import type { Member as MemberSchema, UpdateConversationRequest } from '@chat/contracts';
 import { notify } from '@/components/ui/notify';
 import { getErrorMessage } from '@/lib/api';
+import {
+  cacheChat,
+  cacheChatList,
+  readCachedChat,
+  readCachedChatList,
+} from '@/features/platform/offlineCache';
 import { logger } from '@/lib/logger';
 import { getApi, getTransport } from '@/lib/services';
 import { useSessionStore } from '@/features/auth/useSessionStore';
@@ -235,10 +241,31 @@ export const useChatStore = create<ChatState>()((set, get) => {
   };
 
   const fetchHistory = async (id: string, beforeSeq?: number): Promise<void> => {
-    const page = await getApi().call(ENDPOINTS.messages.history, {
-      params: { conversation_id: id },
-      query: { limit: HISTORY_PAGE, ...(beforeSeq ? { before_seq: beforeSeq } : {}) },
-    });
+    let page;
+    try {
+      page = await getApi().call(ENDPOINTS.messages.history, {
+        params: { conversation_id: id },
+        query: { limit: HISTORY_PAGE, ...(beforeSeq ? { before_seq: beforeSeq } : {}) },
+      });
+    } catch (error) {
+      // Offline: show the copy saved the last time this chat was open.
+      const cached = beforeSeq ? [] : await readCachedChat(id);
+      if (cached.length === 0) throw error;
+      set((s) => ({
+        threads: {
+          ...s.threads,
+          [id]: {
+            messages: mergeHistory(s.threads[id]?.messages ?? [], cached),
+            status: 'ready',
+            hasOlder: false,
+            loadingOlder: false,
+            error: null,
+          },
+        },
+      }));
+      return;
+    }
+    if (!beforeSeq) void cacheChat(id, page.items);
     set((s) => {
       const thread = s.threads[id];
       return {
@@ -277,9 +304,16 @@ export const useChatStore = create<ChatState>()((set, get) => {
           }
         }
         addConversations(all);
+        void cacheChatList(all);
         set({ listStatus: 'ready' });
       } catch (error) {
         logger.warn('Could not load conversations:', error);
+        const cached = await readCachedChatList();
+        if (cached.length > 0) {
+          addConversations(cached);
+          set({ listStatus: 'ready' });
+          return;
+        }
         set({
           listStatus: 'error',
           listError: getErrorMessage(error, "Couldn't load your chats."),

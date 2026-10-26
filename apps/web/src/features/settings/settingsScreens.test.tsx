@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ENDPOINTS } from '@chat/contracts';
 
 vi.mock('@clerk/clerk-react', () => ({
+  useUser: () => ({ isLoaded: true, user: null }),
   SignIn: () => (
     <form aria-label="Sign in">
       <label>
@@ -320,23 +321,26 @@ describe('profile', () => {
 });
 
 describe('sign in', () => {
-  it('switches between sign-in and sign-up and passes accessibility checks', async () => {
-    const user = userEvent.setup();
-    const { container } = render(<SignInPage />);
+  const at = (path: string) =>
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <SignInPage />
+      </MemoryRouter>,
+    );
+
+  it('shows the sign-in and sign-up forms on their own addresses and passes accessibility checks', async () => {
+    const { container, unmount } = at('/sign-in');
     expect(screen.getByRole('heading', { level: 1, name: 'Flick' })).toBeInTheDocument();
     expect(screen.getByRole('form', { name: 'Sign in' })).toBeInTheDocument();
     await expectNoA11yViolations(container);
-    await user.click(screen.getByRole('button', { name: 'New to Flick? Create an account' }));
+    unmount();
+    at('/sign-up');
     expect(screen.getByRole('form', { name: 'Sign up' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Have an account? Sign in' }));
-    expect(screen.getByRole('form', { name: 'Sign in' })).toBeInTheDocument();
   });
 
   it('on a call link it says why', () => {
-    window.history.pushState({}, '', '/call/abc');
-    render(<SignInPage />);
+    at('/sign-in?redirect_url=%2Fcall%2Fabc');
     expect(screen.getByText('Sign in to join the call.')).toBeInTheDocument();
-    window.history.pushState({}, '', '/');
   });
 });
 

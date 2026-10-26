@@ -50,7 +50,9 @@ export const useVoiceRecorder = () => {
     if (state !== 'idle') return;
     setError(null);
     try {
-      stream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.current = await navigator.mediaDevices.getUserMedia({
+        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true },
+      });
       if (!canRecordMp4()) {
         // No MP4 here: write a WAV, which plays everywhere, instead of a WebM that may not.
         wasCancelled.current = false;

@@ -1,5 +1,6 @@
 import { Modal, Spinner } from '@/components/ui';
 import { translateText } from './aiApi';
+import { runTool } from './writing/writingApi';
 import { useAiEnabled } from './useAiEnabled';
 import { LANGUAGES } from './languages';
 import { ModelTag } from './ModelTag';
@@ -60,7 +61,17 @@ export const TranslateDialog = ({
                 ))}
               </select>
             </label>
-            {task.state.status === 'loading' && <Spinner size="sm" label="Translating" />}
+            <button
+              type="button"
+              className="btn btn-outline h-12"
+              disabled={task.state.status === 'loading'}
+              onClick={() => {
+                void task.run(async () => runTool('simplify', text));
+              }}
+            >
+              Simplify this (plain words)
+            </button>
+            {task.state.status === 'loading' && <Spinner size="sm" label="Working" />}
             {task.state.status === 'done' && (
               <>
                 <p className="whitespace-pre-wrap break-words">{task.state.text}</p>

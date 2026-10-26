@@ -2,16 +2,25 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MoreVertical, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
-import { AnchoredPanel, Modal, cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
+import { AnchoredPanel, Modal, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
+import { AskAboutChatDialog, SummariseChatDialog } from '@/features/ai/ChatAiDialogs';
 import { isFlickChat } from '@/features/ai/isFlickBot';
 import { useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { useChatStore } from '../chat/useChatStore';
 import { ReminderDialog } from '@/features/reminders/ReminderDialog';
 import { conversationTitle } from '../chat/conversationView';
 import { LockModal } from './ChatLock';
+import { ChatListsDialog } from '../lists/ChatListsDialog';
+import { RecapDialog, TopicsDialog } from '../understand/UnderstandDialogs';
+import { SnoozeDialog } from '../understand/SnoozeDialog';
 import { useLockStore } from './lock';
 import { MUTE_OPTIONS, isMuted, mutedUntilFor, updatePrefs } from './prefs';
-import { WALLPAPERS } from './wallpapers';
+import { WallpaperPicker } from './WallpaperPicker';
+import { ChatLookDialog } from './ChatLookDialog';
+import { ExportChatDialog } from '@/features/exporting/ExportChatDialog';
+import { NoAiItem } from '@/features/ai/NoAiItem';
+import { ChatProductivityItems } from '@/features/productivity/ChatProductivityItems';
+import { TranslationMenuItems } from '@/features/translation/TranslationMenuItems';
 
 const panel = 'glass-card mx-4 w-full max-w-sm rounded-3xl p-6 animate-scale-in';
 
@@ -78,51 +87,38 @@ const WallpaperModal = ({
   conversation: ConversationSummary;
   open: boolean;
   onClose: () => void;
-}) => {
-  const current = conversation.prefs.wallpaper;
-  const pick = (id: string | null): void => {
-    void updatePrefs(conversation.id, { wallpaper: id }).then((ok) => ok && onClose());
-  };
-  return (
-    <Modal open={open} onClose={onClose} labelledBy="wallpaper-title" className={panel}>
-      <DialogHeader id="wallpaper-title" title="Chat wallpaper" onClose={onClose} />
-      <div className="grid grid-cols-3 gap-3" role="group" aria-label="Wallpapers">
-        <button
-          type="button"
-          aria-pressed={current === null}
-          onClick={() => {
-            pick(null);
-          }}
-          className={cn(
-            'app-bg grid h-16 place-items-center rounded-xl text-xs font-semibold ring-offset-2',
-            current === null && 'ring-2 ring-primary',
-          )}
-        >
-          Default
-        </button>
-        {WALLPAPERS.map((w) => (
-          <button
-            key={w.id}
-            type="button"
-            aria-pressed={current === w.id}
-            aria-label={w.label}
-            title={w.label}
-            style={w.style}
-            onClick={() => {
-              pick(w.id);
-            }}
-            className={cn(
-              'h-16 rounded-xl border border-base-content/10 ring-offset-2',
-              current === w.id && 'ring-2 ring-primary',
-            )}
-          />
-        ))}
-      </div>
-    </Modal>
-  );
-};
+}) => (
+  <Modal
+    open={open}
+    onClose={onClose}
+    labelledBy="wallpaper-title"
+    className="glass-card mx-4 w-full max-w-lg rounded-3xl p-5 animate-scale-in"
+  >
+    <DialogHeader id="wallpaper-title" title="Chat wallpaper" onClose={onClose} />
+    <WallpaperPicker
+      value={conversation.prefs.wallpaper}
+      onCancel={onClose}
+      onApply={(id) => {
+        void updatePrefs(conversation.id, { wallpaper: id }).then((ok) => ok && onClose());
+      }}
+    />
+  </Modal>
+);
 
-type Dialog = 'mute' | 'wallpaper' | 'lock-set' | 'lock-remove' | 'remind';
+type Dialog =
+  | 'look'
+  | 'mute'
+  | 'wallpaper'
+  | 'lock-set'
+  | 'lock-remove'
+  | 'remind'
+  | 'summary'
+  | 'ask'
+  | 'export'
+  | 'lists'
+  | 'topics'
+  | 'recap'
+  | 'snooze';
 
 const Item = ({
   onClick,
@@ -272,6 +268,8 @@ export const ChatOptionsMenu = ({
               <Item onClick={dialogItem('mute')}>Mute…</Item>
             )}
             <Item onClick={dialogItem('wallpaper')}>Wallpaper…</Item>
+            <Item onClick={dialogItem('look')}>Colour and sound…</Item>
+            <Item onClick={dialogItem('lists')}>Folders and tags…</Item>
             {prefs.locked ? (
               <>
                 <Item
@@ -288,12 +286,32 @@ export const ChatOptionsMenu = ({
             )}
             <Item onClick={act(onSearch)}>Search in chat</Item>
             <Item onClick={dialogItem('remind')}>Remind me about this chat</Item>
+            <Item onClick={dialogItem('snooze')}>Snooze chat…</Item>
+            <Item onClick={dialogItem('export')}>Export chat…</Item>
+            {!isFlickChat(conversation) && (
+              <>
+                <Item onClick={dialogItem('summary')}>Summarise chat</Item>
+                <Item onClick={dialogItem('ask')}>Ask Flick about this chat</Item>
+                <Item onClick={dialogItem('topics')}>Topics in this chat</Item>
+                <Item onClick={dialogItem('recap')}>Recap with Flick…</Item>
+                <NoAiItem conversationId={id} onDone={close} />
+                <ChatProductivityItems conversationId={id} onDone={close} />
+                <TranslationMenuItems conversationId={id} onDone={close} />
+              </>
+            )}
           </div>
         </AnchoredPanel>
       )}
       <MuteModal
         conversationId={id}
         open={dialog === 'mute'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <ChatLookDialog
+        conversationId={id}
+        open={dialog === 'look'}
         onClose={() => {
           setDialog(null);
         }}
@@ -305,10 +323,59 @@ export const ChatOptionsMenu = ({
           setDialog(null);
         }}
       />
+      <ExportChatDialog
+        conversation={conversation}
+        open={dialog === 'export'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
       <ReminderDialog
         open={dialog === 'remind'}
         target={{ conversationId: id }}
         preview={`Chat with ${conversationTitle(conversation)}`}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <SummariseChatDialog
+        conversationId={id}
+        open={dialog === 'summary'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <AskAboutChatDialog
+        conversationId={id}
+        open={dialog === 'ask'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <TopicsDialog
+        conversationId={id}
+        open={dialog === 'topics'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <RecapDialog
+        conversationId={id}
+        open={dialog === 'recap'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <SnoozeDialog
+        conversationId={id}
+        open={dialog === 'snooze'}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
+      <ChatListsDialog
+        conversationId={id}
+        open={dialog === 'lists'}
         onClose={() => {
           setDialog(null);
         }}

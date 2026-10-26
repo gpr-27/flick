@@ -1,18 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DropOverlay } from './DropOverlay';
+import { accentStyle, useChatLook } from '../../organise/chatLook';
 import type { MessageRecord } from '@chat/contracts';
-import { X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
-import { ErrorState, Modal } from '@/components/ui';
+import { ErrorState } from '@/components/ui';
 import { formatDateSeparator, isNewDay } from '@/lib/time';
 import { useConnectionState } from '@/lib/realtime';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { useFeatureGuides } from '@/features/guide/useFeatureGuide';
 import { FlickThinking } from '@/features/ai/FlickThinking';
+import { FlickChatTools } from '@/features/ai/flick/FlickChatTools';
+import { TopicDivider } from '@/features/ai/flick/TopicDivider';
+import { topicStartingAt, useFlickTopics } from '@/features/ai/flick/useFlickTopics';
 import { FlickPromptChips, FlickWelcome } from '@/features/ai/FlickWelcome';
 import { useFlickThinking } from '@/features/ai/useFlickThinking';
 import { isFlickChat } from '@/features/ai/isFlickBot';
 import { GroupCallBanner } from '@/features/groupcall/components/GroupCallBanner';
-import { useAttachmentUrl } from '../content/attachments';
+import { SafetyBanners } from '@/features/safety/SafetyBanners';
+import { galleryItems } from '../../gallery/gallery';
+import { MediaLightbox } from '../../gallery/MediaLightbox';
 import { conversationAvatar, conversationTitle } from '../conversationView';
 import { sendMessage, useOutboxStore } from '../outbox/useOutboxStore';
 import { useUnexpired } from '@/features/content/disappearing';
@@ -23,13 +29,14 @@ import { useJumpEffect, useJumpStore } from '../../organise/jump';
 import { useIsHidden } from '../../organise/lock';
 import { toggleStar, usePinsStore } from '../../organise/messageActions';
 import { PinnedBar } from '../../organise/PinnedBar';
-import { wallpaperStyle } from '../../organise/wallpapers';
+import { useWallpaper } from '../../organise/useWallpaper';
 import { useSettingsStore } from '../../settings/useSettingsStore';
 import { SelectionBar } from '../selection/SelectionBar';
 import { useSelectedIds, useSelectionStore } from '../selection/useSelectionStore';
 import { buildRows, firstUnreadKey, groupPosition, rowStatus, type ThreadRow } from '../threadRows';
 import { useChatStore, userName, type Activity } from '../useChatStore';
 import { ChatHeader } from './ChatHeader';
+import { SavedTools } from '@/features/productivity/SavedTools';
 import { ActivityBubble, MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { MessageSkeleton } from './MessageSkeleton';
@@ -40,48 +47,6 @@ const estimateRow = (row: ThreadRow): number => {
   if (type === 'image' || type === 'video') return 320;
   const text = row.message.content?.type === 'text' ? row.message.content.text : '';
   return text.length > 120 ? 110 : 72;
-};
-
-const LightboxImage = ({ attachmentId }: { attachmentId: string }) => {
-  const { url } = useAttachmentUrl(attachmentId);
-  return url ? (
-    <img
-      src={url}
-      alt="Attachment preview"
-      className="max-h-[90vh] max-w-full rounded-2xl shadow-2xl"
-    />
-  ) : null;
-};
-
-const ImageLightbox = ({
-  attachmentId,
-  onClose,
-}: {
-  attachmentId: string | null;
-  onClose: () => void;
-}) => {
-  const closeRef = useRef<HTMLButtonElement>(null);
-  return (
-    <Modal
-      open={attachmentId !== null}
-      onClose={onClose}
-      label="Image preview"
-      initialFocusRef={closeRef}
-      overlayClassName="z-50 cursor-zoom-out bg-black/80 p-6 animate-scale-in"
-      className="relative"
-    >
-      <button
-        ref={closeRef}
-        type="button"
-        onClick={onClose}
-        className="absolute -right-2 -top-2 grid size-9 place-items-center rounded-full bg-base-100 text-base-content shadow-lg"
-        aria-label="Close image preview"
-      >
-        <X className="size-5" aria-hidden="true" />
-      </button>
-      {attachmentId && <LightboxImage attachmentId={attachmentId} />}
-    </Modal>
-  );
 };
 
 const EmptyThread = ({ title }: { title: string }) => (
@@ -149,13 +114,16 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   const setEditing = useChatStore((s) => s.setEditing);
 
   const defaultWallpaper = useSettingsStore((s) => s.defaultWallpaper);
-  const wallpaper = wallpaperStyle(conversation.prefs.wallpaper ?? defaultWallpaper);
+  const wallpaperDim = useSettingsStore((s) => s.wallpaperDim);
+  const wallpaper = useWallpaper(conversation.prefs.wallpaper ?? defaultWallpaper).style;
   const isGroup = conversation.type === 'group';
   const title = conversationTitle(conversation);
+  const look = useChatLook(id);
   const messages = thread?.messages;
   const allRows = useMemo(() => buildRows(messages ?? [], outbox, id), [messages, outbox, id]);
   const rows = useUnexpired(allRows);
   const isBot = isFlickChat(conversation);
+  const flickTopics = useFlickTopics((s) => s.topics);
   const thinking = useFlickThinking(
     rows.map((r) => r.message),
     myId,
@@ -183,6 +151,8 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
   );
 
   const listRef = useRef<VirtualMessageListHandle>(null);
+  // The "jump to first unread" button goes away once used (per chat).
+  const [jumpedFor, setJumpedFor] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
 
@@ -355,7 +325,11 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
           const quoted = message.content?.reply_to
             ? (bySeqId.get(message.content.reply_to) ?? null)
             : null;
-          return (
+          const topic =
+            isBot && !(index === 0 && thread.hasOlder)
+              ? topicStartingAt(flickTopics, rows[index - 1]?.message.seq ?? 0, message.seq)
+              : undefined;
+          const bubble = (
             <MessageBubble
               row={row}
               myId={myId}
@@ -394,6 +368,14 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
               onSelect={selectMessage}
             />
           );
+          return topic ? (
+            <>
+              <TopicDivider topic={topic} />
+              {bubble}
+            </>
+          ) : (
+            bubble
+          );
         }}
       />
     );
@@ -401,35 +383,69 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
 
   return (
     <section
-      className="flex min-w-0 flex-1 flex-col overflow-hidden"
+      className="relative flex min-w-0 flex-1 flex-col overflow-hidden"
       aria-label={`Chat with ${title}`}
+      style={accentStyle(look.accent)}
     >
+      <DropOverlay />
       {selecting ? (
         <SelectionBar messages={messages ?? []} ids={selectedIds} myId={myId} />
       ) : (
         <ChatHeader conversation={conversation} />
       )}
       {isGroup && <GroupCallBanner conversationId={id} messages={messages ?? []} />}
+      <SafetyBanners conversation={conversation} messages={messages} />
       <PinnedBar conversationId={id} />
+      {conversation.is_saved && <SavedTools savedConversationId={id} />}
       <div
-        className={`relative flex min-h-0 flex-1 flex-col ${wallpaper ? '' : 'app-bg'}`}
+        className={`relative flex min-h-0 flex-1 flex-col ${wallpaper ? 'isolate' : 'app-bg'}`}
         style={wallpaper ?? undefined}
       >
-        {!wallpaper && <div className="blobs" aria-hidden="true" />}
+        {wallpaper && wallpaperDim > 0 && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{ background: `rgba(0,0,0,${String(wallpaperDim / 100)})` }}
+          />
+        )}
         {body}
+        {unreadKey && jumpedFor !== id && (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm absolute left-1/2 top-3 z-10 -translate-x-1/2 shadow-lg"
+            onClick={() => {
+              listRef.current?.scrollToKey(unreadKey);
+              setJumpedFor(id);
+            }}
+          >
+            {openedUnread} unread {openedUnread === 1 ? 'message' : 'messages'}
+          </button>
+        )}
       </div>
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
-      <MessageInput key={id} conversation={conversation} messages={messages ?? []} />
+      {conversation.settings.only_admins_send && conversation.my_role === 'member' ? (
+        <p className="border-t border-base-content/10 p-4 text-center text-sm text-base-content/60">
+          Only admins can send messages
+        </p>
+      ) : (
+        <>
+          {isBot && ready && (
+            <FlickChatTools conversationId={id} myId={myId} messages={messages ?? []} />
+          )}
+          <MessageInput key={id} conversation={conversation} messages={messages ?? []} />
+        </>
+      )}
       <ForwardModal
         message={forwarding}
         onClose={() => {
           setForwarding(null);
         }}
       />
-      <ImageLightbox
-        attachmentId={lightbox}
+      <MediaLightbox
+        items={galleryItems(messages ?? [])}
+        startId={lightbox}
         onClose={() => {
           setLightbox(null);
         }}

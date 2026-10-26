@@ -19,6 +19,10 @@ interface Props {
   /** A short line shown so the person sees what the reminder is for. */
   preview: string;
   open: boolean;
+  /** Starts the note field with this text (the "/remind call mom" command). */
+  initialNote?: string;
+  /** Starts the time field at this ISO time (a time Flick found in the message). */
+  initialAt?: string;
   onClose: () => void;
   /** Tests fix the clock here; the app leaves it out. */
   now?: Date;
@@ -29,12 +33,21 @@ export const ReminderDialog = (props: Props) =>
   // Mounted only while open, so the clock and the form start fresh every time.
   props.open ? <ReminderContent {...props} /> : null;
 
-const ReminderContent = ({ target, preview, onClose, now: fixedNow }: Props) => {
+const ReminderContent = ({
+  target,
+  preview,
+  onClose,
+  initialNote,
+  initialAt,
+  now: fixedNow,
+}: Props) => {
   const [mountedAt] = useState(() => fixedNow ?? new Date());
   const { min, max } = pickableRange(mountedAt);
   const quick = presets(mountedAt);
-  const [value, setValue] = useState(() => toInputValue((quick[0] ?? { at: mountedAt }).at));
-  const [note, setNote] = useState('');
+  const [value, setValue] = useState(() =>
+    toInputValue(initialAt ? new Date(initialAt) : (quick[0] ?? { at: mountedAt }).at),
+  );
+  const [note, setNote] = useState((initialNote ?? '').slice(0, LIMITS.MAX_REMINDER_NOTE_LENGTH));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 

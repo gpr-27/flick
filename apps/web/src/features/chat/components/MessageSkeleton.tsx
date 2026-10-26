@@ -18,14 +18,12 @@ export const MessageSkeleton = () => (
           className={cn('flex items-end gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}
           aria-hidden="true"
         >
-          {!isMine && (
-            <div className="skeleton size-8 shrink-0 rounded-full ring-2 ring-primary/10" />
-          )}
+          {!isMine && <div className="skeleton size-8 shrink-0 rounded-full" />}
           <div className={cn('flex flex-col gap-1', isMine ? 'items-end' : 'items-start')}>
             <div
               className={cn(
-                'skeleton h-14 rounded-2xl',
-                isMine ? 'rounded-br-md' : 'rounded-bl-md',
+                'skeleton h-14 rounded-[18px]',
+                isMine ? 'rounded-br-[6px]' : 'rounded-bl-[6px]',
                 idx % 3 === 0 ? 'w-52' : 'w-40',
               )}
             />

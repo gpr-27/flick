@@ -1,6 +1,7 @@
 // 1:1 WebRTC call state machine. Signalling goes through the RealtimeTransport as the protocol's
 // call_* events (the server routes them to the other member of the conversation); media is
 // peer-to-peer, relayed by TURN when set.
+import { handleCaptionMessage, setCaptionSender } from '../platform/captions';
 import { create } from 'zustand';
 import { randomId } from '@/lib/ids';
 import { logger } from '@/lib/logger';
@@ -215,6 +216,17 @@ export const useCallStore = create<CallState>()((set, get) => ({
     const iceTransportPolicy = useSettingsStore.getState().relayOnly ? 'relay' : 'all';
     const peer = new RTCPeerConnection({ iceServers, iceTransportPolicy });
 
+    // Live captions travel on a data channel both sides open with the same id (no negotiation).
+    if (typeof peer.createDataChannel === 'function') {
+      const channel = peer.createDataChannel('captions', { negotiated: true, id: 1 });
+      channel.onmessage = (event: MessageEvent) => {
+        if (typeof event.data === 'string') handleCaptionMessage(event.data);
+      };
+      setCaptionSender((text) => {
+        if (channel.readyState === 'open') channel.send(text);
+      });
+    }
+
     peer.onicecandidate = (event) => {
       if (!event.candidate) return;
       const { candidate, sdpMid, sdpMLineIndex } = event.candidate.toJSON();
@@ -326,6 +338,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
     localStream?.getTracks().forEach((track) => {
       track.stop();
     });
+    setCaptionSender(null);
     if (_peer) {
       _peer.onicecandidate = null;
       _peer.ontrack = null;

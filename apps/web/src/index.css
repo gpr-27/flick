@@ -3,125 +3,172 @@
 @tailwind utilities;
 
 /* ============================================================
-   Soft Pastel Glass — bespoke design system (light + dark)
-   Every translucent surface is driven by CSS variables so the
-   whole UI flips cleanly between the two daisyUI themes:
-     · light  →  [data-theme="pastel-glass"]
-     · dark   →  [data-theme="pastel-night"]
-   Palette accents (shared): violet #7C6CF0 · peach #FF9E80 · mint #43D6A3
-   Type: Quicksand (display) · Nunito (body)
+   Flick design tokens (see docs/design/ui-redesign-spec.md).
+   Solid surfaces carry content; colour is for the primary action,
+   own messages and the brand mark. Light: [data-theme="pastel-glass"],
+   dark: [data-theme="pastel-night"]. System font stack, no web fonts.
    ============================================================ */
+
+:root {
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', Roboto,
+    'Helvetica Neue', Inter, system-ui, sans-serif;
+  --font-serif: Georgia, 'Times New Roman', serif;
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-pill: 9999px;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 280ms;
+}
 
 /* ── LIGHT (default) ──────────────────────────────────────── */
 :root,
 [data-theme='pastel-glass'] {
   color-scheme: light;
 
-  --page-bg: #f4f3fa;
-  --body-color: #2e2a45;
-  --text-muted: rgba(46, 42, 69, 0.72);
+  --bg-canvas: #f5f4fa;
+  --page-bg: #f5f4fa;
+  --bg-surface: #ffffff;
+  --bg-raised: #ffffff;
+  --bg-sunken: #eceaf4;
+  --bg-hover: rgba(29, 26, 47, 0.05);
+  --bg-active: #eeebfd;
+  --border: #e3e0ee;
+  --border-strong: #cfcae0;
+
+  --body-color: #1d1a2f;
+  --text-1: #1d1a2f;
+  --text-2: #5a5573;
+  --text-3: #6b6686;
+  --text-muted: rgba(90, 85, 115, 1);
   /* Meta text (timestamps, previews). Checked against WCAG AA in theme-contrast.test.ts. */
-  --text-meta: rgba(46, 42, 69, 0.72);
+  --text-meta: rgba(90, 85, 115, 1);
 
-  /* Atmospheric app backdrop */
-  --app-bg:
-    radial-gradient(1200px 800px at 110% -10%, #efeafd 0%, transparent 55%),
-    radial-gradient(1000px 700px at -10% 110%, #fdeede 0%, transparent 55%), #f4f3fa;
+  --primary-text: color-mix(in oklab, oklch(var(--p)) 80%, #000);
+  --online: #22b07d;
+  --success-text: #0b7a55;
+  --warning-text: #8a5a00;
+  --error-text: #c42b47;
 
-  --blob-1: radial-gradient(circle at 30% 30%, #b7a8ff, transparent 70%);
-  --blob-2: radial-gradient(circle at 60% 60%, #ffb39c, transparent 70%);
-  --blob-opacity: 0.55;
-  --blob-blur: 70px;
+  --shadow-1: 0 1px 2px rgba(29, 26, 47, 0.06), 0 1px 1px rgba(29, 26, 47, 0.04);
+  --shadow-2: 0 6px 20px -6px rgba(29, 26, 47, 0.18), 0 2px 6px rgba(29, 26, 47, 0.06);
+  --shadow-3: 0 24px 60px -16px rgba(29, 26, 47, 0.35);
 
-  /* Frosted surfaces */
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.6);
-  --glass-card-bg: rgba(255, 255, 255, 0.72);
-  --glass-card-border: rgba(255, 255, 255, 0.7);
-  --glass-card-shadow: 0 30px 80px -30px rgba(46, 42, 69, 0.28);
+  /* Legacy aliases (kept so older code keeps working) */
+  --app-bg: var(--bg-canvas);
+  --blob-1: none;
+  --blob-2: none;
+  --blob-opacity: 0;
+  --blob-blur: 0px;
+  --glass-bg: color-mix(in srgb, #ffffff 88%, transparent);
+  --glass-border: var(--border);
+  --glass-card-bg: var(--bg-surface);
+  --glass-card-border: var(--border);
+  --glass-card-shadow: var(--shadow-1);
 
-  /* Message bubbles */
-  --bubble-sent-image: linear-gradient(180deg, #b7a8ff 0%, #ffb39c 100%);
-  --bubble-sent-color: #2e2a45;
-  --bubble-sent-shadow: 0 10px 24px -12px rgba(183, 142, 196, 0.65);
-  --bubble-recv-bg: rgba(255, 255, 255, 0.85);
-  --bubble-recv-color: #2e2a45;
-  --bubble-recv-border: rgba(46, 42, 69, 0.06);
-  --bubble-recv-shadow: 0 8px 22px -14px rgba(46, 42, 69, 0.35);
+  /* Message bubbles: solid */
+  --bubble-sent-bg: oklch(var(--p));
+  --bubble-sent-image: none;
+  --bubble-sent-color: #ffffff;
+  --bubble-sent-meta: rgba(255, 255, 255, 0.9);
+  --bubble-sent-link: #ffffff;
+  --bubble-sent-shadow: none;
+  --bubble-recv-bg: #ffffff;
+  --bubble-recv-color: #1d1a2f;
+  --bubble-recv-border: #e3e0ee;
+  --bubble-recv-link: #4b3fc4;
+  --bubble-recv-shadow: none;
 
   /* Inputs */
-  --input-bg: rgba(255, 255, 255, 0.7);
-  --input-border: rgba(46, 42, 69, 0.1);
-  --input-color: #2e2a45;
-  --input-placeholder: rgba(46, 42, 69, 0.4);
-  --input-focus-bg: #ffffff;
-  --input-focus-ring: rgba(124, 108, 240, 0.14);
+  --input-bg: var(--bg-sunken);
+  --input-border: transparent;
+  --input-color: var(--text-1);
+  --input-placeholder: var(--text-3);
+  --input-focus-bg: var(--bg-surface);
+  --input-focus-ring: oklch(var(--p) / 0.22);
 
   /* Chips */
-  --chip-bg: rgba(124, 108, 240, 0.1);
-  --chip-color: #5a4bcf;
+  --chip-bg: var(--bg-sunken);
+  --chip-color: var(--text-2);
 
-  /* Toasts */
-  --toast-bg: rgba(255, 255, 255, 0.85);
-  --toast-color: #2e2a45;
-  --toast-border: rgba(255, 255, 255, 0.7);
-  --toast-shadow: 0 18px 50px -20px rgba(124, 108, 240, 0.45);
+  /* Toasts: inverse in light mode */
+  --toast-bg: #1d1a2f;
+  --toast-color: #f5f4fa;
+  --toast-border: transparent;
+  --toast-shadow: var(--shadow-2);
 
   /* Scrollbar */
-  --scroll-thumb: rgba(124, 108, 240, 0.28);
-  --scroll-thumb-hover: rgba(124, 108, 240, 0.45);
+  --scroll-thumb: rgba(29, 26, 47, 0.22);
+  --scroll-thumb-hover: rgba(29, 26, 47, 0.38);
 }
 
 /* ── DARK ─────────────────────────────────────────────────── */
 [data-theme='pastel-night'] {
   color-scheme: dark;
 
-  --page-bg: #14111f;
+  --bg-canvas: #121019;
+  --page-bg: #121019;
+  --bg-surface: #1a1726;
+  --bg-raised: #242036;
+  --bg-sunken: #0d0b14;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: #2b2548;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
   --body-color: #ece9f7;
-  --text-muted: rgba(236, 233, 247, 0.7);
-  --text-meta: rgba(236, 233, 247, 0.7);
+  --text-1: #ece9f7;
+  --text-2: #a8a3c0;
+  --text-3: #9892b3;
+  --text-muted: rgba(168, 163, 192, 1);
+  --text-meta: rgba(168, 163, 192, 1);
 
-  --app-bg:
-    radial-gradient(1200px 800px at 110% -10%, rgba(124, 108, 240, 0.2) 0%, transparent 55%),
-    radial-gradient(1000px 700px at -10% 110%, rgba(255, 158, 128, 0.16) 0%, transparent 55%),
-    #14111f;
+  --primary-text: color-mix(in oklab, oklch(var(--p)) 70%, #ffffff);
+  --online: #43d6a3;
+  --success-text: #43d6a3;
+  --warning-text: #f5b544;
+  --error-text: #ff7a92;
 
-  --blob-1: radial-gradient(circle at 30% 30%, rgba(139, 123, 255, 0.95), transparent 70%);
-  --blob-2: radial-gradient(circle at 60% 60%, rgba(255, 140, 110, 0.85), transparent 70%);
-  --blob-opacity: 0.3;
-  --blob-blur: 90px;
+  --shadow-1: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --shadow-3: 0 28px 70px -16px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
 
-  --glass-bg: rgba(33, 27, 50, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-card-bg: rgba(29, 24, 44, 0.74);
-  --glass-card-border: rgba(255, 255, 255, 0.08);
-  --glass-card-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.7);
+  --app-bg: var(--bg-canvas);
+  --glass-bg: color-mix(in srgb, #1a1726 88%, transparent);
+  --glass-border: var(--border);
+  --glass-card-bg: var(--bg-surface);
+  --glass-card-border: var(--border);
+  --glass-card-shadow: var(--shadow-1);
 
-  --bubble-sent-image: linear-gradient(180deg, #8b7bff 0%, #ff9e80 100%);
-  --bubble-sent-color: #1a162b;
-  --bubble-sent-shadow: 0 12px 26px -12px rgba(0, 0, 0, 0.6);
-  --bubble-recv-bg: rgba(44, 38, 64, 0.85);
+  --bubble-sent-bg: color-mix(in oklab, oklch(var(--p)) 72%, #1a1030);
+  --bubble-sent-color: #ffffff;
+  --bubble-sent-meta: rgba(255, 255, 255, 0.88);
+  --bubble-sent-link: #ffffff;
+  --bubble-recv-bg: #2a2640;
   --bubble-recv-color: #ece9f7;
-  --bubble-recv-border: rgba(255, 255, 255, 0.07);
-  --bubble-recv-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.6);
+  --bubble-recv-border: rgba(255, 255, 255, 0.06);
+  --bubble-recv-link: #c4baff;
 
-  --input-bg: rgba(44, 38, 64, 0.6);
-  --input-border: rgba(255, 255, 255, 0.1);
-  --input-color: #ece9f7;
-  --input-placeholder: rgba(236, 233, 247, 0.4);
-  --input-focus-bg: rgba(44, 38, 64, 0.95);
-  --input-focus-ring: rgba(139, 123, 255, 0.22);
+  --input-border: transparent;
+  --input-color: var(--text-1);
+  --input-placeholder: var(--text-3);
+  --input-focus-bg: var(--bg-surface);
 
-  --chip-bg: rgba(139, 123, 255, 0.16);
-  --chip-color: #c9c0ff;
+  --chip-bg: var(--bg-sunken);
+  --chip-color: var(--text-2);
 
-  --toast-bg: rgba(33, 28, 49, 0.92);
+  --toast-bg: #242036;
   --toast-color: #ece9f7;
   --toast-border: rgba(255, 255, 255, 0.1);
-  --toast-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.7);
+  --toast-shadow: var(--shadow-2);
 
-  --scroll-thumb: rgba(139, 123, 255, 0.35);
-  --scroll-thumb-hover: rgba(139, 123, 255, 0.55);
+  --scroll-thumb: rgba(255, 255, 255, 0.2);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.34);
 }
 
 @layer base {
@@ -132,99 +179,77 @@
   }
 
   body {
-    font-family: var(--app-font, 'Nunito', ui-sans-serif, system-ui, sans-serif);
+    font-family: var(--app-font, var(--font-ui));
     color: var(--body-color);
     background-color: var(--page-bg);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     transition:
-      background-color 0.4s ease,
-      color 0.4s ease;
+      background-color 0.2s ease,
+      color 0.2s ease;
   }
 
   h1,
   h2,
   h3,
   .font-display {
-    font-family: var(--display-font, 'Quicksand', 'Nunito', sans-serif);
-    letter-spacing: -0.015em;
+    font-family: var(--display-font, var(--font-ui));
+    letter-spacing: -0.01em;
+    font-weight: 650;
   }
 }
 
 @layer components {
-  /* Full-bleed pastel backdrop with three slow-drifting gradient blobs.
-     Put this on a full-height wrapper; content sits above via z-index. */
+  /* Flat canvas. (The drifting blobs are gone; the selectors stay so old markup is harmless.) */
   .app-bg {
     position: relative;
     isolation: isolate;
-    background: var(--app-bg);
-    overflow: hidden;
+    background: var(--bg-canvas);
   }
-
-  /* Decorative floating blobs — drop <div class="blobs" aria-hidden="true"/> in any
-     positioned container to add soft lavender/peach/mint atmosphere behind glass. */
   .blobs {
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    overflow: hidden;
-    pointer-events: none;
+    display: none;
   }
   .blobs::before,
   .blobs::after {
-    content: '';
-    position: absolute;
-    width: 38rem;
-    height: 38rem;
-    border-radius: 9999px;
-    filter: blur(var(--blob-blur));
-    opacity: var(--blob-opacity);
+    content: none;
   }
-  .blobs::before {
-    top: -10rem;
-    left: -8rem;
-    background: var(--blob-1);
-    animation: blob-drift 22s ease-in-out infinite;
-  }
-  .blobs::after {
-    bottom: -12rem;
-    right: -8rem;
-    background: var(--blob-2);
-    animation: blob-drift 26s ease-in-out infinite reverse;
-  }
-  /* Optional third (mint) blob — add class .blobs--mint */
-  .blobs--mint::after {
-    box-shadow: 36rem -20rem 90px 0 rgba(111, 227, 194, 0.45);
+  /* One static soft glow, for the sign-in screen. */
+  .glow-top {
+    background: radial-gradient(600px 300px at 50% -10%, oklch(var(--p) / 0.16), transparent 70%);
   }
 
-  /* Frosted translucent surface. */
+  /* Top bars only: slightly translucent with blur. */
   .glass {
     background-color: var(--glass-bg);
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border-bottom: 1px solid var(--border);
   }
 
-  /* More opaque frosted card for primary panels (auth card, chat shell, profile). */
+  /* Opaque card. */
   .glass-card {
-    background-color: var(--glass-card-bg);
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
-    border: 1px solid var(--glass-card-border);
-    box-shadow: var(--glass-card-shadow);
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-1);
+  }
+  .surface {
+    background-color: var(--bg-surface);
+  }
+  .surface-raised {
+    background-color: var(--bg-raised);
+    box-shadow: var(--shadow-2);
+    border: 1px solid var(--border);
   }
 
-  /* Outgoing message bubble — signature lavender→peach gradient.
-     Vertical (180deg) gradient so every same-height bubble looks identical
-     regardless of width (a diagonal gradient made each bubble a different shade). */
+  /* Outgoing message bubble: solid primary, white text. */
   .bubble-sent {
+    background-color: var(--bubble-sent-bg);
     background-image: var(--bubble-sent-image);
-    background-repeat: no-repeat;
     color: var(--bubble-sent-color);
     box-shadow: var(--bubble-sent-shadow);
   }
 
-  /* Incoming message bubble — frosted surface with hairline + soft shadow. */
+  /* Incoming message bubble: opaque surface with a hairline. */
   .bubble-recv {
     background-color: var(--bubble-recv-bg);
     color: var(--bubble-recv-color);
@@ -232,68 +257,133 @@
     box-shadow: var(--bubble-recv-shadow);
   }
 
-  /* Signature gradient pill button (primary CTA). */
+  /* Links inside bubbles must stay readable on both bubble backgrounds: white and underlined on
+     the sent bubble, a dark/light brand tint on the received bubble. */
+  .bubble-sent a:not(.no-underline),
+  .bubble-recv a:not(.no-underline) {
+    font-weight: 600;
+    text-decoration-line: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    word-break: break-word;
+  }
+  .bubble-sent a:not(.no-underline) {
+    color: var(--bubble-sent-link);
+    text-decoration-color: color-mix(in oklab, var(--bubble-sent-link) 60%, transparent);
+  }
+  .bubble-recv a:not(.no-underline) {
+    color: var(--bubble-recv-link);
+    text-decoration-color: color-mix(in oklab, var(--bubble-recv-link) 45%, transparent);
+  }
+  .bubble-sent a:not(.no-underline):hover,
+  .bubble-recv a:not(.no-underline):hover {
+    text-decoration-color: currentColor;
+  }
+
+  /* Primary action button (kept name; now a calm solid look with a faint top-lit gradient). */
   .btn-grad {
-    background-image: linear-gradient(
-      135deg,
-      hsl(var(--p)) 0%,
-      hsl(var(--p) / 0.85) 50%,
-      #ff9e80 130%
-    );
-    color: #ffffff;
+    background-color: oklch(var(--p));
+    background-image: linear-gradient(180deg, oklch(var(--p) / 1), oklch(var(--p) / 0.92));
+    color: oklch(var(--pc));
     border: none;
-    box-shadow: 0 14px 30px -10px rgba(124, 108, 240, 0.55);
+    box-shadow: var(--shadow-1);
     transition:
-      transform 0.18s ease,
-      box-shadow 0.18s ease,
-      filter 0.18s ease;
+      transform var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) ease,
+      filter var(--dur-fast) ease;
   }
   .btn-grad:hover {
-    filter: brightness(1.04);
-    box-shadow: 0 18px 38px -10px rgba(124, 108, 240, 0.6);
+    filter: brightness(1.07);
+    box-shadow: var(--shadow-2);
   }
   .btn-grad:active {
-    transform: scale(0.97);
+    transform: scale(0.98);
   }
   .btn-grad:disabled {
     opacity: 0.5;
     box-shadow: none;
   }
 
-  /* Soft rounded input field. */
+  /* Rounded text field on a sunken fill. */
   .input-soft {
     width: 100%;
-    background-color: var(--input-bg);
-    border: 1px solid var(--input-border);
-    border-radius: 1rem;
-    padding: 0.65rem 1rem;
-    color: var(--input-color);
+    min-height: 44px;
+    background-color: var(--bg-sunken);
+    border: 1px solid transparent;
+    border-radius: var(--r-md);
+    padding: 0.6rem 0.9rem;
+    color: var(--text-1);
     transition:
-      border-color 0.18s ease,
-      box-shadow 0.18s ease,
-      background-color 0.18s ease;
+      border-color var(--dur-fast),
+      box-shadow var(--dur-fast),
+      background-color var(--dur-fast);
     outline: none;
   }
   .input-soft::placeholder {
-    color: var(--input-placeholder);
+    color: var(--text-3);
+  }
+  .input-soft:hover {
+    border-color: var(--border-strong);
   }
   .input-soft:focus {
-    border-color: #7c6cf0;
-    background-color: var(--input-focus-bg);
-    box-shadow: 0 0 0 4px var(--input-focus-ring);
+    background-color: var(--bg-surface);
+    border-color: oklch(var(--p));
+    box-shadow: 0 0 0 3px oklch(var(--p) / 0.22);
   }
 
-  /* Small pill chip (online count, feature tags, date separators). */
+  /* Small pill chip. */
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    border-radius: 9999px;
-    padding: 0.25rem 0.7rem;
+    border-radius: var(--r-pill);
+    padding: 0.2rem 0.65rem;
     font-size: 0.75rem;
-    font-weight: 700;
-    background-color: var(--chip-bg);
-    color: var(--chip-color);
+    font-weight: 600;
+    background-color: var(--bg-sunken);
+    color: var(--text-2);
+  }
+
+  /* Filter pill tabs (chat list, lists): <button role="tab" class="pill-tab" aria-selected>. */
+  .pill-tab {
+    display: inline-flex;
+    height: 2rem;
+    flex-shrink: 0;
+    align-items: center;
+    border-radius: var(--r-pill);
+    padding: 0 0.875rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    background-color: var(--bg-sunken);
+    color: var(--text-2);
+    transition: background-color var(--dur-fast);
+  }
+  .pill-tab:hover {
+    background-color: var(--bg-hover);
+  }
+  .pill-tab[aria-selected='true'] {
+    background-color: oklch(var(--p));
+    color: oklch(var(--pc));
+  }
+
+  .skeleton-line {
+    background: linear-gradient(
+      90deg,
+      var(--bg-sunken) 25%,
+      var(--bg-hover) 37%,
+      var(--bg-sunken) 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: var(--r-xs);
+  }
+  @keyframes shimmer {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
   }
 }
 
@@ -450,4 +540,52 @@
   .min-h-12 {
     min-height: max(3rem, 48px);
   }
+}
+
+/* Keyboard focus is always visible, in the accent colour. Mouse clicks do not show it. */
+:where(a, button, input, select, textarea, summary, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid oklch(var(--p));
+  outline-offset: 2px;
+}
+
+/* Phones with the bottom tab bar showing: pages leave room for it. */
+@media (max-width: 639px) {
+  .has-tabbar #main {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
+  }
+  .has-tabbar .h-dvh-screen {
+    height: calc(100dvh - 3.5rem - env(safe-area-inset-bottom));
+  }
+}
+
+/* Accessibility settings (Settings > Appearance). System fonts only: no font download. */
+[data-dyslexia] body,
+[data-dyslexia] button,
+[data-dyslexia] input,
+[data-dyslexia] textarea {
+  font-family: Verdana, 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  word-spacing: 0.12em;
+  line-height: 1.6;
+}
+/* Stronger text and borders on the existing tokens. */
+[data-contrast='high'][data-theme='pastel-glass'] {
+  --text-1: #000000;
+  --text-2: #1d1a2f;
+  --text-3: #2b2840;
+  --text-muted: #2b2840;
+  --border: #6b6686;
+  --border-strong: #1d1a2f;
+}
+[data-contrast='high'][data-theme='pastel-night'] {
+  --text-1: #ffffff;
+  --text-2: #f1effa;
+  --text-3: #e0ddf0;
+  --text-muted: #e0ddf0;
+  --border: #a9a4c4;
+  --border-strong: #ffffff;
+}
+[data-contrast='high'] :focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
 }

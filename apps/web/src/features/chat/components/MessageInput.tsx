@@ -10,6 +10,9 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { DROP_FILE_EVENT } from './DropOverlay';
+import { MediaTools } from '@/features/content/tools/MediaTools';
+import { ProgressRing } from './ProgressRing';
 import {
   BarChart3,
   CalendarClock,
@@ -19,7 +22,6 @@ import {
   ImagePlus,
   Paperclip,
   Pencil,
-  Plus,
   Reply,
   Send,
   Smile,
@@ -28,12 +30,25 @@ import {
   X,
 } from 'lucide-react';
 import type { ConversationSummary, MessageContent, MessageRecord } from '@chat/contracts';
-import { PopoverMenu, cn, notify, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
+import { cn, notify, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
 import { prepareImage } from '@/lib/imageCompress';
 import { SuggestReplies } from '@/features/ai/SuggestReplies';
+import { ToneHint } from '@/features/ai/ToneHint';
+import { GhostText } from '@/features/ai/writing/GhostText';
+import { useAiEnabled } from '@/features/ai/useAiEnabled';
+import { WriteThisWithFlick } from '@/features/ai/WriteThisWithFlick';
+import { flickInstruction } from '@/features/ai/flickInstruction';
+import { INSERT_TEXT_EVENT } from '@/features/ai/DescribeImageDialog';
+import { DescribeMessageBar } from '@/features/ai/DescribeMessageBar';
+import { SendInLanguage } from '@/features/translation/SendInLanguage';
+import { replaceRange } from '@/features/ai/composeVersions';
+import { SelectionPolish } from '@/features/ai/SelectionPolish';
+import { useTextSelection } from '@/features/ai/useTextSelection';
+import { SparklePenIcon } from '@/features/ai/SparklePenIcon';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CameraCapture } from '@/features/content/camera/CameraCapture';
+import { VoiceComposer } from '@/features/content/voice/VoiceComposer';
 import { ComposerExtras } from '@/features/content/ComposerExtras';
 import {
   cleanOutgoing,
@@ -61,6 +76,9 @@ import {
 } from '@/features/guide/useFeatureGuide';
 import { markUsed } from '@/features/guide/useGuideStore';
 import { ScheduleDialog } from '@/features/scheduled/ScheduleDialog';
+import { ComposerLinkPreview } from '@/features/content/ComposerLinkPreview';
+import { useSlashCommands } from '../slash/useSlashCommands';
+import { useServerDraft } from '../../organise/useServerDraft';
 import { MentionList } from '../../organise/MentionViews';
 import { MENTION_LIST_ID, mentionOptionId, useMentionAutocomplete } from '../../organise/mentions';
 import { useDraftStore } from '../../organise/drafts';
@@ -68,46 +86,25 @@ import { enterAction } from '../../settings/policy';
 import { useSettingsStore } from '../../settings/useSettingsStore';
 import { previewContent } from '../content/registry';
 import { conversationTitle } from '../conversationView';
-import { isFlickBot } from '@/features/ai/isFlickBot';
+import { isFlickBot, isFlickChat } from '@/features/ai/isFlickBot';
 import { sendMessage } from '../outbox/useOutboxStore';
-import { uploadAttachment } from '../upload';
+import { ALL_EMOJIS, pushRecentEmoji, readRecentEmojis, searchEmojis } from '../emoji/emojiSearch';
+import {
+  ANY_FILE_ACCEPT,
+  assertFitsLimit,
+  attachmentKindFor,
+  FileTooLargeError,
+  mimeForFile,
+  uploadAttachment,
+  uploadLimitFor,
+} from '../upload';
 import { useLongPress } from '../useLongPress';
+import { isEditableImage, editedFiles, sendAsFile } from '../../photoeditor/editPhoto';
+import { PhotoEditor } from '../../photoeditor/PhotoEditor';
 import { useChatStore } from '../useChatStore';
+import { ComposerToolsSheet } from './ComposerToolsSheet';
 
-const EMOJIS = [
-  '😀',
-  '😁',
-  '😂',
-  '🤣',
-  '😊',
-  '😍',
-  '😘',
-  '😎',
-  '🤔',
-  '🙄',
-  '😴',
-  '😭',
-  '😅',
-  '😉',
-  '🥳',
-  '🤩',
-  '👍',
-  '👎',
-  '🙏',
-  '👏',
-  '🙌',
-  '💪',
-  '🔥',
-  '✨',
-  '🎉',
-  '❤️',
-  '💯',
-  '👀',
-  '😜',
-  '🤝',
-  '🫶',
-  '🚀',
-];
+const EMOJIS = ALL_EMOJIS;
 const EMOJI_COLUMNS = 8;
 /** Send typing_stop after this long without typing (the server hides it after 6 s anyway). */
 const TYPING_TIMEOUT_MS = 3000;
@@ -121,6 +118,12 @@ interface EmojiPickerProps {
 const EmojiPicker = ({ onPick, onClose }: EmojiPickerProps) => {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, true, { onEscape: onClose });
+  const [query, setQuery] = useState('');
+  const [recent, setRecent] = useState(readRecentEmojis);
+  // Searching shows the matches; otherwise the recently used come first.
+  const shown = query.trim()
+    ? searchEmojis(query)
+    : [...recent, ...EMOJIS.filter((e) => !recent.includes(e))];
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     const deltas: Record<string, number> = {
@@ -131,6 +134,8 @@ const EmojiPicker = ({ onPick, onClose }: EmojiPickerProps) => {
     };
     const delta = deltas[e.key];
     if (delta === undefined) return;
+    // In the search box only Down leaves it (to the first emoji); the other arrows move the caret.
+    if (e.target instanceof HTMLInputElement && e.key !== 'ArrowDown') return;
     e.preventDefault();
     const buttons = [...(ref.current?.querySelectorAll('button') ?? [])];
     const index = buttons.findIndex((b) => b === document.activeElement);
@@ -145,13 +150,17 @@ const EmojiPicker = ({ onPick, onClose }: EmojiPickerProps) => {
         role="dialog"
         aria-label="Emoji picker"
         onKeyDown={onKeyDown}
-        className="glass-card absolute bottom-full left-3 z-20 mb-2 grid w-72 grid-cols-8 gap-1 rounded-2xl border border-base-content/10 p-2 shadow-xl"
+        className="surface-raised absolute bottom-full left-3 z-20 mb-2 grid max-h-72 w-72 grid-cols-8 gap-1 overflow-y-auto rounded-2xl p-2"
       >
-        {EMOJIS.map((emoji) => (
+        {shown.length === 0 && (
+          <p className="col-span-8 py-2 text-center text-sm text-[var(--text-2)]">No emoji found</p>
+        )}
+        {shown.map((emoji) => (
           <button
             key={emoji}
             type="button"
             onClick={() => {
+              setRecent(pushRecentEmoji(emoji));
               onPick(emoji);
             }}
             aria-label={`Insert ${emoji}`}
@@ -160,6 +169,16 @@ const EmojiPicker = ({ onPick, onClose }: EmojiPickerProps) => {
             {emoji}
           </button>
         ))}
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+          }}
+          placeholder="Search emoji"
+          aria-label="Search emoji"
+          className="input-soft order-first col-span-8 mb-1 h-8 text-sm max-sm:text-base"
+        />
       </div>
     </>
   );
@@ -222,9 +241,11 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const [showSchedule, setShowSchedule] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [showFormat, setShowFormat] = useState(false);
+  const [showWrite, setShowWrite] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [pastedTable, setPastedTable] = useState<PastedTable | null>(null);
+  const [photoToEdit, setPhotoToEdit] = useState<File | null>(null);
 
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -243,7 +264,12 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const setEditing = useChatStore((s) => s.setEditing);
   const users = useChatStore((s) => s.users);
   const setDraft = useDraftStore((s) => s.setDraft);
-  const mention = useMentionAutocomplete(id);
+  const aiEnabled = useAiEnabled();
+  // "Write with Flick" is not offered where AI is known to be off, or in the chat with Flick itself.
+  const aiOn = aiEnabled !== false && !isFlickChat(conversation);
+  const mention = useMentionAutocomplete(id, conversation.type === 'group');
+  // The sender can turn the link preview off for this message (the X on the preview).
+  const [noPreview, setNoPreview] = useState(false);
   const shortcodes = useShortcodeAutocomplete();
   const caretRef = useRef<number | null>(null);
   // Selection to restore after the toolbar changed the text.
@@ -354,83 +380,6 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     }, TYPING_TIMEOUT_MS);
   };
 
-  /** Every way of getting a file in (picker, camera, paste, drop) ends up here. */
-  const attachFile = (file: File): void => {
-    markUsed('composer.attach');
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    // Photos, videos and audio get a preview you can look at (or play) before sending.
-    const previewable = /^(image|video|audio)\//.test(file.type);
-    const previewUrl = previewable ? URL.createObjectURL(file) : null;
-    previewUrlRef.current = previewUrl;
-    queuedSend.current = null;
-    setSendQueued(false);
-    setViewOnce(false);
-    setAttachment({ file, previewUrl });
-    startUpload(file);
-  };
-
-  const pickFile = (e: ChangeEvent<HTMLInputElement>): void => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (file) attachFile(file);
-  };
-
-  const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>): void => {
-    const image = imageFromClipboard(e.clipboardData);
-    if (image && !editing) {
-      e.preventDefault();
-      attachFile(image);
-      return;
-    }
-    const table = tableFromClipboard(e.clipboardData);
-    if (!table) return;
-    // A spreadsheet table becomes a markdown table, on lines of its own.
-    e.preventDefault();
-    const { selectionStart: start, selectionEnd: end } = e.currentTarget;
-    const lead = start > 0 && text[start - 1] !== '\n' ? '\n' : '';
-    const markdown = `${lead}${table}\n`;
-    setText(text.slice(0, start) + markdown + text.slice(end));
-    selectionRef.current = [start + markdown.length, start + markdown.length];
-    setPastedTable({ start, markdown, plain: e.clipboardData.getData('text/plain') });
-  };
-
-  const undoPastedTable = (): void => {
-    if (pastedTable) {
-      const { start, markdown, plain } = pastedTable;
-      if (text.slice(start, start + markdown.length) === markdown) {
-        setText(text.slice(0, start) + plain + text.slice(start + markdown.length));
-        selectionRef.current = [start + plain.length, start + plain.length];
-      }
-    }
-    setPastedTable(null);
-    textInputRef.current?.focus();
-  };
-
-  /** Put markdown around the selected text (toolbar buttons and Ctrl/Cmd+B, I, E). */
-  const format = (kind: FormatKind): void => {
-    const field = textInputRef.current;
-    if (!field) return;
-    const result = applyFormat(kind, text, field.selectionStart, field.selectionEnd);
-    setText(result.text);
-    selectionRef.current = [result.start, result.end];
-    setPastedTable(null);
-    field.focus();
-  };
-
-  const handleDragOver = (e: DragEvent<HTMLDivElement>): void => {
-    if (editing || !dragHasFiles(e.dataTransfer)) return;
-    e.preventDefault();
-    setDragging(true);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>): void => {
-    setDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (editing || !file) return;
-    e.preventDefault();
-    attachFile(file);
-  };
-
   const removeAttachment = (): void => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     previewUrlRef.current = null;
@@ -455,11 +404,13 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
 
   /** Compress (images) and upload the file; the result builds the message once the caption is known. */
   const prepareUpload = async (file: File, onProgress: (f: number) => void): Promise<Prepared> => {
-    if (file.type.startsWith('image/')) {
+    assertFitsLimit(file.size); // before reading or compressing anything
+    const kind = sendAsFile.has(file) ? 'file' : attachmentKindFor(file);
+    if (kind === 'image') {
       const image = await prepareImage(file);
       const attachmentId = await uploadAttachment(image.blob, {
         purpose: 'message',
-        mime: image.blob.type || file.type,
+        mime: image.blob.type || mimeForFile(file),
         fileName: file.name,
         onProgress,
       });
@@ -473,11 +424,11 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         ...(x.view_once ? { view_once: true } : {}),
       });
     }
-    if (file.type.startsWith('video/')) {
+    if (kind === 'video') {
       const meta = await readVideoMeta(file);
       const attachmentId = await uploadAttachment(file, {
         purpose: 'message',
-        mime: file.type,
+        mime: mimeForFile(file),
         fileName: file.name,
         onProgress,
       });
@@ -494,7 +445,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     }
     const attachmentId = await uploadAttachment(file, {
       purpose: 'message',
-      mime: file.type || (/\.txt$/i.test(file.name) ? 'text/plain' : 'application/octet-stream'),
+      mime: mimeForFile(file),
       fileName: file.name,
       onProgress,
     });
@@ -550,9 +501,124 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         queuedSend.current = null;
         setSendQueued(false);
         setUploadStatus('failed');
-        setUploadError(getErrorMessage(error, "Couldn't upload the file."));
+        setUploadError(
+          error instanceof FileTooLargeError
+            ? error.message
+            : getErrorMessage(error, "Couldn't upload the file."),
+        );
       });
   };
+
+  /** Every way of getting a file in (picker, camera, paste, drop) ends up here. */
+  const attachFile = (file: File, openEditor = false): void => {
+    // Photos open the editor first (rotate, crop, caption); its result comes back here.
+    if (openEditor && isEditableImage(file) && !editedFiles.has(file)) {
+      setPhotoToEdit(file);
+      return;
+    }
+    markUsed('composer.attach');
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    // Photos, videos and audio get a preview you can look at (or play) before sending.
+    const previewable = /^(image|video|audio)\//.test(file.type);
+    const previewUrl = previewable ? URL.createObjectURL(file) : null;
+    previewUrlRef.current = previewUrl;
+    queuedSend.current = null;
+    setSendQueued(false);
+    setViewOnce(false);
+    setAttachment({ file, previewUrl });
+    startUpload(file);
+  };
+
+  const pickFile = (e: ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) attachFile(file, true);
+  };
+
+  const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>): void => {
+    const image = imageFromClipboard(e.clipboardData);
+    if (image && !editing) {
+      e.preventDefault();
+      attachFile(image);
+      return;
+    }
+    const table = tableFromClipboard(e.clipboardData);
+    if (!table) return;
+    // A spreadsheet table becomes a markdown table, on lines of its own.
+    e.preventDefault();
+    const { selectionStart: start, selectionEnd: end } = e.currentTarget;
+    const lead = start > 0 && text[start - 1] !== '\n' ? '\n' : '';
+    const markdown = `${lead}${table}\n`;
+    setText(text.slice(0, start) + markdown + text.slice(end));
+    selectionRef.current = [start + markdown.length, start + markdown.length];
+    setPastedTable({ start, markdown, plain: e.clipboardData.getData('text/plain') });
+  };
+
+  const undoPastedTable = (): void => {
+    if (pastedTable) {
+      const { start, markdown, plain } = pastedTable;
+      if (text.slice(start, start + markdown.length) === markdown) {
+        setText(text.slice(0, start) + plain + text.slice(start + markdown.length));
+        selectionRef.current = [start + plain.length, start + plain.length];
+      }
+    }
+    setPastedTable(null);
+    textInputRef.current?.focus();
+  };
+
+  /** Put markdown around the selected text (toolbar buttons and Ctrl/Cmd+B, I, E). */
+  const format = (kind: FormatKind): void => {
+    const field = textInputRef.current;
+    if (!field) return;
+    const result = applyFormat(kind, text, field.selectionStart, field.selectionEnd);
+    setText(result.text);
+    selectionRef.current = [result.start, result.end];
+    setPastedTable(null);
+    field.focus();
+  };
+
+  // A file dropped on the "Drop to send" overlay over the chat area.
+  useEffect(() => {
+    const onDropFile = (e: Event): void => {
+      if (!editing) attachFile((e as CustomEvent<File>).detail);
+    };
+    window.addEventListener(DROP_FILE_EVENT, onDropFile);
+    return () => {
+      window.removeEventListener(DROP_FILE_EVENT, onDropFile);
+    };
+  });
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>): void => {
+    if (editing || !dragHasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>): void => {
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (editing || !file) return;
+    e.preventDefault();
+    attachFile(file);
+  };
+
+  const slash = useSlashCommands({
+    text,
+    setText,
+    conversationId: id,
+    onPoll: () => {
+      setShowPoll(true);
+    },
+    onSchedule: () => {
+      setShowSchedule(true);
+    },
+    onWrite: () => {
+      setShowWrite(true);
+    },
+  });
+  useServerDraft(id, text, setText, !editing);
+  // An empty box forgets "no link preview" (adjusted during render, not in an effect).
+  if (!text && noPreview) setNoPreview(false);
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
@@ -563,6 +629,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       setText('');
       return;
     }
+    if (!attachment && slash.runTyped(trimmed)) return;
     if (sendQueued || !myId || (!trimmed && !attachment)) return;
     markUsed('composer.basics');
     if (/@flick\b/i.test(trimmed) || replyingToBot) markUsed('ai.group');
@@ -592,6 +659,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         text: trimmed,
         ...(replyingTo ? { reply_to: replyingTo.message_id } : {}),
         ...(mentions.length > 0 ? { mentions } : {}),
+        ...(noPreview ? { no_preview: true } : {}),
       });
       setText('');
       setReplyingTo(null);
@@ -600,6 +668,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (slash.onKeyDown(e)) return;
     const picked = mention.onKeyDown(e, text) || shortcodes.onKeyDown(e, text);
     if (picked) {
       if (typeof picked === 'object') {
@@ -718,7 +787,72 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         setShowFormat((v) => !v);
       },
     },
+    ...(aiOn
+      ? [
+          {
+            label: 'Write with Flick',
+            icon: <SparklePenIcon className="size-5" />,
+            onClick: () => {
+              setShowWrite(true);
+            },
+          },
+        ]
+      : []),
   ];
+
+  // Ctrl/Cmd+J opens and closes the "Describe your message" bar.
+  useEffect(() => {
+    if (!aiOn) return;
+    const onKey = (e: globalThis.KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setShowWrite((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [aiOn]);
+
+  // Text selected in the box can be polished or rewritten on its own.
+  const selection = useTextSelection(textInputRef, aiOn && !editing, text);
+  const replaceSelection = (replacement: string): void => {
+    if (!selection) return;
+    const { start, end } = selection;
+    const chosen = text.slice(start, end);
+    setText((prev) =>
+      prev.slice(start, end) === chosen ? replaceRange(prev, start, end, replacement) : prev,
+    );
+    selectionRef.current = [start, start + replacement.length];
+    textInputRef.current?.focus();
+  };
+  // "Reply with this" in the Explain with Flick dialog puts its answer in this box.
+  useEffect(() => {
+    const onInsert = (e: Event): void => {
+      const detail = (e as CustomEvent<{ conversationId: string; text: string }>).detail;
+      if (detail.conversationId !== conversation.id) return;
+      setText(detail.text);
+      textInputRef.current?.focus();
+    };
+    window.addEventListener(INSERT_TEXT_EVENT, onInsert);
+    return () => {
+      window.removeEventListener(INSERT_TEXT_EVENT, onInsert);
+    };
+  }, [conversation.id]);
+  // The chat has something from someone else to reply to ("Reply to this…").
+  const canReply = messages.some(
+    (m) => m.content !== null && m.sender_user_id !== null && m.sender_user_id !== myId,
+  );
+  // "@flick <instruction>" in a person-to-person chat: offer to write it instead of sending it.
+  const instruction =
+    aiOn &&
+    !editing &&
+    conversation.type === 'direct' &&
+    !conversation.is_saved &&
+    conversation.peer
+      ? flickInstruction(text)
+      : null;
 
   const counter = counterState(text.length);
   const sendDisabled =
@@ -746,7 +880,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       }}
       onDrop={handleDrop}
       className={cn(
-        'glass relative border-t border-base-content/10 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]',
+        'relative border-t border-base-content/10 bg-base-100 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3 sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]',
         dragging && 'ring-2 ring-inset ring-primary',
       )}
     >
@@ -755,24 +889,37 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           Drop a file to attach it
         </p>
       )}
+      {photoToEdit && (
+        <PhotoEditor
+          file={photoToEdit}
+          onCancel={() => {
+            setPhotoToEdit(null);
+          }}
+          onSend={(edited, caption) => {
+            setPhotoToEdit(null);
+            if (caption) setText(caption);
+            attachFile(edited);
+          }}
+        />
+      )}
       {composeLabel && (
-        <div className="mb-2 flex items-center gap-2 rounded-xl border-l-4 border-primary bg-base-content/5 px-3 py-2">
+        <div className="mb-2 flex items-center gap-2 rounded-xl border-l-[3px] border-primary bg-[var(--bg-active)] px-3 py-2">
           {editing ? (
             <Pencil className="size-4 shrink-0 text-primary" aria-hidden="true" />
           ) : (
             <Reply className="size-4 shrink-0 text-primary" aria-hidden="true" />
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-primary" id="compose-context">
+            <p className="text-xs font-semibold text-primary-text" id="compose-context">
               {composeLabel}
             </p>
             {replyingTo && (
-              <p className="truncate text-xs text-base-content/60">
+              <p className="truncate text-sm text-[var(--text-2)]">
                 {previewContent(replyingTo.content)}
               </p>
             )}
             {replyingToBot && conversation.type === 'group' && (
-              <p className="text-xs font-medium text-primary/80">Flick will answer your reply</p>
+              <p className="text-xs font-medium text-primary-text">Flick will answer your reply</p>
             )}
           </div>
           <button
@@ -797,7 +944,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
                 playsInline
                 preload="metadata"
                 aria-label="Video preview"
-                className="max-h-44 max-w-[min(18rem,70vw)] rounded-2xl bg-black object-contain shadow-sm ring-2 ring-primary/20"
+                className="max-h-44 max-w-[min(18rem,70vw)] rounded-2xl bg-black object-contain"
               />
             ) : attachment.previewUrl && attachment.file.type.startsWith('audio/') ? (
               <audio
@@ -811,20 +958,15 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
               <img
                 src={attachment.previewUrl}
                 alt="Selected image preview"
-                className="size-20 rounded-2xl object-cover shadow-sm ring-2 ring-primary/20"
+                className="size-20 rounded-2xl object-cover"
               />
             ) : (
               <span className="chip">{attachment.file.name}</span>
             )}
             {uploading && (
               <>
-                <progress
-                  className="progress progress-primary mt-1 block w-20"
-                  value={Math.round(progress * 100)}
-                  max={100}
-                  aria-label="Upload progress"
-                />
-                <span role="status" className="mt-0.5 block text-xs text-base-content/70">
+                <ProgressRing fraction={progress} />
+                <span role="status" className="mt-0.5 block text-xs text-[var(--text-2)]">
                   {sendQueued
                     ? 'Sending when ready…'
                     : `Uploading ${String(Math.round(progress * 100))}%`}
@@ -851,13 +993,15 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       {attachment && uploadError && (
         <p role="alert" className="mb-2 flex items-center gap-2 text-sm font-semibold text-error">
           {uploadError}
-          <button
-            type="button"
-            className="underline"
-            onClick={() => formRef.current?.requestSubmit()}
-          >
-            Retry
-          </button>
+          {attachment.file.size <= uploadLimitFor('message') && (
+            <button
+              type="button"
+              className="underline"
+              onClick={() => formRef.current?.requestSubmit()}
+            >
+              Retry
+            </button>
+          )}
         </p>
       )}
       {attachment &&
@@ -922,7 +1066,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       {showFormat && showPreview && <MessagePreview text={cleanOutgoing(text)} />}
 
       {pastedTable && (
-        <p className="mb-2 flex items-center gap-2 text-sm text-base-content/70">
+        <p className="mb-2 flex items-center gap-2 text-sm text-[var(--text-2)]">
           Pasted as table
           <button type="button" className="font-semibold underline" onClick={undoPastedTable}>
             Undo
@@ -945,6 +1089,56 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         />
       )}
 
+      {slash.node}
+
+      {!editing && !attachment && (
+        <ComposerLinkPreview
+          text={text}
+          onDismiss={() => {
+            setNoPreview(true);
+          }}
+        />
+      )}
+
+      {instruction && (
+        <WriteThisWithFlick
+          instruction={instruction}
+          onWritten={(written) => {
+            setText(written);
+            textInputRef.current?.focus();
+          }}
+        />
+      )}
+
+      {aiOn && !editing && (
+        <GhostText
+          text={text}
+          conversationId={id}
+          onAccept={(next) => {
+            setText(next);
+            textInputRef.current?.focus();
+          }}
+        />
+      )}
+
+      <ToneHint
+        text={text}
+        onUse={(softer) => {
+          setText(softer);
+          textInputRef.current?.focus();
+        }}
+      />
+
+      {aiOn && !editing && (
+        <SendInLanguage
+          text={text}
+          onSend={(c) => {
+            sendContent(c);
+            setText('');
+          }}
+        />
+      )}
+
       {!editing && (
         <SuggestReplies
           conversationId={id}
@@ -955,69 +1149,104 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         />
       )}
 
+      {showWrite && aiOn && (
+        <DescribeMessageBar
+          text={text}
+          conversationId={id}
+          canReply={canReply}
+          initialPrompt={slash.writePrompt}
+          isGroup={conversation.type === 'group'}
+          onSendContent={sendContent}
+          onSetText={(next) => {
+            setText(next);
+            setPastedTable(null);
+          }}
+          onClose={() => {
+            setShowWrite(false);
+            textInputRef.current?.focus();
+          }}
+        />
+      )}
+
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className="flex items-end gap-2"
+        className="relative flex items-end gap-1.5 sm:gap-2"
         aria-label="Send a message"
       >
-        <PopoverMenu
-          label="More actions"
-          icon={<Plus className="size-6" aria-hidden="true" />}
+        {selection && (
+          <SelectionPolish
+            selected={text.slice(selection.start, selection.end)}
+            onReplace={replaceSelection}
+            className="absolute bottom-full left-2 mb-1 sm:left-14"
+          />
+        )}
+        <ComposerToolsSheet
           items={plusItems}
-          up
-          alignLeft
-          className="sm:hidden"
+          className="self-end sm:hidden"
           guideId="composer.attach composer.camera composer.emoji composer.gif composer.poll composer.format composer.schedule"
         />
-        <button
-          type="button"
-          onClick={() => {
-            setShowEmojis((v) => !v);
-          }}
-          className={cn(
-            'btn btn-circle btn-ghost btn-sm max-sm:hidden',
-            showEmojis ? 'text-primary' : 'text-base-content/60',
-          )}
-          aria-label="Insert emoji"
-          data-guide="composer.emoji"
-          aria-expanded={showEmojis}
-          aria-haspopup="dialog"
+        <ComposerExtras
+          disabled={Boolean(editing) || uploading}
+          onSend={sendContent}
+          gifs={showGifs}
+          onGifsChange={setShowGifs}
+          poll={showPoll}
+          onPollChange={setShowPoll}
         >
-          <Smile className="size-5" aria-hidden="true" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => imageInputRef.current?.click()}
-          disabled={Boolean(editing)}
-          className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
-          aria-label="Attach photo or video"
-          data-guide="composer.attach"
-        >
-          <ImagePlus className="size-5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setShowCamera(true);
-          }}
-          disabled={Boolean(editing)}
-          className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
-          aria-label="Open camera"
-          data-guide="composer.camera"
-        >
-          <Camera className="size-5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={Boolean(editing)}
-          className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
-          aria-label="Attach file"
-        >
-          <Paperclip className="size-5" aria-hidden="true" />
-        </button>
+          <MediaTools
+            conversationId={id}
+            disabled={Boolean(editing) || uploading}
+            onSend={sendContent}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setShowEmojis((v) => !v);
+            }}
+            className={cn(
+              'btn btn-circle btn-ghost btn-sm',
+              showEmojis ? 'text-primary-text' : 'text-[var(--text-2)] hover:text-base-content',
+            )}
+            aria-label="Insert emoji"
+            data-guide="composer.emoji"
+            aria-expanded={showEmojis}
+            aria-haspopup="dialog"
+          >
+            <Smile className="size-[22px]" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={Boolean(editing)}
+            className="btn btn-circle btn-ghost btn-sm text-[var(--text-2)] hover:text-base-content"
+            aria-label="Attach photo or video"
+            data-guide="composer.attach"
+          >
+            <ImagePlus className="size-[22px]" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowCamera(true);
+            }}
+            disabled={Boolean(editing)}
+            className="btn btn-circle btn-ghost btn-sm text-[var(--text-2)] hover:text-base-content"
+            aria-label="Open camera"
+            data-guide="composer.camera"
+          >
+            <Camera className="size-[22px]" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={Boolean(editing)}
+            className="btn btn-circle btn-ghost btn-sm text-[var(--text-2)] hover:text-base-content"
+            aria-label="Attach file"
+          >
+            <Paperclip className="size-[22px]" aria-hidden="true" />
+          </button>
+        </ComposerExtras>
         <input
           type="file"
           accept="image/*,video/*"
@@ -1027,17 +1256,9 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           tabIndex={-1}
           aria-hidden="true"
         />
-        <ComposerExtras
-          disabled={Boolean(editing) || uploading}
-          micClassName={hasContent ? 'max-sm:hidden' : undefined}
-          onSend={sendContent}
-          gifs={showGifs}
-          onGifsChange={setShowGifs}
-          poll={showPoll}
-          onPollChange={setShowPoll}
-        />
         <input
           type="file"
+          accept={ANY_FILE_ACCEPT}
           className="hidden"
           ref={fileInputRef}
           onChange={pickFile}
@@ -1073,59 +1294,92 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
           }
           aria-autocomplete="list"
           // 16px on phones: iOS Safari zooms the page when a smaller field gets focus.
-          // About 8 lines tall at most, then it scrolls. Spaces and line breaks are kept as typed.
-          className="input-soft max-h-48 min-w-0 flex-1 resize-none overflow-y-auto whitespace-pre-wrap leading-6 max-sm:min-h-[44px] max-sm:text-base"
+          // 44px tall for one line (same as the round buttons beside it), about 8 lines at most,
+          // then it scrolls. Spaces and line breaks are kept as typed.
+          className="max-h-48 min-h-11 min-w-0 flex-1 resize-none overflow-y-auto whitespace-pre-wrap rounded-[22px] border border-transparent bg-[var(--bg-sunken)] px-4 py-[9px] leading-6 text-[var(--text-1)] outline-none transition-colors placeholder:text-[var(--text-3)] hover:border-[var(--border-strong)] focus:border-primary focus:bg-base-100 focus:shadow-[0_0_0_3px_oklch(var(--p)/.22)] max-sm:text-base"
         />
-        <button
-          type="button"
-          onClick={() => {
-            setShowFormat((v) => !v);
-          }}
-          className={cn(
-            'btn btn-circle btn-ghost btn-sm max-sm:hidden',
-            showFormat ? 'text-primary' : 'text-base-content/60',
-          )}
-          aria-label="Formatting"
-          aria-pressed={showFormat}
-          data-guide="composer.format"
+        <div
+          role="group"
+          aria-label="Message tools"
+          className="flex h-11 shrink-0 items-center gap-0.5 self-end max-sm:hidden"
         >
-          <Type className="size-5" aria-hidden="true" />
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowFormat((v) => !v);
+            }}
+            className={cn(
+              'btn btn-circle btn-ghost btn-sm max-sm:hidden',
+              showFormat ? 'text-primary-text' : 'text-[var(--text-2)] hover:text-base-content',
+            )}
+            aria-label="Formatting"
+            aria-pressed={showFormat}
+            data-guide="composer.format"
+          >
+            <Type className="size-5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={openSchedule}
+            disabled={locked || uploading}
+            className="btn btn-circle btn-ghost btn-sm text-[var(--text-2)] hover:text-base-content max-sm:hidden"
+            aria-label="Schedule send"
+            title="Schedule send"
+            data-guide="composer.schedule"
+          >
+            <CalendarClock className="size-5" aria-hidden="true" />
+          </button>
+          {aiOn && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowWrite((v) => !v);
+              }}
+              className={cn(
+                'btn btn-circle btn-ghost btn-sm max-sm:hidden',
+                showWrite
+                  ? 'bg-active text-primary-text'
+                  : 'text-[var(--text-2)] hover:text-base-content',
+              )}
+              aria-label="Write with Flick"
+              title="Write with Flick"
+              aria-expanded={showWrite}
+              aria-keyshortcuts="Control+J Meta+J"
+              data-guide="ai.write"
+            >
+              <SparklePenIcon className="size-5" />
+            </button>
+          )}
+        </div>
 
-        <button
-          type="button"
-          onClick={openSchedule}
-          disabled={locked || uploading}
-          className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
-          aria-label="Schedule send"
-          title="Schedule send"
-          data-guide="composer.schedule"
-        >
-          <CalendarClock className="size-5" aria-hidden="true" />
-        </button>
-
-        <button
-          type="submit"
-          disabled={sendDisabled}
-          {...holdSend}
-          onContextMenu={(e) => {
-            // Right-click opens the schedule dialog; on touch the long press already did.
-            e.preventDefault();
-            if (!sendDisabled) openSchedule();
-          }}
-          className={cn(
-            'btn-grad grid size-11 place-items-center rounded-full transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 max-sm:order-2',
-            !hasContent && 'max-sm:hidden',
-          )}
-          aria-label={editing ? 'Save edit' : 'Send message'}
-          data-guide="composer.send"
-        >
-          {editing ? (
-            <Check className="size-5" aria-hidden="true" />
-          ) : (
-            <Send className="size-5" aria-hidden="true" />
-          )}
-        </button>
+        {/* One round button at the end: the microphone while there is nothing to send, Send once there is. */}
+        {hasContent ? (
+          <button
+            type="submit"
+            disabled={sendDisabled}
+            {...holdSend}
+            onContextMenu={(e) => {
+              // Right-click opens the schedule dialog; on touch the long press already did.
+              e.preventDefault();
+              if (!sendDisabled) openSchedule();
+            }}
+            className="btn-grad grid size-11 shrink-0 place-items-center self-end rounded-full transition-transform active:scale-95 disabled:cursor-not-allowed disabled:bg-none disabled:bg-base-content/15 disabled:text-base-content/40 disabled:opacity-100"
+            aria-label={editing ? 'Save edit' : 'Send message'}
+            data-guide="composer.send"
+          >
+            {editing ? (
+              <Check className="size-5" aria-hidden="true" />
+            ) : (
+              <Send className="size-5" aria-hidden="true" />
+            )}
+          </button>
+        ) : (
+          <VoiceComposer
+            disabled={Boolean(editing) || uploading}
+            onSend={sendContent}
+            buttonClassName="size-11 min-h-11 min-w-11 shrink-0 self-end bg-primary text-primary-content shadow-[var(--shadow-1)] hover:brightness-95"
+          />
+        )}
       </form>
       {showSchedule && (
         <ScheduleDialog

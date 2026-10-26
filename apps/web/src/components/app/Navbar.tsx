@@ -1,26 +1,15 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
-import {
-  Bell,
-  CircleHelp,
-  MessageSquare,
-  MoreVertical,
-  Moon,
-  Phone,
-  Settings,
-  Sun,
-  User,
-  Users,
-} from 'lucide-react';
+import { CircleHelp, MessageSquare, MoreVertical, Moon, Settings, Sun, User } from 'lucide-react';
 import { startWelcome } from '@/features/guide/welcomeRules';
-import { Avatar, PopoverMenu, cn, type PopoverMenuItem } from '@/components/ui';
+import { PopoverMenu, cn, type PopoverMenuItem } from '@/components/ui';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { BellLink } from '@/features/notifications/center/BellLink';
-import { useNotificationStore } from '@/features/notifications/center/useNotificationStore';
 import { ThemeToggle } from '@/features/settings/ThemeToggle';
 import { InstallButton } from '@/pwa/InstallButton';
 import { startInstall, useInstallMode } from '@/pwa/install';
 import { useChatStore } from '@/features/chat/useChatStore';
+import { useLoadMissedCalls } from '@/features/calllog/useMissedCalls';
 import { useThemeStore } from '@/features/settings/useThemeStore';
 
 /** Phones: theme, install, settings and profile fold into one menu (see PopoverMenu). */
@@ -28,7 +17,6 @@ const PhoneMenu = () => {
   const isDark = useThemeStore((s) => s.theme === 'dark');
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const canInstall = useInstallMode() !== 'none';
-  const unread = useNotificationStore((st) => st.unread);
   const items: PopoverMenuItem[] = [
     {
       label: isDark ? 'Switch to light mode' : 'Switch to dark mode',
@@ -40,12 +28,6 @@ const PhoneMenu = () => {
       onClick: toggleTheme,
     },
     ...(canInstall ? [{ label: 'Install app', onClick: () => void startInstall() }] : []),
-    {
-      label: unread > 0 ? `Notifications (${unread})` : 'Notifications',
-      to: '/notifications',
-      icon: <Bell className="size-5" aria-hidden="true" />,
-    },
-    { label: 'People', to: '/people', icon: <Users className="size-5" aria-hidden="true" /> },
     {
       label: 'Settings',
       to: '/settings',
@@ -70,6 +52,14 @@ const PhoneMenu = () => {
 };
 
 // Rendered only when signed in.
+const linkClass = ({ isActive }: { isActive: boolean }): string =>
+  cn(
+    'relative inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors',
+    isActive
+      ? 'bg-active text-primary-text'
+      : 'text-[var(--text-2)] hover:bg-hover hover:text-base-content',
+  );
+
 export const Navbar = () => {
   // On a phone, an open chat has its own header (back button, name, call buttons). Showing this
   // bar above it as well looked like a duplicate, so it steps aside until the chat is closed.
@@ -77,83 +67,66 @@ export const Navbar = () => {
   const onHome = useLocation().pathname === '/';
   const hideOnPhone = chatOpen && onHome;
   const me = useSessionStore((s) => s.user);
+  const missedCalls = useLoadMissedCalls(me !== null);
   return (
     // The top padding keeps the bar below the iPhone notch / status bar.
     <header
       className={cn(
-        'glass fixed top-0 z-40 w-full border-b border-base-content/10 pt-[env(safe-area-inset-top)]',
+        'fixed top-0 z-40 w-full border-b border-base-content/10 bg-base-100/90 pt-[env(safe-area-inset-top)] backdrop-blur',
         hideOnPhone && 'max-sm:hidden',
       )}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link to="/" className="group flex items-center gap-3 rounded-xl" aria-label="Flick home">
+      <div className="mx-auto flex h-12 max-w-[1400px] items-center gap-2 px-4 sm:h-14 sm:px-5">
+        <Link to="/" className="group flex items-center gap-2.5 rounded-xl" aria-label="Flick home">
           <div
-            className="relative grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-content shadow-lg shadow-primary/25 transition-transform group-hover:-rotate-6"
+            className="grid size-8 place-items-center rounded-[10px] bg-gradient-to-br from-primary to-secondary text-primary-content"
             aria-hidden="true"
           >
-            <MessageSquare className="size-5" strokeWidth={2.5} />
+            <MessageSquare className="size-[18px]" strokeWidth={2.5} />
           </div>
-          <div className="leading-none">
-            <span className="block font-display text-xl font-bold tracking-tight">Flick</span>
-            <span className="hidden text-[11px] font-medium text-base-content/60 sm:block">
-              realtime messaging
-            </span>
-          </div>
+          <span className="text-[17px] font-bold tracking-tight">Flick</span>
         </Link>
 
-        <nav className="flex items-center gap-1.5" aria-label="Account">
-          {/* Desktop/tablet: every control inline. Phones: only Calls + a menu + the avatar. */}
+        <nav className="ml-6 hidden items-center gap-1 sm:flex" aria-label="Main">
+          <NavLink to="/" end className={linkClass}>
+            Chats
+          </NavLink>
+          <NavLink to="/calls" data-guide="nav.calls" className={linkClass}>
+            Calls
+            {missedCalls > 0 && (
+              <span
+                className="grid h-5 min-w-5 place-items-center rounded-full bg-error px-1.5 text-[11px] font-bold tabular-nums text-error-content"
+                aria-label={`${missedCalls} missed`}
+              >
+                {missedCalls}
+              </span>
+            )}
+          </NavLink>
+          <NavLink to="/people" className={linkClass}>
+            People
+          </NavLink>
+        </nav>
+
+        <nav className="ml-auto flex items-center gap-1" aria-label="Account">
           <InstallButton className="max-sm:hidden" />
           <ThemeToggle className="max-sm:hidden" />
           <BellLink />
           <Link
-            to="/calls"
-            data-guide="nav.calls"
-            className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:min-h-[44px] max-sm:min-w-[44px]"
-          >
-            <Phone className="size-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Calls</span>
-            <span className="sr-only sm:hidden">Calls</span>
-          </Link>
-          <Link
-            to="/people"
-            className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:hidden"
-          >
-            <Users className="size-4" aria-hidden="true" />
-            <span className="hidden sm:inline">People</span>
-          </Link>
-          <Link
             to="/settings"
             data-guide="nav.settings"
-            className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:hidden"
+            aria-label="Settings"
+            className="tap-target grid size-10 place-items-center rounded-full text-[var(--text-2)] hover:bg-hover hover:text-base-content max-sm:hidden"
           >
-            <Settings className="size-4" aria-hidden="true" />
-            <span className="sr-only">Settings</span>
+            <Settings className="size-5" aria-hidden="true" />
           </Link>
-          {/* A "?" that starts the tour again. Phones have "Take the tour" in the More menu. */}
           <button
             type="button"
             onClick={startWelcome}
-            className="btn btn-ghost btn-sm btn-circle max-sm:hidden"
+            className="sr-only"
             aria-label="Take the tour"
-            title="Take the tour"
           >
-            <CircleHelp className="size-5" aria-hidden="true" />
+            Take the tour
           </button>
-          <Link
-            to="/profile"
-            className="btn btn-ghost btn-sm gap-2 rounded-full font-medium max-sm:hidden"
-          >
-            <Avatar
-              src={me?.avatar_url}
-              name=""
-              size="xs"
-              className="!size-6"
-              imgClassName="size-6 rounded-full object-cover"
-            />
-            <span className="hidden sm:inline">Profile</span>
-            <span className="sr-only sm:hidden">Profile</span>
-          </Link>
           <PhoneMenu />
           <UserButton />
         </nav>

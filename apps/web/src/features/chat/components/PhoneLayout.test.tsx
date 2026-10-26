@@ -32,7 +32,9 @@ describe('composer "+" menu', () => {
     const menu = screen.getByRole('menu', { name: 'More actions' });
     const names = within(menu)
       .getAllByRole('menuitem')
-      .map((i) => i.textContent);
+      .map((i) => i.textContent)
+      // "Write with Flick" is there only when the server has AI (asked once per page load).
+      .filter((name) => name !== 'Write with Flick');
     expect(names).toEqual([
       'Emoji',
       'Photo or video',
@@ -91,15 +93,16 @@ describe('chat header "⋮" menu on phones', () => {
     expect(
       within(menu).getByRole('menuitem', { name: 'Disappearing messages: Off' }),
     ).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: 'Video call' })).toBeInTheDocument();
+    // Video call is a header button on phones now, not a menu item.
+    expect(within(menu).queryByRole('menuitem', { name: 'Video call' })).not.toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: 'Ask Flick' })).toBeInTheDocument();
   });
 
-  it('Video call starts a video call with the peer', async () => {
+  it('the header video button starts a video call with the peer', async () => {
     const initiateCall = vi.fn();
     useCallStore.setState({ initiateCall } as never);
-    const { user, menu } = await open();
-    await user.click(within(menu).getByRole('menuitem', { name: 'Video call' }));
+    const { user } = await open();
+    await user.click(screen.getByRole('button', { name: /^Start video call with / }));
     expect(initiateCall).toHaveBeenCalledWith(conversation.id, conversation.peer, 'video');
   });
 
@@ -119,5 +122,29 @@ describe('chat header "⋮" menu on phones', () => {
     const { user } = await open();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menu', { name: 'Chat options' })).not.toBeInTheDocument();
+  });
+});
+
+describe('composer "+" panel', () => {
+  it('opens above the composer as labelled tiles; a press outside closes it', async () => {
+    const user = userEvent.setup();
+    render(<MessageInput conversation={makeConversation()} messages={[]} />);
+    const plus = screen.getByRole('button', { name: 'More actions' });
+    expect(plus).toHaveAttribute('aria-expanded', 'false');
+    await user.click(plus);
+    expect(plus).toHaveAttribute('aria-expanded', 'true');
+    const panel = screen.getByRole('menu', { name: 'More actions' });
+    expect(panel).toHaveClass('bottom-full', 'grid');
+    expect(within(panel).getByText('GIFs and stickers')).toBeInTheDocument();
+    await user.click(document.body);
+    expect(screen.queryByRole('menu', { name: 'More actions' })).not.toBeInTheDocument();
+  });
+
+  it('closes after choosing a tile', async () => {
+    const user = userEvent.setup();
+    render(<MessageInput conversation={makeConversation()} messages={[]} />);
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Formatting' }));
+    expect(screen.queryByRole('menu', { name: 'More actions' })).not.toBeInTheDocument();
   });
 });

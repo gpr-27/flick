@@ -4,7 +4,9 @@ import { ReloadButton, Spinner } from '@/components/ui';
 import { useAttachmentUrl } from '@/features/chat/content/attachments';
 import { TapToDownload } from '@/features/settings/MediaGate';
 import { useMediaGate } from '@/features/settings/useMediaGate';
+import { TranscriptView } from '@/features/translation/TranscriptView';
 import { formatClock } from '../format';
+import { autoNextEnabled, playNextAfter, setAutoNext } from './playQueue';
 
 const SPEEDS = [1, 1.5, 2] as const;
 
@@ -62,10 +64,12 @@ export const VoicePlayer = ({
   attachmentId,
   durationMs,
   waveform,
+  conversationId,
 }: {
   attachmentId: string;
   durationMs: number;
   waveform: readonly number[];
+  conversationId?: string | undefined;
 }) => {
   const gate = useMediaGate();
   const { url, failed, fail, reload } = useAttachmentUrl(attachmentId, gate.go);
@@ -73,6 +77,7 @@ export const VoicePlayer = ({
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
+  const [autoNext, setAutoNextState] = useState(autoNextEnabled);
 
   const toggle = (): void => {
     const el = audio.current;
@@ -130,6 +135,18 @@ export const VoicePlayer = ({
         </span>
         <button
           type="button"
+          aria-pressed={autoNext}
+          onClick={() => {
+            setAutoNext(!autoNext);
+            setAutoNextState(!autoNext);
+          }}
+          className={`rounded-full px-2 py-1 text-xs font-semibold ${autoNext ? 'bg-black/25' : 'bg-black/10 opacity-70'}`}
+          aria-label={`Play next voice note automatically: ${autoNext ? 'on' : 'off'}`}
+        >
+          Auto-next
+        </button>
+        <button
+          type="button"
           onClick={cycleSpeed}
           className="rounded-full bg-black/15 px-3 py-1 text-sm font-semibold tabular-nums"
           aria-label={`Playback speed ${speed}x. Change speed`}
@@ -137,22 +154,30 @@ export const VoicePlayer = ({
           {speed}x
         </button>
       </div>
+      <TranscriptView
+        attachmentId={attachmentId}
+        conversationId={conversationId}
+        className="pl-14"
+      />
       {url && (
         <audio
           ref={audio}
           src={url}
+          data-voice="1"
           preload="metadata"
           onError={fail}
           onPlay={(e) => {
+            e.currentTarget.dataset.played = '1';
             e.currentTarget.playbackRate = speed;
             setPlaying(true);
           }}
           onPause={() => {
             setPlaying(false);
           }}
-          onEnded={() => {
+          onEnded={(e) => {
             setPlaying(false);
             setProgress(0);
+            playNextAfter(e.currentTarget);
           }}
           onTimeUpdate={(e) => {
             const { currentTime, duration } = e.currentTarget;

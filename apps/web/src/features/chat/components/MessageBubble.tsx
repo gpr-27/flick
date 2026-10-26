@@ -1,3 +1,4 @@
+import { AutoTranslated } from '@/features/translation/AutoTranslated';
 import { memo, useState } from 'react';
 import {
   AlertCircle,
@@ -17,7 +18,13 @@ import { markUsed } from '@/features/guide/useGuideStore';
 import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
 import { isFlickBot } from '@/features/ai/isFlickBot';
 import { ModelTag } from '@/features/ai/ModelTag';
+import { WhyFlickSaid } from '@/features/ai/WhyFlickSaid';
 import { modelLabel } from '@/features/ai/modelLabel';
+import { DescribeImageDialog } from '@/features/ai/DescribeImageDialog';
+import { useAiEnabled } from '@/features/ai/useAiEnabled';
+import { TranslateChip } from '@/features/ai/TranslateChip';
+import { InlineTranslation } from '@/features/ai/InlineTranslation';
+import { MessageHints } from '@/features/understand/MessageHints';
 import { TranslateDialog } from '@/features/ai/TranslateDialog';
 import { ReportDialog } from '@/features/settings/components/ReportDialog';
 import { formatDateSeparator, formatMessageTime } from '@/lib/time';
@@ -29,7 +36,9 @@ import { senderColor } from '../gestures/senderColor';
 import { useMessageGestures } from '../gestures/useMessageGestures';
 import { MessageMenu } from './MessageMenu';
 import { MessageInfoDialog } from './MessageInfoDialog';
-import { ReminderDialog } from '@/features/reminders/ReminderDialog';
+import { QuickRemindDialog } from '@/features/productivity/QuickRemindDialog';
+import { BookmarkDialog } from '@/features/productivity/BookmarkDialog';
+import { EditHistoryDialog, NoteChip, NoteDialog } from '@/features/notes/MessageNotes';
 import { ReminderMark } from '@/features/reminders/ReminderMark';
 import { useContactInfo } from './useContactInfo';
 
@@ -84,7 +93,7 @@ const StatusMark = ({ status }: { status: RowStatus }) => {
     case 'delivered':
       return <CheckCheck className="size-3.5" aria-label="Delivered" role="img" />;
     case 'read':
-      return <CheckCheck className="size-3.5 text-primary" aria-label="Read" role="img" />;
+      return <CheckCheck className="size-3.5 text-primary-text" aria-label="Read" role="img" />;
   }
 };
 
@@ -129,12 +138,19 @@ const MessageBubbleImpl = ({
   const { message, local } = row;
   const [menuOpen, setMenuOpen] = useState(false);
   const [translateOpen, setTranslateOpen] = useState(false);
+  // "Translate" in the menu shows the translation under the message (see InlineTranslation).
+  const [inlineTranslate, setInlineTranslate] = useState(false);
+  const [describeOpen, setDescribeOpen] = useState(false);
+  const aiEnabled = useAiEnabled();
   const [reportOpen, setReportOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   // The link under a finger that held the message, and a counter that replays the heart pop.
   const [heldLink, setHeldLink] = useState<string | null>(null);
   const [heartPops, setHeartPops] = useState(0);
   const [remindOpen, setRemindOpen] = useState(false);
+  const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const contact = useContactInfo();
   const isMine = message.sender_user_id === myId;
   const isSystem = message.content?.type === 'system';
@@ -179,13 +195,13 @@ const MessageBubbleImpl = ({
 
   const dateSeparator = showDate && (
     <div
-      className="my-5 flex justify-center"
+      className="my-3 flex justify-center"
       role="separator"
       aria-label={formatDateSeparator(message.created_at)}
     >
       <span
         data-guide="chat.date"
-        className="chip text-[11px] font-semibold uppercase tracking-wider"
+        className="mx-auto w-fit rounded-full bg-base-100/90 px-3 py-1 text-xs font-medium text-[var(--text-2)] shadow-[var(--shadow-1)]"
       >
         {formatDateSeparator(message.created_at)}
       </span>
@@ -194,13 +210,13 @@ const MessageBubbleImpl = ({
 
   const unreadDivider = unreadCount > 0 && (
     <div
-      className="my-3 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider text-primary"
+      className="my-3 flex items-center gap-3 text-xs font-semibold text-primary-text"
       role="separator"
       data-testid="unread-divider"
     >
-      <span className="h-px flex-1 bg-primary/30" aria-hidden="true" />
+      <span className="h-px flex-1 bg-primary/20" aria-hidden="true" />
       {unreadCount} unread {unreadCount === 1 ? 'message' : 'messages'}
-      <span className="h-px flex-1 bg-primary/30" aria-hidden="true" />
+      <span className="h-px flex-1 bg-primary/20" aria-hidden="true" />
     </div>
   );
 
@@ -215,7 +231,7 @@ const MessageBubbleImpl = ({
   }
 
   return (
-    <div className={cn(endsGroup ? 'pb-1' : 'pb-0.5', startsGroup && 'pt-1')}>
+    <div className={cn(startsGroup ? 'pt-2' : 'pt-0.5')}>
       {dateSeparator}
       {unreadDivider}
 
@@ -274,20 +290,10 @@ const MessageBubbleImpl = ({
                 className="shrink-0 rounded-full"
                 aria-label={`View ${sender.display_name}'s profile`}
               >
-                <Avatar
-                  src={sender.avatar_url}
-                  name=""
-                  size="xs"
-                  imgClassName="ring-2 ring-primary/15 shadow-sm"
-                />
+                <Avatar src={sender.avatar_url} name="" size="xs" imgClassName="shadow-none" />
               </button>
             ) : (
-              <Avatar
-                src={sender?.avatar_url}
-                name=""
-                size="xs"
-                imgClassName="ring-2 ring-primary/15 shadow-sm"
-              />
+              <Avatar src={sender?.avatar_url} name="" size="xs" imgClassName="shadow-none" />
             )
           ) : (
             <span className="size-8 shrink-0" aria-hidden="true" data-testid="avatar-spacer" />
@@ -303,7 +309,7 @@ const MessageBubbleImpl = ({
             <span
               className={cn(
                 'mb-0.5 flex items-center gap-1.5 px-1 text-xs font-semibold',
-                !(isGroup && sender) && 'text-primary',
+                !(isGroup && sender) && 'text-primary-text',
               )}
               // In a group each member keeps one colour, so a busy chat is easy to follow.
               style={
@@ -319,7 +325,7 @@ const MessageBubbleImpl = ({
           <div className="relative max-w-full">
             {gestures.offset > 0 && (
               <Reply
-                className="absolute left-0 top-1/2 size-5 -translate-y-1/2 text-primary"
+                className="absolute left-0 top-1/2 size-5 -translate-y-1/2 text-primary-text"
                 style={{
                   opacity: gestures.progress,
                   translate: `${String(gestures.offset / 2 - 10)}px 0`,
@@ -340,12 +346,22 @@ const MessageBubbleImpl = ({
                 if (heldLink === null) setMenuOpen(true);
               }}
               className={cn(
-                'animate-bubble-in relative touch-pan-y overflow-hidden px-3.5 py-2.5 shadow-sm transition-opacity [-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none',
+                'animate-bubble-in relative touch-pan-y overflow-hidden px-3 py-[7px] text-[15px] leading-[22px] transition-opacity [-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none sm:px-3.5',
                 local?.status === 'pending' && 'opacity-70',
                 (highlighted || menuOpen) && 'ring-2 ring-primary',
                 isMine
-                  ? 'bubble-sent rounded-2xl rounded-br-md'
-                  : 'bubble-recv rounded-2xl rounded-bl-md',
+                  ? cn(
+                      'bubble-sent rounded-[18px]',
+                      !startsGroup && 'rounded-tr-[6px]',
+                      !endsGroup && 'rounded-br-[6px]',
+                      endsGroup && (startsGroup ? 'rounded-br-[4px]' : 'rounded-br-[6px]'),
+                    )
+                  : cn(
+                      'bubble-recv rounded-[18px]',
+                      !startsGroup && 'rounded-tl-[6px]',
+                      !endsGroup && 'rounded-bl-[6px]',
+                      endsGroup && (startsGroup ? 'rounded-bl-[4px]' : 'rounded-bl-[6px]'),
+                    ),
               )}
             >
               {replyTo && (
@@ -354,23 +370,33 @@ const MessageBubbleImpl = ({
                   onClick={() => {
                     onJumpTo(replyTo);
                   }}
-                  className="mb-1.5 block w-full rounded-lg border-l-4 border-current/40 bg-black/10 px-2 py-1 text-left text-xs opacity-80"
+                  className={cn(
+                    'mb-1.5 block w-full rounded-lg border-l-[3px] px-2.5 py-1.5 text-left text-[13px]',
+                    isMine
+                      ? 'border-white/70 bg-white/15 text-white'
+                      : 'border-primary bg-[var(--bg-active)] text-[var(--text-1)]',
+                  )}
                   aria-label="Go to the original message"
                 >
                   <span className="block font-semibold">{quotedName}</span>
-                  <span className="line-clamp-2 [overflow-wrap:anywhere]">
+                  <span
+                    className={cn(
+                      'line-clamp-2 [overflow-wrap:anywhere]',
+                      isMine ? 'text-white/90' : 'text-[var(--text-2)]',
+                    )}
+                  >
                     {quoted ? previewContent(quoted.content) : 'Message'}
                   </span>
                 </button>
               )}
               {message.content?.forwarded && (
-                <p className="mb-1 flex items-center gap-1 text-xs italic opacity-70">
+                <p className="mb-1 flex items-center gap-1 text-xs italic opacity-90">
                   <Forward className="size-3" aria-hidden="true" />
                   Forwarded
                 </p>
               )}
               {deleted ? (
-                <p className="text-sm italic opacity-70">
+                <p className="text-sm italic opacity-90">
                   {message.deleted_at ? 'This message was deleted' : 'Opened'}
                 </p>
               ) : (
@@ -384,14 +410,43 @@ const MessageBubbleImpl = ({
                   },
                 })
               )}
+              {!isMine && !isBot && !deleted && message.content?.type === 'text' && (
+                <TranslateChip text={message.content.text} />
+              )}
+              {!isMine && !isBot && !deleted && message.content?.type === 'text' && (
+                <MessageHints
+                  conversationId={message.conversation_id}
+                  messageId={message.message_id}
+                  text={message.content.text}
+                />
+              )}
+              {!isMine && !isBot && !deleted && message.content?.type === 'text' && (
+                <AutoTranslated
+                  conversationId={message.conversation_id}
+                  messageId={message.message_id}
+                  text={message.content.text}
+                />
+              )}
+              {inlineTranslate && !deleted && message.content?.type === 'text' && (
+                <InlineTranslation
+                  messageId={message.message_id}
+                  text={message.content.text}
+                  onHide={() => {
+                    setInlineTranslate(false);
+                  }}
+                />
+              )}
               {message.viewed && !deleted && (
-                <p className="mt-1 text-xs italic opacity-70">Opened</p>
+                <p className="mt-1 text-xs italic opacity-90">Opened</p>
               )}
               {isBot && message.content?.type === 'text' && message.content.ai_model && (
                 <ModelTag
                   label={modelLabel(message.content.ai_provider ?? '', message.content.ai_model)}
                   className="mt-1.5 !text-current opacity-60"
                 />
+              )}
+              {isBot && message.content?.type === 'text' && message.content.ai_sources && (
+                <WhyFlickSaid sources={message.content.ai_sources} />
               )}
             </div>
             {heartPops > 0 && (
@@ -407,7 +462,7 @@ const MessageBubbleImpl = ({
           </div>
 
           {message.reactions.length > 0 && (
-            <div className={cn('-mt-1.5 flex flex-wrap gap-1 px-1', isMine && 'justify-end')}>
+            <div className={cn('-mt-2 flex flex-wrap gap-1 px-2', isMine && 'justify-end')}>
               {message.reactions.map(({ emoji, user_ids }) => {
                 const reactedByMe = user_ids.includes(myId);
                 return (
@@ -419,16 +474,16 @@ const MessageBubbleImpl = ({
                     }}
                     aria-pressed={reactedByMe}
                     className={cn(
-                      'relative z-[1] flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs shadow-sm',
+                      'relative z-[1] flex h-6 items-center gap-0.5 rounded-full border px-1.5 text-xs shadow-[var(--shadow-1)]',
                       reactedByMe
-                        ? 'border-primary/50 bg-primary/15'
+                        ? 'border-primary/40 bg-[var(--bg-active)]'
                         : 'border-base-content/10 bg-base-100',
                     )}
                     aria-label={`${emoji} ${user_ids.length} ${user_ids.length === 1 ? 'reaction' : 'reactions'}${reactedByMe ? ', including yours. Activate to remove yours' : ''}`}
                   >
                     <span aria-hidden="true">{emoji}</span>
                     {user_ids.length > 1 && (
-                      <span className="font-semibold text-base-content/70">{user_ids.length}</span>
+                      <span className="font-semibold text-[var(--text-2)]">{user_ids.length}</span>
                     )}
                   </button>
                 );
@@ -436,9 +491,13 @@ const MessageBubbleImpl = ({
             </div>
           )}
 
+          {!deleted && (
+            <NoteChip conversationId={message.conversation_id} messageId={message.message_id} />
+          )}
+
           <div
             className={cn(
-              'relative mt-1 flex items-center gap-1 px-1 text-[11px] text-base-content/60',
+              'relative mt-0.5 flex items-center gap-1 px-1 text-[11px] tabular-nums text-[var(--text-2)]',
               isMine && 'flex-row-reverse',
             )}
           >
@@ -450,7 +509,7 @@ const MessageBubbleImpl = ({
             {message.starred && !deleted && (
               <Star className="size-3 fill-current text-warning" aria-label="Starred" role="img" />
             )}
-            {pinned && <Pin className="size-3 text-primary" aria-label="Pinned" role="img" />}
+            {pinned && <Pin className="size-3 text-primary-text" aria-label="Pinned" role="img" />}
             {!deleted && <ReminderMark messageId={message.message_id} />}
             {isMine && (
               <span data-guide="message.status" className="inline-flex">
@@ -490,7 +549,7 @@ const MessageBubbleImpl = ({
                 onClick={() => {
                   onReply(message);
                 }}
-                className="tap-target grid size-6 place-items-center rounded-full transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
+                className="tap-target grid size-7 place-items-center rounded-full text-[var(--text-2)] transition-opacity hover:text-primary-text focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
                 aria-label="Reply to this message"
               >
                 <Reply className="size-4" aria-hidden="true" />
@@ -501,7 +560,7 @@ const MessageBubbleImpl = ({
               <button
                 type="button"
                 onClick={openMenu}
-                className="tap-target grid size-6 place-items-center rounded-full transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
+                className="tap-target grid size-7 place-items-center rounded-full text-[var(--text-2)] transition-opacity hover:text-primary-text focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
                 aria-label="Actions for this message"
                 aria-haspopup="menu"
               >
@@ -572,14 +631,37 @@ const MessageBubbleImpl = ({
             onEdit(message);
           }}
           onTranslate={() => {
-            setTranslateOpen(true);
+            setInlineTranslate(true);
           }}
+          onDescribe={
+            aiEnabled &&
+            (message.content.type === 'image' ||
+              message.content.type === 'file' ||
+              message.content.type === 'voice')
+              ? () => {
+                  setDescribeOpen(true);
+                }
+              : undefined
+          }
           onReport={() => {
             setReportOpen(true);
           }}
           onRemind={() => {
             setRemindOpen(true);
           }}
+          onBookmark={() => {
+            setBookmarkOpen(true);
+          }}
+          onNote={() => {
+            setNoteOpen(true);
+          }}
+          onEditHistory={
+            message.edited_at
+              ? () => {
+                  setHistoryOpen(true);
+                }
+              : undefined
+          }
           onInfo={
             isMine
               ? () => {
@@ -593,15 +675,43 @@ const MessageBubbleImpl = ({
         />
       )}
 
-      <ReminderDialog
-        open={remindOpen}
-        target={{ conversationId: message.conversation_id, messageId: message.message_id }}
-        preview={message.content?.type === 'text' ? message.content.text : 'This message'}
-        onClose={() => {
-          setRemindOpen(false);
-        }}
-      />
+      {remindOpen && (
+        <QuickRemindDialog
+          conversationId={message.conversation_id}
+          messageId={message.message_id}
+          preview={message.content?.type === 'text' ? message.content.text : 'This message'}
+          onClose={() => {
+            setRemindOpen(false);
+          }}
+        />
+      )}
+      {bookmarkOpen && (
+        <BookmarkDialog
+          messageId={message.message_id}
+          onClose={() => {
+            setBookmarkOpen(false);
+          }}
+        />
+      )}
 
+      {noteOpen && (
+        <NoteDialog
+          conversationId={message.conversation_id}
+          messageId={message.message_id}
+          onClose={() => {
+            setNoteOpen(false);
+          }}
+        />
+      )}
+      {historyOpen && (
+        <EditHistoryDialog
+          conversationId={message.conversation_id}
+          messageId={message.message_id}
+          onClose={() => {
+            setHistoryOpen(false);
+          }}
+        />
+      )}
       {infoOpen && (
         <MessageInfoDialog
           conversationId={message.conversation_id}
@@ -621,6 +731,18 @@ const MessageBubbleImpl = ({
       )}
       {contact.dialog}
 
+      {(message.content?.type === 'image' ||
+        message.content?.type === 'file' ||
+        message.content?.type === 'voice') && (
+        <DescribeImageDialog
+          attachmentId={message.content.attachment_id}
+          conversationId={message.conversation_id}
+          open={describeOpen}
+          onClose={() => {
+            setDescribeOpen(false);
+          }}
+        />
+      )}
       {message.content?.type === 'text' && (
         <TranslateDialog
           text={message.content.text}
@@ -646,17 +768,17 @@ export const ActivityBubble = ({
 }) => (
   <div className="flex items-end gap-2 pb-1" aria-label={label} role="status">
     <Avatar src={avatar} name="" size="xs" imgClassName="ring-2 ring-primary/15 shadow-sm" />
-    <div className="bubble-recv flex items-center gap-2 rounded-2xl rounded-bl-md px-4 py-3">
+    <div className="bubble-recv flex items-center gap-2 rounded-[18px] rounded-bl-[6px] px-4 py-3">
       <span className="flex items-center gap-1" aria-hidden="true">
         {['0ms', '150ms', '300ms'].map((delay) => (
           <span
             key={delay}
-            className="size-2 animate-bounce rounded-full bg-base-content/40"
+            className="size-2 animate-bounce rounded-full bg-[var(--text-3)]"
             style={{ animationDelay: delay, animationDuration: '1s' }}
           />
         ))}
       </span>
-      <span className="text-xs text-base-content/60">{label}</span>
+      <span className="text-xs text-[var(--text-2)]">{label}</span>
     </div>
   </div>
 );

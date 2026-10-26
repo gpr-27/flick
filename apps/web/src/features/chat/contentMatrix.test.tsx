@@ -1,7 +1,9 @@
 // The content rendering matrix: every message content type, and every way a message can be
 // dressed (reply, forwarded, edited, starred, reactions, deleted, view-once, bot), is drawn by
 // the bubble and previewed by the chat list, reply quote, pinned bar, forward dialog and search.
+import { RouterWrapper } from '../../../test/router';
 import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { FLICK_BOT_USER_ID, type MessageContent, type MessageRecord } from '@chat/contracts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/features/auth/useSessionStore';
@@ -23,6 +25,7 @@ import { MessageBubble, type MessageBubbleProps } from './components/MessageBubb
 import { Sidebar } from './components/Sidebar';
 import { previewContent } from './content/registry';
 import { buildRows } from './threadRows';
+import { useChatLists } from '@/features/lists/useChatLists';
 import { useChatStore } from './useChatStore';
 
 let api: FakeApi;
@@ -34,6 +37,8 @@ beforeEach(() => {
     expires_at: '2999-01-01T00:00:00.000Z',
   });
   useChatStore.getState().reset();
+  // The folders/tags list is not what this file is about: say it is loaded and empty.
+  useChatLists.setState({ lists: [], loaded: true });
   useSessionStore.setState({ user: { id: ME } as never, status: 'authenticated' });
 });
 
@@ -412,20 +417,31 @@ describe('content matrix: awkward text', () => {
   const longWord = 'a'.repeat(5000);
   const hugeText = ('lorem ipsum dolor sit amet ' as string).repeat(400).slice(0, 10_000);
 
-  it('a 10,000 character message is drawn in full', () => {
+  it('a 10,000 character message starts collapsed behind Read more and expands in full', async () => {
     expect(hugeText).toHaveLength(10_000);
     const { container } = draw({ type: 'text', text: hugeText });
+    const collapsed = container.querySelector('p')?.textContent ?? '';
+    expect(collapsed.length).toBeLessThanOrEqual(601);
+    expect(collapsed.endsWith('…')).toBe(true);
+    expect(hugeText.startsWith(collapsed.slice(0, -1))).toBe(true);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Read more' }));
     expect(container.querySelector('p')?.textContent).toBe(hugeText);
+    expect(screen.getByRole('button', { name: 'Show less' })).toBeInTheDocument();
   });
 
-  it('a 16,000 character message (the maximum) is drawn in full', () => {
-    const max = 'x '.repeat(8000);
+  it('a 65,000 character message (the maximum) is cut when collapsed and drawn in full when expanded', async () => {
+    const max = 'x '.repeat(32_500);
     const { container } = draw({ type: 'text', text: max });
-    expect(container.querySelector('p')?.textContent).toHaveLength(16_000);
+    expect(container.querySelector('p')?.textContent.length).toBeLessThanOrEqual(601);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Read more' }));
+    expect(container.querySelector('p')?.textContent).toHaveLength(65_000);
   });
 
-  it('a very long unbroken string wraps instead of stretching the bubble', () => {
+  it('a very long unbroken string wraps instead of stretching the bubble', async () => {
     const { container } = draw({ type: 'text', text: longWord });
+    const collapsed = container.querySelector('p')!.textContent;
+    expect(collapsed).toBe(`${'a'.repeat(600)}…`);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Read more' }));
     const p = container.querySelector('p')!;
     expect(p.textContent).toBe(longWord);
     // overflow-wrap:anywhere lets the string wrap (and shrinks the bubble's minimum width, which break-words does not); the bubble clips anything else; the column is capped.
@@ -508,7 +524,7 @@ describe('content matrix: the same content in the other places it shows', () => 
     const last = makeMessage({ seq: 3, content });
     const conv = makeConversation({ last_message: last, last_seq: 3 });
     useChatStore.setState({ listStatus: 'ready', conversations: { [conv.id]: conv } });
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     expect(screen.getAllByRole('option')).toHaveLength(1);
     expect(screen.getByRole('option')).toHaveTextContent(previewContent(content).slice(0, 40));
   });
@@ -523,7 +539,7 @@ describe('content matrix: the same content in the other places it shows', () => 
       }),
     });
     useChatStore.setState({ listStatus: 'ready', conversations: { [conv.id]: conv } });
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     expect(screen.getByRole('option')).toHaveTextContent('You: This message was deleted');
   });
 
@@ -533,7 +549,7 @@ describe('content matrix: the same content in the other places it shows', () => 
       last_message: makeMessage({ seq: 3, content: { type: 'text', text } }),
     });
     useChatStore.setState({ listStatus: 'ready', conversations: { [conv.id]: conv } });
-    render(<Sidebar />);
+    render(<Sidebar />, { wrapper: RouterWrapper });
     const span = screen.getByText(text);
     expect(span).toHaveClass('truncate');
   });

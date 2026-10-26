@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { ENDPOINTS } from '@chat/contracts';
 import { useSessionStore } from '@/features/auth/useSessionStore';
@@ -8,6 +8,11 @@ import { fakeApi, installFakeServices } from '../../../test/fakes';
 import { ProfilePage } from '../profile/ProfilePage';
 import { BlockedUsers } from './components/BlockedUsers';
 import { PrivacySettings } from './components/PrivacySettings';
+
+vi.mock('@clerk/clerk-react', () => ({
+  UserButton: () => null,
+  useUser: () => ({ isLoaded: true, user: null }),
+}));
 
 const privacy = {
   last_seen: 'everyone',

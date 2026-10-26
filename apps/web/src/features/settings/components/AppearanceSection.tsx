@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { cn } from '@/components/ui';
+import { useCustomWallpapers } from '@/features/organise/customWallpapers';
 import { WALLPAPERS } from '@/features/organise/wallpapers';
 import { ACCENTS, FONT_FAMILIES } from '../appearance';
 import type { AccentId, FontFamily } from '../settingsSchema';
@@ -15,7 +17,14 @@ export const AppearanceSection = () => {
   const [density, setDensity] = useSetting('density');
   const [corners, setCorners] = useSetting('corners');
   const [reduceMotion, setReduceMotion] = useSetting('reduceMotion');
+  const [dyslexiaFont, setDyslexiaFont] = useSetting('dyslexiaFont');
+  const [highContrast, setHighContrast] = useSetting('highContrast');
   const [wallpaper, setWallpaper] = useSetting('defaultWallpaper');
+  const customs = useCustomWallpapers((s) => s.items);
+  const loadCustoms = useCustomWallpapers((s) => s.load);
+  useEffect(() => {
+    void loadCustoms();
+  }, [loadCustoms]);
 
   return (
     <Card title="Appearance">
@@ -108,6 +117,18 @@ export const AppearanceSection = () => {
         checked={reduceMotion}
         onChange={setReduceMotion}
       />
+      <ToggleRow
+        label="Dyslexia-friendly text"
+        hint="Wider letter and line spacing with plain system fonts."
+        checked={dyslexiaFont}
+        onChange={setDyslexiaFont}
+      />
+      <ToggleRow
+        label="High contrast"
+        hint="Darker text and stronger borders for easier reading."
+        checked={highContrast}
+        onChange={setHighContrast}
+      />
       <SelectRow
         label="Default chat wallpaper"
         hint="For chats where you have not picked one."
@@ -118,6 +139,10 @@ export const AppearanceSection = () => {
         options={[
           { value: '', label: 'None' },
           ...WALLPAPERS.map((w) => ({ value: w.id, label: w.label })),
+          ...customs.map((c, i) => ({
+            value: c.id,
+            label: `My picture ${String(customs.length - i)}`,
+          })),
         ]}
       />
     </Card>

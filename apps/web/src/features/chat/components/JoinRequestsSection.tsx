@@ -50,6 +50,10 @@ export const JoinRequestsSection = ({ conversationId }: { conversationId: string
     }
   };
 
+  const decideAll = async (approve: boolean): Promise<void> => {
+    for (const request of items ?? []) await decide(request, approve);
+  };
+
   return (
     <section className="mt-4" aria-labelledby="join-requests-title">
       <h3
@@ -63,6 +67,24 @@ export const JoinRequestsSection = ({ conversationId }: { conversationId: string
           </Badge>
         )}
       </h3>
+      {items && items.length > 1 && (
+        <div className="mb-1 flex gap-2">
+          <button
+            type="button"
+            className="btn btn-primary btn-xs"
+            onClick={() => void decideAll(true)}
+          >
+            Approve all
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs text-error"
+            onClick={() => void decideAll(false)}
+          >
+            Reject all
+          </button>
+        </div>
+      )}
       {error ? (
         <ErrorState
           message={error}

@@ -10,7 +10,9 @@ import { CallLinkSection } from '@/features/groupcall/components/CallLinkSection
 import { uploadAttachment } from '../upload';
 import { useChatStore, type Member } from '../useChatStore';
 import { InviteLinkSection } from './InviteLinkSection';
+import { WebhooksSection } from '../../platform/WebhooksSection';
 import { JoinRequestsSection } from './JoinRequestsSection';
+import { GroupToolsSection } from '@/features/grouptools/GroupToolsSection';
 import { useContactInfo } from './useContactInfo';
 import { SharedTab } from './SharedTab';
 import { UserSearch } from './UserSearch';
@@ -329,6 +331,8 @@ export const GroupInfoModal = ({
           {isAdmin && <JoinRequestsSection conversationId={id} />}
           {isAdmin && <InviteLinkSection conversationId={id} />}
           {isAdmin && <CallLinkSection conversationId={id} />}
+          <GroupToolsSection conversation={conversation} />
+          {isAdmin && <WebhooksSection conversationId={id} />}
 
           {confirmLeave ? (
             <div role="alertdialog" aria-label="Leave this group?" className="mt-4 text-center">

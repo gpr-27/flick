@@ -4,10 +4,11 @@ import { ENDPOINTS, type GifResult, type MessageContent } from '@chat/contracts'
 import { Spinner, cn, useFocusTrap } from '@/components/ui';
 import { getApi } from '@/lib/services';
 import { gifErrorMessage } from './gifErrors';
+import { MyStickers } from './tools/MyStickers';
 
-type Kind = 'gif' | 'sticker';
+type Kind = 'gif' | 'sticker' | 'mine';
 type Item = z.infer<typeof GifResult>;
-type Picked = Extract<MessageContent, { type: 'gif' | 'sticker' }>;
+type Picked = Extract<MessageContent, { type: 'gif' | 'sticker' | 'image' }>;
 
 const SEARCH_DELAY_MS = 400;
 
@@ -44,6 +45,7 @@ export const GifPicker = ({
   }, [query]);
 
   useEffect(() => {
+    if (kind === 'mine') return;
     let alive = true;
     const request = search
       ? getApi().call(ENDPOINTS.media.gifSearch, { query: { kind, q: search } })
@@ -80,7 +82,7 @@ export const GifPicker = ({
         className="glass-card absolute bottom-full left-3 z-20 mb-2 w-80 rounded-2xl border border-base-content/10 p-3 shadow-xl"
       >
         <div className="mb-2 flex gap-2">
-          {(['gif', 'sticker'] as const).map((k) => (
+          {(['gif', 'sticker', 'mine'] as const).map((k) => (
             <button
               key={k}
               type="button"
@@ -90,10 +92,11 @@ export const GifPicker = ({
               }}
               className={cn('btn btn-sm', kind === k ? 'btn-primary' : 'btn-ghost')}
             >
-              {k === 'gif' ? 'GIFs' : 'Stickers'}
+              {k === 'gif' ? 'GIFs' : k === 'sticker' ? 'Stickers' : 'My stickers'}
             </button>
           ))}
         </div>
+        {kind === 'mine' && <MyStickers onPick={onPick} />}
         <label htmlFor="gif-search" className="sr-only">
           Search {kind === 'gif' ? 'GIFs' : 'stickers'}
         </label>
@@ -106,9 +109,9 @@ export const GifPicker = ({
           }}
           placeholder="Search…"
           autoComplete="off"
-          className="input-soft mb-2 w-full"
+          className={cn('input-soft mb-2 w-full', kind === 'mine' && 'hidden')}
         />
-        <div className="h-64 overflow-y-auto" aria-live="polite">
+        <div className={cn('h-64 overflow-y-auto', kind === 'mine' && 'hidden')} aria-live="polite">
           {!current && (
             <div className="grid h-full place-items-center">
               <Spinner size="sm" label="Loading" />

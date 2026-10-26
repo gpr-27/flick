@@ -32,6 +32,8 @@ export interface Settings {
   reduceMotion: boolean;
   /** A wallpaper id for chats that have none of their own. */
   defaultWallpaper: string | null;
+  /** 0 to 60: how much the chat wallpaper is darkened so message bubbles stay readable. */
+  wallpaperDim: number;
   // Chats
   enterSends: boolean;
   showTyping: boolean;
@@ -55,6 +57,16 @@ export interface Settings {
   // Storage
   /** Keep unsent drafts on this device so a reload does not lose them. */
   saveDrafts: boolean;
+  // Accessibility
+  /** System fonts with wider letter and line spacing. No font download. */
+  dyslexiaFont: boolean;
+  /** Stronger text and border colours (see [data-contrast='high'] in index.css). */
+  highContrast: boolean;
+  // Notifications: alerts that get through mute
+  /** Words that notify you even in a muted chat. Lower case. */
+  keywordAlerts: string[];
+  /** User ids whose messages the quiet-hours digest treats as priority. */
+  priorityContacts: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -69,11 +81,12 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   accent: 'violet',
   fontSize: 'small',
-  fontFamily: 'serif',
+  fontFamily: 'system',
   density: 'comfortable',
   corners: 'rounded',
   reduceMotion: false,
   defaultWallpaper: null,
+  wallpaperDim: 0,
   enterSends: true,
   showTyping: true,
   linkPreviews: true,
@@ -88,6 +101,10 @@ export const DEFAULT_SETTINGS: Settings = {
   screenLockHash: null,
   showModelName: true,
   saveDrafts: true,
+  dyslexiaFont: false,
+  highContrast: false,
+  keywordAlerts: [],
+  priorityContacts: [],
 };
 
 export const DISAPPEARING_CHOICES = [0, 86_400, 604_800, 7_776_000] as const;
@@ -100,6 +117,9 @@ const oneOf =
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean';
 const isTime = (v: unknown): v is string =>
   typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+
+const isStringList = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.length <= 50 && v.every((x) => typeof x === 'string' && x.length <= 64);
 
 /** One check per setting; a value that fails its check is replaced by the default. */
 const VALID: { [K in keyof Settings]: (v: unknown) => boolean } = {
@@ -118,7 +138,8 @@ const VALID: { [K in keyof Settings]: (v: unknown) => boolean } = {
   density: oneOf('comfortable', 'compact'),
   corners: oneOf('rounded', 'sharp'),
   reduceMotion: isBool,
-  defaultWallpaper: (v) => v === null || (typeof v === 'string' && v.length <= 32),
+  defaultWallpaper: (v) => v === null || (typeof v === 'string' && v.length <= 64),
+  wallpaperDim: (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 60,
   enterSends: isBool,
   showTyping: isBool,
   linkPreviews: isBool,
@@ -133,6 +154,10 @@ const VALID: { [K in keyof Settings]: (v: unknown) => boolean } = {
   screenLockHash: (v) => v === null || (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v)),
   showModelName: isBool,
   saveDrafts: isBool,
+  dyslexiaFont: isBool,
+  highContrast: isBool,
+  keywordAlerts: isStringList,
+  priorityContacts: isStringList,
 };
 
 /**

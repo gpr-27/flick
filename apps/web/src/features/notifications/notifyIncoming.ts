@@ -7,7 +7,10 @@ import { inQuietHours } from '@/features/settings/policy';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useIncomingBanner } from './bannerStore';
 import { excerptOf, shouldBanner, shouldNotify } from './rules';
-import { playMessageSound } from './sound';
+import { serverQuiet } from '@/features/productivity/quiet';
+import { playIncomingFor } from '../organise/chatLook';
+import { holdForDigest } from './digest';
+import { hasKeyword, mentionsUser } from './rules';
 
 export interface IncomingContext {
   summary: ConversationSummary;
@@ -38,6 +41,7 @@ export const notifyIncoming = (message: MessageRecord, ctx: IncomingContext): vo
     mutedUntil: ctx.summary.prefs.muted_until,
     tabHidden: document.hidden,
     now: Date.now(),
+    keywords: useSettingsStore.getState().keywordAlerts,
   };
   // App open and visible, message in another chat: a banner and a soft sound.
   if (message.content && shouldBanner({ ...input, inView: ctx.inView ?? false })) {
@@ -49,17 +53,29 @@ export const notifyIncoming = (message: MessageRecord, ctx: IncomingContext): vo
       text: isGroup ? `${ctx.senderName}: ${text}` : text,
     });
     const prefs = useSettingsStore.getState();
-    if (prefs.messageSound && !inQuietHours(prefs)) playMessageSound(prefs.soundVolume);
+    if (prefs.messageSound && !inQuietHours(prefs) && !serverQuiet(message.sender_user_id))
+      playIncomingFor(ctx.summary.id, prefs.soundVolume);
     return;
   }
   const allowed = shouldNotify(input);
   if (!allowed || !message.content) return;
 
   const settings = useSettingsStore.getState();
+  // A digest holds back non-urgent notifications (mentions and keywords are urgent).
+  if (
+    message.content.type === 'text' &&
+    holdForDigest(
+      ctx.summary.id,
+      ctx.summary.type === 'group' ? (ctx.summary.title ?? 'Group') : ctx.senderName,
+      message.content.text,
+      mentionsUser(message.content, ctx.myId) || hasKeyword(message.content, input.keywords),
+    )
+  )
+    return;
   // Quiet hours silence the sound, the buzz and the desktop notification. Messages still arrive.
-  if (inQuietHours(settings)) return;
+  if (inQuietHours(settings) || serverQuiet(message.sender_user_id)) return;
 
-  if (settings.messageSound) playMessageSound(settings.soundVolume);
+  if (settings.messageSound) playIncomingFor(ctx.summary.id, settings.soundVolume);
   if (settings.vibration && typeof navigator.vibrate === 'function') navigator.vibrate(200);
 
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;

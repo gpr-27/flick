@@ -46,7 +46,15 @@ beforeEach(() => {
 
 const mountMenu = (conv: ConversationSummary, onSearch = vi.fn(), phoneItems = []) => {
   useChatStore.setState({ conversations: { [conv.id]: conv }, selectedId: conv.id });
-  api.call.mockResolvedValue(conv.prefs);
+  api.call.mockImplementation((endpoint: unknown) =>
+    Promise.resolve(
+      endpoint === ENDPOINTS.chatLists.list
+        ? { items: [] }
+        : endpoint === ENDPOINTS.ai.chatPrivacy
+          ? { allow: true }
+          : conv.prefs,
+    ),
+  );
   render(<ChatOptionsMenu conversation={conv} onSearch={onSearch} phoneItems={phoneItems} />);
   return userEvent.setup();
 };
@@ -70,9 +78,19 @@ describe('chat options menu', () => {
       'Add to favourites',
       'Mute…',
       'Wallpaper…',
+      'Colour and sound…',
+      'Folders and tags…',
       'Lock chat…',
       'Search in chat',
       'Remind me about this chat',
+      'Snooze chat…',
+      'Export chat…',
+      'Summarise chat',
+      'Ask Flick about this chat',
+      'Topics in this chat',
+      'Recap with Flick…',
+      'No-AI mode: turn on',
+      'Create event…',
     ]);
   });
 
@@ -98,10 +116,20 @@ describe('chat options menu', () => {
       'Remove from favourites',
       'Unmute',
       'Wallpaper…',
+      'Colour and sound…',
+      'Folders and tags…',
       'Lock now',
       'Remove chat lock…',
       'Search in chat',
       'Remind me about this chat',
+      'Snooze chat…',
+      'Export chat…',
+      'Summarise chat',
+      'Ask Flick about this chat',
+      'Topics in this chat',
+      'Recap with Flick…',
+      'No-AI mode: turn on',
+      'Create event…',
     ]);
   });
 
@@ -167,7 +195,11 @@ describe('chat options menu', () => {
     await openMenu(user);
     await user.click(screen.getByRole('menuitem', { name: 'Lock now' }));
     expect(useLockStore.getState().unlocked[CONV]).toBeUndefined();
-    expect(api.call).not.toHaveBeenCalled();
+    // The menu looks a few things up when it opens, but locking changes nothing on the server.
+    expect(api.call).not.toHaveBeenCalledWith(
+      ENDPOINTS.conversations.updatePrefs,
+      expect.anything(),
+    );
   });
 
   describe('keyboard', () => {
@@ -237,6 +269,7 @@ describe('chat options menu', () => {
         'false',
       );
       await user.click(within(group).getByRole('button', { name: 'Night' }));
+      await user.click(screen.getByRole('button', { name: 'Apply' }));
       expect(patchBody()).toEqual({ wallpaper: 'night' });
     });
 
@@ -245,6 +278,7 @@ describe('chat options menu', () => {
       await openMenu(user);
       await user.click(screen.getByRole('menuitem', { name: 'Wallpaper…' }));
       await user.click(await screen.findByRole('button', { name: 'Default' }));
+      await user.click(screen.getByRole('button', { name: 'Apply' }));
       expect(patchBody()).toEqual({ wallpaper: null });
     });
 

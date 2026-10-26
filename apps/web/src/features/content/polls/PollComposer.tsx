@@ -6,20 +6,31 @@ import { Modal } from '@/components/ui';
 export const MIN_OPTIONS = 2;
 export const MAX_OPTIONS = 10;
 
+const CLOSE_CHOICES = [
+  [0, 'Never'],
+  [1, 'In 1 hour'],
+  [24, 'In 1 day'],
+  [168, 'In 1 week'],
+] as const;
+
 type Poll = Extract<MessageContent, { type: 'poll' }>;
 
 export const PollComposer = ({
   open,
   onClose,
   onCreate,
+  initial,
 }: {
   open: boolean;
   onClose: () => void;
   onCreate: (poll: Poll) => void;
+  /** A drafted poll ("Poll from question") to start from. */
+  initial?: { question: string; options: string[] };
 }) => {
-  const [question, setQuestion] = useState('');
-  const [options, setOptions] = useState(['', '']);
+  const [question, setQuestion] = useState(initial?.question ?? '');
+  const [options, setOptions] = useState(initial?.options ?? ['', '']);
   const [allowMultiple, setAllowMultiple] = useState(false);
+  const [closeHours, setCloseHours] = useState(0); // 0 = never closes
   const [error, setError] = useState<string | null>(null);
   const questionRef = useRef<HTMLInputElement>(null);
 
@@ -30,6 +41,9 @@ export const PollComposer = ({
       question,
       options: options.map((o) => o.trim()).filter(Boolean),
       allow_multiple: allowMultiple,
+      ...(closeHours > 0 && {
+        closes_at: new Date(Date.now() + closeHours * 3_600_000).toISOString(),
+      }),
     });
     if (!parsed.success) {
       setError(
@@ -43,6 +57,7 @@ export const PollComposer = ({
     setQuestion('');
     setOptions(['', '']);
     setAllowMultiple(false);
+    setCloseHours(0);
     setError(null);
   };
 
@@ -133,6 +148,23 @@ export const PollComposer = ({
             className="checkbox checkbox-sm"
           />
           Allow multiple answers
+        </label>
+
+        <label className="mb-4 flex items-center justify-between gap-2 text-sm">
+          Close poll
+          <select
+            value={closeHours}
+            onChange={(e) => {
+              setCloseHours(Number(e.target.value));
+            }}
+            className="select select-sm"
+          >
+            {CLOSE_CHOICES.map(([hours, label]) => (
+              <option key={hours} value={hours}>
+                {label}
+              </option>
+            ))}
+          </select>
         </label>
 
         {error && (

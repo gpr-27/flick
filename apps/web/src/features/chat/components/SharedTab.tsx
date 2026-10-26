@@ -13,12 +13,14 @@ type Kind = z.infer<typeof SharedKind>;
 const TABS: { id: Kind; label: string }[] = [
   { id: 'media', label: 'Media' },
   { id: 'links', label: 'Links' },
-  { id: 'files', label: 'Files' },
+  { id: 'files', label: 'Docs' },
+  { id: 'voice', label: 'Voice' },
 ];
 const EMPTY: Record<Kind, string> = {
   media: 'No photos or videos yet.',
   links: 'No links yet.',
-  files: 'No files yet.',
+  files: 'No documents yet.',
+  voice: 'No voice messages yet.',
 };
 
 const openImage = (attachmentId: string): void => {
@@ -139,7 +141,7 @@ export const SharedTab = ({ conversationId }: { conversationId: string }) => {
   const [kind, setKind] = useState<Kind>('media');
   return (
     <div>
-      <div role="tablist" aria-label="Shared in this chat" className="mb-3 flex gap-2">
+      <div role="tablist" aria-label="Shared in this chat" className="mb-3 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
             key={t.id}

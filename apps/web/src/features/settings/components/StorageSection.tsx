@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { notify } from '@/components/ui/notify';
 import { clearLocalCache, formatBytes, storageUsage } from '../storage';
+import { StoragePerChat } from '@/features/platform/StoragePerChat';
 import { useSetting } from '../useSettingsStore';
 import { ActionButton, Card, ToggleRow } from './controls';
 
@@ -33,6 +34,7 @@ export const StorageSection = () => {
               : `${formatBytes(usage.usage)} of ${formatBytes(usage.quota)} available`}
         </p>
       </div>
+      <StoragePerChat />
       <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
         <span>
           <span className="block font-semibold">Clear local cache</span>

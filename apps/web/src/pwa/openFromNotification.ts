@@ -4,6 +4,7 @@
 // The app may not have its chat list yet, so the id is parked in a tiny store and the chat view
 // picks it up when the conversation exists.
 import { create } from 'zustand';
+import { useDraftStore } from '@/features/organise/drafts';
 
 interface PendingOpen {
   conversationId: string | null;
@@ -55,11 +56,22 @@ export const messageTargetFromUrl = (
   }
 };
 
+/** "Reply" typed in a desktop notification (`?reply=`) becomes the unsent draft of that chat. */
+const applyReplyParam = (url: string, conversationId: string | null): void => {
+  try {
+    const text = new URL(url, 'http://app.local').searchParams.get('reply');
+    if (text && conversationId) useDraftStore.getState().setDraft(conversationId, text);
+  } catch {
+    // not a URL: nothing to apply
+  }
+};
+
 /** Read `?c=` once at startup and clean the address bar. */
 export const consumeLaunchParam = (): void => {
   const id = conversationIdFromUrl(window.location.href);
   const callId = answerCallIdFromUrl(window.location.href);
   if (!id && !callId) return;
+  applyReplyParam(window.location.href, id);
   usePendingOpen.setState({
     conversationId: id,
     answerCallId: callId,
@@ -79,6 +91,7 @@ export const handleServiceWorkerMessage = (event: MessageEvent): void => {
   }
   if (data?.type !== 'open-url' || typeof data.url !== 'string') return;
   const id = conversationIdFromUrl(data.url);
+  applyReplyParam(data.url, id);
   if (id) usePendingOpen.setState({ conversationId: id, ...messageTargetFromUrl(data.url) });
   const callId = answerCallIdFromUrl(data.url);
   if (callId) usePendingOpen.setState({ answerCallId: callId });

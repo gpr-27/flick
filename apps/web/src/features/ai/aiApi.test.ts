@@ -120,3 +120,24 @@ describe('aiApi', () => {
     });
   });
 });
+
+describe('composeText', () => {
+  it('POSTs the request as JSON and returns the text with the model label', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(json({ text: 'Hello Ravi', provider: 'groq', model: 'm' })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { composeText } = await import('./aiApi');
+    expect(await composeText({ mode: 'rewrite', text: 'hi', tone: 'casual' })).toEqual({
+      text: 'Hello Ravi',
+      model: 'Groq · m',
+    });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('http://api.test/api/ai/compose');
+    expect(JSON.parse(init.body as string)).toEqual({
+      mode: 'rewrite',
+      text: 'hi',
+      tone: 'casual',
+    });
+  });
+});

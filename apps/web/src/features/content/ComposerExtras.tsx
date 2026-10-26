@@ -1,18 +1,18 @@
-// Composer buttons for the content types that are not plain text: GIFs and stickers, polls and
-// voice notes. Each one hands a ready message content to `onSend`. The GIF and poll buttons are
-// hidden on phones (the composer's "+" menu opens them through the controlled props); the mic
-// stays next to Send.
+// Composer buttons for the content types that are not plain text: GIFs and stickers and polls
+// (the voice note button is separate, see VoiceComposer). Each one hands a ready message content
+// to `onSend`. On phones the whole tool group is hidden: the composer's "+" panel opens the
+// pickers through the controlled props. `children` are more tool buttons for the same group.
+import type { ReactNode } from 'react';
 import { BarChart3, Sticker } from 'lucide-react';
 import type { MessageContent } from '@chat/contracts';
 import { cn } from '@/components/ui';
 import { GifPicker } from './GifPicker';
 import { PollComposer } from './polls/PollComposer';
-import { VoiceComposer } from './voice/VoiceComposer';
 
 export interface ComposerExtrasProps {
   disabled: boolean;
-  /** Extra classes for the microphone button (the composer hides it on phones while Send shows). */
-  micClassName?: string | undefined;
+  /** More buttons for the start of the tool group (emoji, photo, camera, file). */
+  children?: ReactNode;
   onSend: (content: MessageContent) => void;
   gifs: boolean;
   onGifsChange: (open: boolean) => void;
@@ -22,7 +22,7 @@ export interface ComposerExtrasProps {
 
 export const ComposerExtras = ({
   disabled,
-  micClassName,
+  children,
   onSend,
   gifs,
   onGifsChange,
@@ -31,36 +31,43 @@ export const ComposerExtras = ({
 }: ComposerExtrasProps) => {
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
-          onGifsChange(!gifs);
-        }}
-        disabled={disabled}
-        className={cn(
-          'btn btn-circle btn-ghost btn-sm max-sm:hidden',
-          gifs ? 'text-primary' : 'text-base-content/60',
-        )}
-        aria-label="GIFs and stickers"
-        data-guide="composer.gif"
-        aria-expanded={gifs}
-        aria-haspopup="dialog"
+      {/* One group, centred on the first line of the text box (44px tall). */}
+      <div
+        role="group"
+        aria-label="Attach and insert"
+        className="flex h-11 shrink-0 items-center gap-0.5 self-end max-sm:hidden"
       >
-        <Sticker className="size-5" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          onPollChange(true);
-        }}
-        disabled={disabled}
-        className="btn btn-circle btn-ghost btn-sm text-base-content/60 max-sm:hidden"
-        aria-label="Create poll"
-        data-guide="composer.poll"
-      >
-        <BarChart3 className="size-5" aria-hidden="true" />
-      </button>
-      <VoiceComposer disabled={disabled} onSend={onSend} buttonClassName={micClassName} />
+        {children}
+        <button
+          type="button"
+          onClick={() => {
+            onGifsChange(!gifs);
+          }}
+          disabled={disabled}
+          className={cn(
+            'btn btn-circle btn-ghost btn-sm',
+            gifs ? 'text-primary' : 'text-base-content/60',
+          )}
+          aria-label="GIFs and stickers"
+          data-guide="composer.gif"
+          aria-expanded={gifs}
+          aria-haspopup="dialog"
+        >
+          <Sticker className="size-5" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onPollChange(true);
+          }}
+          disabled={disabled}
+          className="btn btn-circle btn-ghost btn-sm text-base-content/60"
+          aria-label="Create poll"
+          data-guide="composer.poll"
+        >
+          <BarChart3 className="size-5" aria-hidden="true" />
+        </button>
+      </div>
       {gifs && (
         <GifPicker
           onPick={(content) => {

@@ -1,11 +1,16 @@
 // The composer: sending, drafts, typing signal, emoji, reply, edit, attachments and uploads.
+import { editedFiles } from '../../photoeditor/editPhoto';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ENDPOINTS, TYPING } from '@chat/contracts';
+import type * as UploadModule from '../upload';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const upload = vi.hoisted(() => ({ uploadAttachment: vi.fn() }));
-vi.mock('../upload', () => upload);
+vi.mock('../upload', async (importOriginal) => ({
+  ...(await importOriginal<typeof UploadModule>()),
+  ...upload,
+}));
 const compress = vi.hoisted(() => ({ prepareImage: vi.fn() }));
 vi.mock('@/lib/imageCompress', () => compress);
 const video = vi.hoisted(() => ({ readVideoMeta: vi.fn() }));
@@ -89,17 +94,21 @@ describe('sending text', () => {
     expect(queued()[0]).toMatchObject({ content: { type: 'text', text: 'one\n\ntwo' } });
   });
 
-  it('the Send button is disabled for empty or blank text', async () => {
+  it('empty or blank text shows the microphone, not Send; text swaps in an enabled Send', async () => {
     const user = userEvent.setup();
     mount();
-    const send = screen.getByRole('button', { name: 'Send message' });
-    expect(send).toBeDisabled();
+    const nothingToSend = () => {
+      expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Record voice message' })).toBeEnabled();
+    };
+    nothingToSend();
     await user.type(box(), '   ');
-    expect(send).toBeDisabled();
+    nothingToSend();
     await user.type(box(), 'x');
-    expect(send).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Record voice message' })).not.toBeInTheDocument();
     await user.keyboard('{Backspace}{Backspace}{Backspace}{Backspace}');
-    expect(send).toBeDisabled();
+    nothingToSend();
   });
 
   it('Enter on blank text sends nothing', async () => {
@@ -403,7 +412,7 @@ describe('edit', () => {
     await user.clear(box());
     expect(screen.getByRole('button', { name: 'Save edit' })).toBeDisabled();
     await user.keyboard('{Enter}');
-    expect(api.call).not.toHaveBeenCalled();
+    expect(api.call).not.toHaveBeenCalledWith(ENDPOINTS.messages.edit, expect.anything());
   });
 
   it('Escape cancels the edit and clears the box', async () => {
@@ -427,10 +436,11 @@ describe('edit', () => {
       'Attach file',
       'GIFs and stickers',
       'Create poll',
-      'Record voice message',
     ]) {
       expect(screen.getByRole('button', { name })).toBeDisabled();
     }
+    // Editing shows Save edit in place of the microphone.
+    expect(screen.queryByRole('button', { name: 'Record voice message' })).not.toBeInTheDocument();
   });
 
   it('an image caption is editable too', () => {
@@ -459,8 +469,13 @@ describe('attachments', () => {
     fireEvent.change(input, { target: { files: [file] } });
   };
   const IMAGE_INPUT = 'input[accept="image/*,video/*"]';
-  const FILE_INPUT = 'input[type="file"]:not([accept])';
-  const png = () => new File(['x'], 'cat.png', { type: 'image/png' });
+  const FILE_INPUT = 'input[type="file"][accept="*/*"]';
+  // Marked as edited so the photo editor (tested on its own) does not open in these tests.
+  const png = () => {
+    const f = new File(['x'], 'cat.png', { type: 'image/png' });
+    editedFiles.add(f);
+    return f;
+  };
   const mp4 = () => new File(['x'], 'clip.mp4', { type: 'video/mp4' });
   const pdf = () => new File(['x'], 'report.pdf', { type: 'application/pdf' });
   const send = () => fireEvent.submit(screen.getByRole('form', { name: 'Send a message' }));

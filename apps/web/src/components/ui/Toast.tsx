@@ -10,14 +10,16 @@ export const AppToaster = () => (
       ariaProps: { role: 'status', 'aria-live': 'polite' },
       style: {
         background: 'var(--toast-bg)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
         color: 'var(--toast-color)',
         border: '1px solid var(--toast-border)',
-        borderRadius: '1rem',
-        fontWeight: 600,
-        boxShadow: 'var(--toast-shadow)',
+        borderRadius: '0.75rem',
+        fontWeight: 500,
+        fontSize: '0.875rem',
+        padding: '0.75rem 1rem',
+        boxShadow: 'var(--shadow-2)',
       },
+      success: { iconTheme: { primary: '#43d6a3', secondary: '#1d1a2f' } },
+      error: { iconTheme: { primary: '#ff7a92', secondary: '#1d1a2f' } },
     }}
   />
 );

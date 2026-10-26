@@ -8,20 +8,22 @@ const FEATURES = [
 
 export const NoChatSelected = () => (
   <section className="app-bg relative flex h-full flex-1 flex-col items-center justify-center overflow-hidden p-10 text-center">
-    <div className="blobs" aria-hidden="true" />
+    <div
+      className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(600px_300px_at_50%_-10%,oklch(var(--p)/0.16),transparent_70%)]"
+      aria-hidden="true"
+    />
 
     <div className="relative max-w-md space-y-6">
       <div
-        className="relative mx-auto grid size-20 place-items-center rounded-3xl bg-gradient-to-br from-primary to-secondary text-primary-content shadow-xl shadow-primary/30"
+        className="relative mx-auto grid size-20 place-items-center rounded-3xl bg-gradient-to-br from-primary to-secondary text-primary-content shadow-lg"
         aria-hidden="true"
       >
         <MessageSquare className="size-9" strokeWidth={2.25} />
-        <span className="absolute inset-0 rounded-3xl ring-1 ring-inset ring-white/20" />
       </div>
 
       <div className="space-y-2">
-        <h2 className="font-display text-3xl font-bold">Welcome to Flick</h2>
-        <p className="text-base-content/60">
+        <h2 className="font-display text-[28px] font-bold leading-9">Welcome to Flick</h2>
+        <p className="text-[var(--text-2,oklch(var(--bc)/0.65))]">
           Pick a conversation from the left to start messaging — or search for someone new.
         </p>
       </div>
@@ -29,7 +31,7 @@ export const NoChatSelected = () => (
       <ul className="flex flex-wrap justify-center gap-2">
         {FEATURES.map(({ icon: Icon, label }) => (
           <li key={label} className="chip">
-            <Icon className="size-3.5 text-primary" aria-hidden="true" />
+            <Icon className="size-3.5 text-primary-text" aria-hidden="true" />
             {label}
           </li>
         ))}

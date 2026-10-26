@@ -1,13 +1,17 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { ENDPOINTS, UpdateSettingsRequest } from '@chat/contracts';
 import { Modal } from '@/components/ui';
 import { notify } from '@/components/ui/notify';
 import { useChatStore } from '@/features/chat/useChatStore';
 import { getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
+import { useToneSetting } from '@/features/ai/toneCheck';
 import { useServerSettings } from '../useServerSettings';
 import { useSetting } from '../useSettingsStore';
 import { ActionButton, Card, ToggleRow } from './controls';
+import { AiUsage } from './AiUsage';
+import { PersonaSettings } from '@/features/ai/writing/PersonaSettings';
 
 const LANGUAGES = ['English', 'Hindi', 'Telugu', 'Spanish', 'French', 'German', 'Arabic'];
 
@@ -36,6 +40,7 @@ const emptyFlickChatHere = (): void => {
 
 export const AiSection = () => {
   const [showModel, setShowModel] = useSetting('showModelName');
+  const [checkTone, setCheckTone] = useToneSetting();
   const { settings, error, change } = useServerSettings();
   // null = not edited yet: the field shows what is saved.
   const [typed, setTyped] = useState<string | null>(null);
@@ -75,6 +80,13 @@ export const AiSection = () => {
         hint="A small “Answered by …” line under every AI answer."
         checked={showModel}
         onChange={setShowModel}
+      />
+
+      <ToggleRow
+        label="Check tone before sending"
+        hint="While you type, Flick can point out a message that may sound harsh and offer a softer one. It never stops you from sending."
+        checked={checkTone}
+        onChange={setCheckTone}
       />
 
       <form onSubmit={(e) => void saveLanguage(e)} className="py-1">
@@ -132,6 +144,17 @@ export const AiSection = () => {
           Clear
         </ActionButton>
       </div>
+
+      <Link
+        to="/memory"
+        className="flex min-h-[44px] items-center justify-between py-1 font-semibold"
+      >
+        What Flick remembers
+        <span className="text-sm font-normal text-base-content/60">View and edit</span>
+      </Link>
+
+      <PersonaSettings />
+      <AiUsage />
 
       <Modal
         open={confirmClear}

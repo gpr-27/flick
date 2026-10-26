@@ -1,7 +1,7 @@
 // Responsive behaviour. The phone/laptop split is Tailwind classes (`max-sm:` / `sm:`), which
 // jsdom does not evaluate, so these tests read the class conventions: for each viewport they
 // ask which controls are present (not hidden by their own or an ancestor's classes).
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,6 +14,7 @@ import { MessageInput } from '@/features/chat/components/MessageInput';
 import { MessageMenu } from '@/features/chat/components/MessageMenu';
 import { HomePage } from '@/features/chat/HomePage';
 import { useChatStore } from '@/features/chat/useChatStore';
+import { useDraftStore } from '@/features/organise/drafts';
 import { useInstallStore } from '@/pwa/install';
 import { installFakeServices, makeConversation, ME } from '../test/fakes';
 import { installListLayout } from '../test/layout';
@@ -31,6 +32,7 @@ beforeEach(() => {
   localStorage.clear();
   installFakeServices();
   useChatStore.getState().reset();
+  useDraftStore.setState({ drafts: {} }); // a draft typed by one test must not show in the next
   useSessionStore.setState({ user: { id: ME } as never, status: 'authenticated' });
   useInstallStore.setState({ event: null, installed: false });
 });
@@ -89,19 +91,18 @@ describe('navbar', () => {
       </MemoryRouter>,
     );
 
-  it('phone: Calls, the More menu and the account; settings, profile and theme are inside the menu', () => {
+  it('phone: the More menu and the account; Settings link and theme toggle are not in the top bar', () => {
     renderNav();
-    expect(on('phone', screen.getByRole('link', { name: /Calls/ }))).toBe(true);
     expect(on('phone', byName('More'))).toBe(true);
     expect(on('phone', screen.getByRole('link', { name: 'Settings' }))).toBe(false);
-    expect(on('phone', screen.getByRole('link', { name: /Profile/ }))).toBe(false);
     expect(on('phone', byName(/Switch to (dark|light) mode/))).toBe(false);
   });
 
-  it('laptop: everything inline and no More menu', () => {
+  it('laptop: Calls, People and Settings inline, theme toggle, and no More menu', () => {
     renderNav();
+    expect(on('laptop', screen.getByRole('link', { name: /Calls/ }))).toBe(true);
+    expect(on('laptop', screen.getByRole('link', { name: 'People' }))).toBe(true);
     expect(on('laptop', screen.getByRole('link', { name: 'Settings' }))).toBe(true);
-    expect(on('laptop', screen.getByRole('link', { name: /Profile/ }))).toBe(true);
     expect(on('laptop', byName(/Switch to (dark|light) mode/))).toBe(true);
     expect(on('laptop', byName('More'))).toBe(false);
   });
@@ -112,24 +113,6 @@ describe('navbar', () => {
     const install = screen.getAllByRole('button', { name: /Install app/ })[0]!;
     expect(on('laptop', install)).toBe(true);
     expect(on('phone', install)).toBe(false);
-  });
-
-  it('the tagline is for laptops only; Calls and Profile show a word on laptops and an sr-only name on phones', () => {
-    renderNav();
-    const tagline = screen.getByText('realtime messaging');
-    expect(on('laptop', tagline)).toBe(true);
-    expect(on('phone', tagline)).toBe(false);
-    const calls = screen.getByRole('link', { name: /Calls/ });
-    const visibleWord = within(calls)
-      .getAllByText('Calls')
-      .find((n) => n.className.includes('sm:inline'))!;
-    const srOnly = within(calls)
-      .getAllByText('Calls')
-      .find((n) => n.className.includes('sr-only'))!;
-    expect(on('laptop', visibleWord)).toBe(true);
-    expect(on('phone', visibleWord)).toBe(false);
-    expect(on('phone', srOnly)).toBe(true);
-    expect(on('laptop', srOnly)).toBe(false);
   });
 });
 
@@ -149,12 +132,12 @@ describe('chat header', () => {
       </MemoryRouter>,
     );
 
-  it('phone: back, name, voice call and the ⋮ menu only', () => {
+  it('phone: back, name, voice call, video call and the ⋮ menu only', () => {
     renderHeader();
     expect(on('phone', byName('Back to chats'))).toBe(true);
     expect(on('phone', byName('Start voice call with Bob'))).toBe(true);
     expect(on('phone', byName('Chat options'))).toBe(true);
-    expect(on('phone', byName('Start video call with Bob'))).toBe(false);
+    expect(on('phone', byName('Start video call with Bob'))).toBe(true);
     expect(on('phone', byName('Ask Flick'))).toBe(false);
     expect(on('phone', byName('Close conversation'))).toBe(false);
   });
@@ -169,7 +152,11 @@ describe('chat header', () => {
 
   it('phone targets are at least 44px (min-h-[44px] / min-w-[44px]) for the controls that stay', () => {
     renderHeader();
-    for (const name of ['Back to chats', 'Start voice call with Bob']) {
+    for (const name of [
+      'Back to chats',
+      'Start voice call with Bob',
+      'Start video call with Bob',
+    ]) {
       expect(byName(name)).toHaveClass('min-h-[44px]', 'min-w-[44px]');
     }
     expect(byName('Chat options')).toHaveClass('max-sm:min-h-[44px]', 'max-sm:min-w-[44px]');
@@ -216,25 +203,32 @@ describe('composer', () => {
       'Attach file',
       'GIFs and stickers',
       'Create poll',
+      'Formatting',
+      'Schedule send',
       'Record voice message',
-      'Send message',
     ]) {
       expect(on('laptop', byName(name))).toBe(true);
     }
+    // One round button at the end: the microphone while empty, Send once there is text.
+    expect(byName('Send message')).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText('Type a message…'), { target: { value: 'hi' } });
+    expect(on('laptop', byName('Send message'))).toBe(true);
+    expect(byName('Record voice message')).toBeNull();
   });
 
   it('the text field is 16px on phones so iOS does not zoom, and 44px tall', () => {
     renderComposer();
     expect(screen.getByRole('textbox', { name: /^Message / })).toHaveClass(
       'max-sm:text-base',
-      'max-sm:min-h-[44px]',
+      'min-h-11',
     );
   });
 
-  it('on phones Send sits after the field (order-2) and the mic before it (order-1)', () => {
+  it('Send and the microphone are the same 44px round button, last in the bar', () => {
     renderComposer();
-    expect(byName('Send message')).toHaveClass('max-sm:order-2');
-    expect(byName('Record voice message')).toHaveClass('max-sm:order-1');
+    expect(byName('Record voice message')).toHaveClass('size-11');
+    fireEvent.change(screen.getByPlaceholderText('Type a message…'), { target: { value: 'hi' } });
+    expect(byName('Send message')).toHaveClass('size-11', 'rounded-full');
   });
 });
 

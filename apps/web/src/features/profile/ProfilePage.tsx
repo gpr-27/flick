@@ -1,12 +1,12 @@
+import { WriteBioButton } from '@/features/ai/writing/WriteBioButton';
 import { useUser } from '@clerk/clerk-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { UserButton } from '@clerk/clerk-react';
-import { Camera, Copy, Image as ImageIcon, Share2, Trash2 } from 'lucide-react';
+import { Camera, Copy, Image as ImageIcon, QrCode, Share2, Trash2 } from 'lucide-react';
 import { ENDPOINTS, type UpdateMeRequest, type UserStats } from '@chat/contracts';
 import type { z } from 'zod';
 import { Avatar, ErrorState, Modal, PopoverMenu, cn } from '@/components/ui';
 import { notify } from '@/components/ui/notify';
-import { pushProfileToClerk } from '@/features/auth/clerkProfileSync';
 import { useFeatureGuide, useMarkUsedWhen } from '@/features/guide/useFeatureGuide';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { uploadAttachment } from '@/features/chat/upload';
@@ -14,6 +14,7 @@ import { CameraCapture } from '@/features/content/camera/CameraCapture';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
 import { AvatarCropper } from './AvatarCropper';
+import { looksLikeImage } from './decodeImage';
 import { squareJpegFromUrl } from './signInPhoto';
 import {
   ABOUT_MAX,
@@ -28,6 +29,7 @@ import {
   validateDisplayName,
   validateUsername,
 } from './profileLogic';
+import { ProfileQrDialog } from './ProfileQrDialog';
 import { useUnsavedGuard } from './useUnsavedGuard';
 import { useUsernameCheck, type UsernameStatus } from './useUsernameCheck';
 
@@ -54,6 +56,7 @@ export const ProfilePage = () => {
   const setUser = useSessionStore((s) => s.setUser);
   const [name, setName] = useState(user?.display_name ?? '');
   const [username, setUsername] = useState(user?.username ?? '');
+  const [qrOpen, setQrOpen] = useState(false);
   const [about, setAbout] = useState(user?.about ?? '');
   const [avatar, setAvatar] = useState<AvatarDraft>({ kind: 'unchanged' });
   // The photo on the sign-in account (set in Clerk's menu). Flick keeps its own copy, so this
@@ -104,9 +107,8 @@ export const ProfilePage = () => {
   if (!user) {
     return (
       <main className="app-bg grid min-h-dvh-screen place-items-center px-4 pb-16 pt-[calc(6rem+env(safe-area-inset-top))]">
-        <div className="blobs" aria-hidden="true" />
         {status === 'booting' && !error ? (
-          <div className="glass-card w-full max-w-sm space-y-3 rounded-3xl p-6" role="status">
+          <div className="surface-raised w-full max-w-sm space-y-3 rounded-2xl p-6" role="status">
             <span className="sr-only">Loading your profile</span>
             <div className="skeleton mx-auto size-28 rounded-full" aria-hidden="true" />
             <div className="skeleton mx-auto h-6 w-40 rounded-lg" aria-hidden="true" />
@@ -141,7 +143,7 @@ export const ProfilePage = () => {
   const link = profileLink(window.location.origin, user.username);
 
   const pickPhoto = (file: File | undefined): void => {
-    if (file?.type.startsWith('image/')) setCropFile(file);
+    if (file && looksLikeImage(file)) setCropFile(file);
     else if (file) notify.error('Please pick a picture.');
   };
 
@@ -193,20 +195,6 @@ export const ProfilePage = () => {
       setAbout(me.about ?? '');
       setAvatar({ kind: 'unchanged' });
       notify.success('Profile saved.');
-      // Flick is the source of truth: the sign-in account follows. A failure there never undoes
-      // the save; it only gets a small note.
-      const photo =
-        avatar.kind === 'new' ? avatar.blob : avatar.kind === 'removed' ? null : undefined;
-      const synced = await pushProfileToClerk(me.id, {
-        name: me.display_name,
-        username: me.username,
-        photo,
-      });
-      if (synced === 'failed') {
-        notify.info(
-          "Saved on Flick, but your sign-in account couldn't be updated. Your name there may look different.",
-        );
-      }
     } catch (error) {
       setUser(previous);
       if (error instanceof ApiError && error.status === 409) {
@@ -231,31 +219,30 @@ export const ProfilePage = () => {
   };
 
   return (
-    <main className="app-bg min-h-dvh-screen px-4 pb-[max(4rem,calc(1rem+env(safe-area-inset-bottom)))] pt-[calc(6rem+env(safe-area-inset-top))]">
-      <div className="blobs" aria-hidden="true" />
+    <main className="app-bg min-h-dvh-screen px-4 pb-[max(4rem,calc(1rem+env(safe-area-inset-bottom)))] pt-[calc(4.5rem+env(safe-area-inset-top))] sm:pt-[calc(5rem+env(safe-area-inset-top))]">
       <div className="mx-auto grid max-w-5xl animate-fade-in-up gap-6 lg:grid-cols-[22rem_1fr]">
         <div className="space-y-4">
           <section
-            className="glass-card overflow-hidden rounded-3xl"
+            className="glass-card overflow-hidden rounded-2xl"
             aria-labelledby="profile-title"
           >
             <div
-              className="h-28 bg-gradient-to-r from-primary via-secondary to-accent"
+              className="h-20 bg-gradient-to-br from-primary to-secondary opacity-90"
               aria-hidden="true"
             />
-            <div className="-mt-14 flex flex-col items-center gap-2 px-5 pb-6">
+            <div className="-mt-12 flex flex-col items-center gap-2 px-5 pb-6">
               <div className="relative">
                 <Avatar
                   src={shownAvatar}
                   name={user.display_name}
                   size="xl"
-                  imgClassName="ring-4 ring-base-100"
+                  imgClassName="ring-4 ring-base-100 shadow-[var(--shadow-1)]"
                 />
                 <PopoverMenu
                   guideId="profile.photo"
                   label="Change photo"
                   icon={<Camera className="size-5" aria-hidden="true" />}
-                  className="absolute -bottom-1 -right-1 rounded-full bg-base-100 shadow"
+                  className="absolute -bottom-1 -right-1 rounded-full border-4 border-base-100 bg-primary text-primary-content shadow"
                   items={[
                     {
                       label: 'Choose a photo',
@@ -303,31 +290,48 @@ export const ProfilePage = () => {
                   }}
                 />
               </div>
-              <h1 id="profile-title" className="font-display text-2xl font-bold">
+              <h1 id="profile-title" className="text-[22px] font-bold">
                 {user.display_name}
               </h1>
-              <p className="text-sm text-base-content/60">@{user.username}</p>
+              <p className="text-sm text-[var(--text-2)]">@{user.username}</p>
               {user.about && <p className="text-center text-sm">{user.about}</p>}
               <div className="mt-1 flex flex-wrap justify-center gap-2">
                 <button
                   type="button"
-                  className="btn btn-primary btn-sm min-h-[44px] gap-2 rounded-2xl"
+                  className="btn btn-primary btn-sm min-h-[44px] gap-2 rounded-xl"
                   onClick={() => void share()}
                 >
                   <Share2 className="size-4" aria-hidden="true" /> Share profile
                 </button>
                 <button
                   type="button"
-                  className="btn btn-outline btn-sm min-h-[44px] gap-2 rounded-2xl"
+                  className="btn btn-sm min-h-[44px] gap-2 rounded-xl border-0 bg-base-300 hover:bg-base-content/10"
                   onClick={() => void copyUsername()}
                 >
                   <Copy className="size-4" aria-hidden="true" /> Copy @username
                 </button>
+                <button
+                  type="button"
+                  className="btn btn-sm min-h-[44px] gap-2 rounded-xl border-0 bg-base-300 hover:bg-base-content/10"
+                  onClick={() => {
+                    setQrOpen(true);
+                  }}
+                >
+                  <QrCode className="size-4" aria-hidden="true" /> QR code
+                </button>
+                <ProfileQrDialog
+                  open={qrOpen}
+                  link={link}
+                  username={user.username}
+                  onClose={() => {
+                    setQrOpen(false);
+                  }}
+                />
               </div>
             </div>
           </section>
 
-          <section className="glass-card rounded-3xl p-5" aria-label="Your stats">
+          <section className="glass-card rounded-2xl p-5" aria-label="Your stats">
             <dl className="grid grid-cols-3 text-center">
               {[
                 ['Chats', stats?.chats],
@@ -335,14 +339,14 @@ export const ProfilePage = () => {
                 ['Days on Flick', stats?.days_on_flick],
               ].map(([label, value]) => (
                 <div key={label}>
-                  <dd className="font-display text-2xl font-bold">{value ?? '-'}</dd>
-                  <dt className="text-xs text-base-content/60">{label}</dt>
+                  <dd className="text-2xl font-semibold">{value ?? '-'}</dd>
+                  <dt className="text-xs text-[var(--text-2)]">{label}</dt>
                 </div>
               ))}
             </dl>
           </section>
 
-          <section className="glass-card rounded-3xl p-5" aria-label="Profile completeness">
+          <section className="glass-card rounded-2xl p-5" aria-label="Profile completeness">
             <div className="flex items-center justify-between text-sm font-semibold">
               <span>Profile completeness</span>
               <span>{progress.percent}%</span>
@@ -353,20 +357,20 @@ export const ProfilePage = () => {
               max={100}
               aria-label="Profile completeness"
             />
-            <p className="mt-2 text-sm text-base-content/70">{progress.hint}</p>
+            <p className="mt-2 text-sm text-[var(--text-2)]">{progress.hint}</p>
           </section>
         </div>
 
         <form
           data-guide="profile.edit"
-          className="glass-card space-y-5 rounded-3xl p-5 sm:p-6"
+          className="glass-card space-y-5 rounded-2xl p-5 sm:p-6"
           aria-label="Edit profile"
           onSubmit={(e) => {
             e.preventDefault();
             if (canSave) void save();
           }}
         >
-          <h2 className="font-display text-lg font-bold">Edit profile</h2>
+          <h2 className="text-[17px] font-semibold">Edit profile</h2>
 
           <div className="text-sm font-semibold">
             <label htmlFor="name-input">Display name</label>
@@ -386,13 +390,13 @@ export const ProfilePage = () => {
               role={nameError ? 'alert' : undefined}
               className={cn(
                 'mt-1 block text-xs font-normal',
-                nameError ? 'text-error' : 'text-base-content/60',
+                nameError ? 'text-error' : 'text-[var(--text-2)]',
               )}
             >
               {nameError ?? `${String(name.trim().length)}/${String(DISPLAY_NAME_MAX)}`}
             </span>
-            <span className="mt-1 block text-xs font-normal text-base-content/60">
-              Changing your name here also updates your sign-in account.
+            <span className="mt-1 block text-xs font-normal text-[var(--text-2)]">
+              This is your Flick name. It does not change your sign-in account.
             </span>
           </div>
 
@@ -420,7 +424,7 @@ export const ProfilePage = () => {
                 'mt-1 block text-xs font-normal',
                 usernameError || serverError || USERNAME_NOTE[usernameStatus]?.good === false
                   ? 'text-error'
-                  : 'text-base-content/60',
+                  : 'text-[var(--text-2)]',
               )}
             >
               {usernameError ??
@@ -446,12 +450,18 @@ export const ProfilePage = () => {
             />
             <p
               id="about-count"
-              className={cn('text-xs', aboutError ? 'text-error' : 'text-base-content/60')}
+              className={cn('text-xs', aboutError ? 'text-error' : 'text-[var(--text-2)]')}
             >
               {about.length}/{ABOUT_MAX}
               {aboutError ? ` - ${aboutError}` : ''}
             </p>
             <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Quick statuses">
+              <WriteBioButton
+                about={about}
+                hint={user.display_name}
+                max={ABOUT_MAX}
+                onWrite={setAbout}
+              />
               {STATUS_PRESETS.map((status) => (
                 <button
                   key={status}
@@ -469,22 +479,22 @@ export const ProfilePage = () => {
 
           <dl className="grid gap-3 text-sm sm:grid-cols-3">
             <div>
-              <dt className="text-base-content/60">Email</dt>
+              <dt className="text-[var(--text-2)]">Email</dt>
               <dd className="truncate font-semibold">{user.email ?? 'None'}</dd>
             </div>
             <div>
-              <dt className="text-base-content/60">Member since</dt>
+              <dt className="text-[var(--text-2)]">Member since</dt>
               <dd className="font-semibold">{date(user.created_at)}</dd>
             </div>
             <div>
-              <dt className="text-base-content/60">Last active</dt>
+              <dt className="text-[var(--text-2)]">Last active</dt>
               <dd className="font-semibold">{date(stats?.last_active_at)}</dd>
             </div>
           </dl>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="flex items-center gap-2 text-xs text-base-content/60">
-              Password and sign-in are managed by your account menu <UserButton />
+            <p className="flex items-center gap-2 text-xs text-[var(--text-2)]">
+              Your password and sign-in details are managed in this menu <UserButton />
             </p>
             <button
               type="submit"
@@ -518,9 +528,9 @@ export const ProfilePage = () => {
         open={guard.pending !== null}
         onClose={guard.stay}
         labelledBy="discard-title"
-        className="glass-card mx-4 w-full max-w-sm space-y-3 rounded-3xl p-6 animate-scale-in"
+        className="surface-raised mx-4 w-full max-w-sm space-y-3 rounded-2xl p-6 animate-scale-in"
       >
-        <h2 id="discard-title" className="font-display text-lg font-bold">
+        <h2 id="discard-title" className="text-[17px] font-semibold">
           Discard your changes?
         </h2>
         <p className="text-sm">You have changes that are not saved.</p>

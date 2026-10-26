@@ -58,3 +58,29 @@ export const useIsAppLocked = (): boolean => {
   const unlocked = useAppLock((s) => s.unlocked);
   return hash !== null && !unlocked;
 };
+
+const MINUTES_KEY = 'flick:app-lock-minutes';
+
+/** Minutes away after which the lock asks again; 0 = only when Flick is opened in a new tab. */
+export const LOCK_DELAYS = [0, 1, 5, 15, 60] as const;
+
+export const readLockMinutes = (): number => {
+  try {
+    const value = Number(localStorage.getItem(MINUTES_KEY));
+    return (LOCK_DELAYS as readonly number[]).includes(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+};
+
+export const saveLockMinutes = (minutes: number): void => {
+  try {
+    localStorage.setItem(MINUTES_KEY, String(minutes));
+  } catch {
+    // the default (ask on open) applies
+  }
+};
+
+/** True when the tab was hidden for at least the chosen number of minutes. */
+export const shouldRelock = (hiddenAt: number, now: number, minutes: number): boolean =>
+  minutes > 0 && now - hiddenAt >= minutes * 60_000;

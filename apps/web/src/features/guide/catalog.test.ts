@@ -40,7 +40,7 @@ function guideTargetsInSource(): Set<string> {
   }
   // Settings puts `settings.<section id>` on each of its sections.
   const settings = readFileSync(join(SRC, 'features', 'settings', 'SettingsPage.tsx'), 'utf8');
-  for (const match of settings.matchAll(/\bid: '([a-z]+)',\s*title:/g)) {
+  for (const match of settings.matchAll(/\bid: '([a-z]+)',\s*tile:/g)) {
     if (match[1]) found.add(`settings.${match[1]}`);
   }
   return found;

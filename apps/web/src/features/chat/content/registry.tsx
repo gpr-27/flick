@@ -10,12 +10,19 @@ import { ReloadButton, Spinner } from '@/components/ui';
 import { RemoteImage, VideoView } from '@/features/content/MediaViews';
 import { LinkPreviewCard } from '@/features/content/LinkPreviewCard';
 import { firstUrl } from '@/features/content/urls';
+import { RichTextCard } from '@/features/content/rich/RichCards';
+import { isRichText } from '@/features/content/rich/richMessages';
 import { PollView } from '@/features/content/polls/PollView';
+import { EventCard } from '@/features/productivity/EventCard';
+import { ChecklistView, ExpenseView, GameView } from '@/features/grouptools/cards';
 import { ViewOnce } from '@/features/content/ViewOnce';
 import { TapToDownload } from '@/features/settings/MediaGate';
 import { useMediaGate } from '@/features/settings/useMediaGate';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { VoicePlayer } from '@/features/content/voice/VoicePlayer';
+import { TranscriptView } from '@/features/translation/TranscriptView';
+import { DocPreview } from '@/features/docpreview/DocPreview';
+import { previewKindFor } from '@/features/docpreview/previewKind';
 import { RichText } from '@/features/content/richText/RichText';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { MentionText } from '../../organise/MentionViews';
@@ -48,15 +55,21 @@ const formatBytes = (n: number): string =>
 
 /** Past this many characters or lines a message starts collapsed behind "Read more". */
 const LONG_TEXT_CHARS = 600;
-const LONG_TEXT_LINES = 10;
+const LONG_TEXT_LINES = 12;
 export const isLongText = (text: string): boolean =>
   text.length > LONG_TEXT_CHARS || text.split('\n').length > LONG_TEXT_LINES;
+
+/** The collapsed start of a long text: at most 12 lines and 600 characters, so a 65,000-character message costs almost nothing to draw. */
+export const collapsedText = (text: string): string => {
+  const cut = text.split('\n', LONG_TEXT_LINES).join('\n').slice(0, LONG_TEXT_CHARS);
+  return `${cut.trimEnd()}…`;
+};
 
 const TextView = ({ content }: { content: Of<'text'> }) => {
   const users = useChatStore((s) => s.users);
   // "@flick" is the AI bot, which may not be in the user cache.
   const known = useMemo(
-    () => new Set(['flick', ...Object.values(users).map((u) => u.username)]),
+    () => new Set(['flick', 'everyone', ...Object.values(users).map((u) => u.username)]),
     [users],
   );
   const linkPreviews = useSettingsStore((s) => s.linkPreviews);
@@ -65,9 +78,9 @@ const TextView = ({ content }: { content: Of<'text'> }) => {
   const [expanded, setExpanded] = useState(false);
   return (
     <>
-      <div className={long && !expanded ? 'line-clamp-[10] overflow-hidden' : undefined}>
+      <div>
         <RichText
-          text={content.text}
+          text={long && !expanded ? collapsedText(content.text) : content.text}
           renderText={(part) => <MentionText text={part} known={known} />}
         />
       </div>
@@ -82,13 +95,28 @@ const TextView = ({ content }: { content: Of<'text'> }) => {
           {expanded ? 'Show less' : 'Read more'}
         </button>
       )}
-      {url && linkPreviews && <LinkPreviewCard url={url} />}
+      {url && linkPreviews && !content.no_preview && <LinkPreviewCard url={url} />}
     </>
   );
 };
 
 const text: ContentRenderer<'text'> = {
-  render: (c) => <TextView content={c} />,
+  render: (c, ctx) =>
+    isRichText(c.text) ? (
+      <RichTextCard
+        text={c.text}
+        isMine={ctx.message?.isMine ?? false}
+        conversationId={ctx.message?.conversationId}
+      />
+    ) : c.original_text && ctx.message?.isMine ? (
+      // "Send in <language>": the sender keeps seeing what they wrote.
+      <>
+        <TextView content={{ ...c, text: c.original_text }} />
+        <p className="mt-1 text-xs opacity-70">Sent in {c.translated_to ?? 'another language'}</p>
+      </>
+    ) : (
+      <TextView content={c} />
+    ),
   preview: (c) => c.text,
 };
 
@@ -119,7 +147,11 @@ const ImageView = ({ content, context }: { content: Of<'image'>; context: Conten
             width={content.width}
             height={content.height}
             style={box}
-            className="block h-auto max-h-80 w-auto max-w-[18rem] rounded-xl object-contain"
+            className={
+              content.sticker
+                ? 'block h-auto max-h-40 w-auto max-w-40 object-contain'
+                : 'block h-auto max-h-80 w-auto max-w-[18rem] rounded-xl object-contain'
+            }
           />
         </button>
       ) : (
@@ -148,13 +180,15 @@ const ImageView = ({ content, context }: { content: Of<'image'>; context: Conten
 
 const image: ContentRenderer<'image'> = {
   render: (c, context) => <ImageView content={c} context={context} />,
-  preview: (c) => (c.caption ? `Photo: ${c.caption}` : 'Photo'),
+  preview: (c) => (c.sticker ? 'Sticker' : c.caption ? `Photo: ${c.caption}` : 'Photo'),
 };
 
 // ── file ──────────────────────────────────────────────────────────────────
 
 const FileView = ({ content }: { content: Of<'file'> }) => {
   const [failed, setFailed] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const previewKind = previewKindFor(content.file_name);
   return (
     <div>
       <button
@@ -172,15 +206,36 @@ const FileView = ({ content }: { content: Of<'file'> }) => {
             },
           );
         }}
-        className="flex items-center gap-2 rounded-xl bg-black/10 px-3 py-2 text-left"
+        className="flex items-center gap-2 rounded-xl bg-[color-mix(in_srgb,currentColor_10%,transparent)] px-3 py-2 text-left"
         aria-label={`Download ${content.file_name}`}
       >
         <FileIcon className="size-5 shrink-0" aria-hidden="true" />
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold">{content.file_name}</span>
-          <span className="block text-xs opacity-70">{formatBytes(content.size)}</span>
+          <span className="block text-xs opacity-90">{formatBytes(content.size)}</span>
         </span>
       </button>
+      {previewKind && (
+        <button
+          type="button"
+          className="mt-1 text-xs font-semibold underline"
+          onClick={() => {
+            setPreviewing(true);
+          }}
+        >
+          Preview
+        </button>
+      )}
+      {previewing && previewKind && (
+        <DocPreview
+          attachmentId={content.attachment_id}
+          fileName={content.file_name}
+          kind={previewKind}
+          onClose={() => {
+            setPreviewing(false);
+          }}
+        />
+      )}
       {failed && (
         <p role="alert" className="mt-1 text-xs">
           Couldn&apos;t get this file. Tap the file to try again with a fresh link.
@@ -203,20 +258,37 @@ const file: ContentRenderer<'file'> = {
 // ── video, voice, gif, sticker, poll ─────────────────────────────────────
 
 const video: ContentRenderer<'video'> = {
-  render: (c) => (
-    <VideoView
-      attachmentId={c.attachment_id}
-      width={c.width}
-      height={c.height}
-      caption={c.caption}
-    />
+  render: (c, ctx) => (
+    <>
+      <VideoView
+        attachmentId={c.attachment_id}
+        width={c.width}
+        height={c.height}
+        caption={c.caption}
+        round={c.round}
+      />
+      {/* Subtitles from the stored transcript, in my language when the chat is translated for me. */}
+      <TranscriptView
+        attachmentId={c.attachment_id}
+        conversationId={ctx.message?.conversationId}
+        className="mt-1 max-w-[18rem]"
+      />
+    </>
   ),
-  preview: (c) => (c.caption ? `Video: ${c.caption}` : 'Video'),
+  preview: (c) => (c.round ? 'Video note' : c.caption ? `Video: ${c.caption}` : 'Video'),
 };
 
 const voice: ContentRenderer<'voice'> = {
-  render: (c) => (
-    <VoicePlayer attachmentId={c.attachment_id} durationMs={c.duration_ms} waveform={c.waveform} />
+  render: (c, ctx) => (
+    <>
+      {c.voicemail && <p className="mb-1 text-xs font-semibold opacity-80">Voicemail</p>}
+      <VoicePlayer
+        attachmentId={c.attachment_id}
+        durationMs={c.duration_ms}
+        waveform={c.waveform}
+        conversationId={ctx.message?.conversationId}
+      />
+    </>
   ),
   preview: () => 'Voice message',
 };
@@ -240,9 +312,40 @@ const poll: ContentRenderer<'poll'> = {
         poll={c}
         conversationId={context.message.conversationId}
         messageId={context.message.id}
+        isMine={context.message.isMine}
       />
     ) : null,
   preview: (c) => `Poll: ${c.question}`,
+};
+
+const event: ContentRenderer<'event'> = {
+  render: (c, context) => (
+    <EventCard
+      title={c.title}
+      startsAt={c.starts_at}
+      place={c.place}
+      messageId={context.message?.id}
+    />
+  ),
+  preview: (c) => `Event: ${c.title}`,
+};
+
+const cardOf = (context: ContentContext) =>
+  context.message && { id: context.message.id, conversationId: context.message.conversationId };
+
+const checklist: ContentRenderer<'checklist'> = {
+  render: (c, context) => <ChecklistView card={c} message={cardOf(context)} />,
+  preview: (c) => `Checklist: ${c.title}`,
+};
+
+const expense: ContentRenderer<'expense'> = {
+  render: (c) => <ExpenseView card={c} />,
+  preview: (c) => `Expense: ${c.description}`,
+};
+
+const game: ContentRenderer<'game'> = {
+  render: (c, context) => <GameView card={c} message={cardOf(context)} />,
+  preview: (c) => (c.game === 'tictactoe' ? 'Game: tic-tac-toe' : 'Game: would you rather'),
 };
 
 // ── written by the server ─────────────────────────────────────────────────
@@ -320,6 +423,10 @@ const registry: Registry = {
   poll,
   system,
   call_event: callEvent,
+  checklist,
+  expense,
+  game,
+  event,
 };
 
 const VIEW_ONCE_NOUN: Partial<Record<ContentType, string>> = {

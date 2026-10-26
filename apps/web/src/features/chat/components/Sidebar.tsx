@@ -1,5 +1,5 @@
 import { InstallCard } from '@/pwa/InstallCard';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
   Archive,
   Bookmark,
@@ -14,7 +14,7 @@ import {
   Pin,
 } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
-import { EmptyState, ErrorState, Input, cn } from '@/components/ui';
+import { EmptyState, ErrorState, Input, cn, type PopoverMenuItem } from '@/components/ui';
 import { isFlickChat } from '@/features/ai/isFlickBot';
 import { WelcomeCard } from '@/features/guide/WelcomeCard';
 import { useFeatureGuide, useFeatureGuides } from '@/features/guide/useFeatureGuide';
@@ -22,7 +22,13 @@ import { markUsed } from '@/features/guide/useGuideStore';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { CHAT_TABS, visibleChats, type ChatTab, type ChatView } from '../../organise/chatFilters';
 import { StarredPanel } from '../../organise/StarredPanel';
+import { useNavigate } from 'react-router-dom';
 import { SearchPanel } from '../../search/SearchPanel';
+import { ListTabs } from '../../lists/ListTabs';
+import { needsReply } from '../../understand/heuristics';
+import { isSnoozed, useSnoozes } from '../../understand/snooze';
+import { GlobalSearchResults } from '../../lists/GlobalSearchResults';
+import { useChatLists } from '../../lists/useChatLists';
 import { RemindersDialog } from '@/features/reminders/RemindersDialog';
 import { useLoadReminders } from '@/features/reminders/useLoadReminders';
 import { ScheduledDialog } from '@/features/scheduled/ScheduledDialog';
@@ -34,13 +40,21 @@ import { NewChatModal, NewGroupModal } from './NewChatModals';
 import { ChatListMenu } from '../../notifications/ChatListMenu';
 import { PushPrompt } from '../../notifications/PushPrompt';
 import { SidebarSkeleton } from './SidebarSkeleton';
+import { DigestCard } from '@/features/productivity/DigestCard';
 import { ChatRow } from '../../chatlist/ChatRow';
+import { HiddenChatsRow } from '../../platform/HiddenChatsVault';
+import { useVaultOn } from '../../platform/useVaultOn';
 import { RowMenu } from '../../chatlist/RowMenu';
 import { SelectionBar } from '../../chatlist/SelectionBar';
 import { clearMarkedUnreadOnOpen, type ActionId } from '../../chatlist/rowActions';
 import { useChatActions } from '../../chatlist/useChatActions';
 import { useOpenRow } from '../../chatlist/useOpenRow';
 import { useSelection } from '../../chatlist/useSelection';
+
+// The header buttons all share one size: 36px on laptops, 40px (a bigger touch target) on phones.
+const HEADER_BUTTON =
+  'btn btn-circle btn-ghost btn-sm size-9 min-h-0 text-base-content hover:bg-[var(--bg-hover,oklch(var(--bc)/0.06))] hover:text-primary max-sm:size-10';
+const HEADER_MENU_TRIGGER = 'size-9 min-h-0 max-sm:size-10';
 
 /** "Saved messages" (notes to yourself): always the first row; the chat is created on first tap. */
 const SavedRow = ({
@@ -61,7 +75,7 @@ const SavedRow = ({
   const myName = useSessionStore((s) => s.user?.display_name);
   const selfTitle = myName ? `${myName} (You)` : SAVED_TITLE;
   return (
-    <div className="group relative mb-2">
+    <div className="group relative">
       <button
         type="button"
         data-guide="saved-row"
@@ -76,13 +90,13 @@ const SavedRow = ({
           setMenu(true);
         }}
         className={cn(
-          'flex min-h-[64px] w-full items-center gap-3 rounded-2xl border p-2.5 text-left outline-none backdrop-blur-md transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary/50',
+          'flex min-h-[72px] w-full items-center gap-3 px-4 py-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50',
           isActive
-            ? 'border-primary/40 bg-primary/10 ring-1 ring-primary/30'
-            : 'border-base-content/10 bg-base-100/70 hover:bg-base-100',
+            ? 'bg-[var(--bg-active,oklch(var(--p)/0.1))]'
+            : 'bg-base-100 hover:bg-[var(--bg-hover,oklch(var(--bc)/0.05))]',
         )}
       >
-        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+        <span className="grid size-[52px] shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
           <Bookmark className="size-6" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
@@ -90,7 +104,7 @@ const SavedRow = ({
             <span className="truncate">{selfTitle}</span>
             <Pin className="size-4 shrink-0 text-primary" aria-label="Pinned" role="img" />
           </span>
-          <span className="block truncate text-sm text-base-content/60">
+          <span className="block truncate text-sm text-[var(--text-2,oklch(var(--bc)/0.65))]">
             {last ? previewContent(last.content) : 'Message yourself'}
           </span>
         </span>
@@ -104,7 +118,7 @@ const SavedRow = ({
           onClick={() => {
             setMenu(true);
           }}
-          className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-base-100/90 text-base-content/70 opacity-0 shadow transition-opacity hover:text-primary group-hover:opacity-100 [@media(hover:none)]:hidden"
+          className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-base-100 text-[var(--text-2,oklch(var(--bc)/0.65))] opacity-0 shadow-md ring-1 ring-base-content/10 transition-opacity hover:text-primary group-hover:opacity-100 [@media(hover:none)]:hidden"
         >
           <MoreVertical className="size-5" />
         </button>
@@ -141,6 +155,11 @@ export const Sidebar = () => {
   const [newGroup, setNewGroup] = useState(false);
   const [tab, setTab] = useState<ChatTab>('all');
   const [view, setView] = useState<ChatView>('chats');
+  const [listId, setListId] = useState<string | null>(null);
+  const [onlyNeedsReply, setOnlyNeedsReply] = useState(false);
+  const snoozes = useSnoozes((s) => s.until);
+  const lists = useChatLists((s) => s.lists);
+  const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
   const [starredOpen, setStarredOpen] = useState(false);
   const [scheduledOpen, setScheduledOpen] = useState(false);
@@ -173,17 +192,30 @@ export const Sidebar = () => {
     () => Object.values(conversations).find((c) => c.is_saved),
     [conversations],
   );
+  const vaultOn = useVaultOn();
   const all = useMemo(
-    () => Object.values(conversations).filter((c) => !c.is_saved),
-    [conversations],
+    () => Object.values(conversations).filter((c) => !c.is_saved && !(vaultOn && c.prefs.locked)),
+    [conversations, vaultOn],
+  );
+  const hiddenChats = useMemo(
+    () =>
+      vaultOn ? Object.values(conversations).filter((c) => !c.is_saved && c.prefs.locked) : [],
+    [conversations, vaultOn],
   );
   const archivedCount = useMemo(() => all.filter((c) => c.prefs.archived).length, [all]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return visibleChats(all, tab, view).filter((c) =>
-      conversationTitle(c).toLowerCase().includes(q),
-    );
-  }, [all, tab, view, search]);
+    const list = lists.find((l) => l.id === listId);
+    return visibleChats(all, tab, view)
+      .filter((c) => !list || list.conversation_ids.includes(c.id))
+      .filter((c) => !isSnoozed(snoozes, c.id) || c.id === selectedId)
+      .filter((c) => !onlyNeedsReply || needsReply(c, myId))
+      .filter((c) => conversationTitle(c).toLowerCase().includes(q));
+  }, [all, tab, view, search, lists, listId, snoozes, onlyNeedsReply, myId, selectedId]);
+  const needsReplyCount = useMemo(
+    () => all.filter((c) => needsReply(c, myId) && !isSnoozed(snoozes, c.id)).length,
+    [all, myId, snoozes],
+  );
   const showSaved =
     view === 'chats' &&
     tab === 'all' &&
@@ -208,6 +240,50 @@ export const Sidebar = () => {
   useEffect(() => {
     if (hasGroup) markUsed('group.create');
   }, [hasGroup]);
+
+  const headerIcon = (Icon: typeof Star): ReactNode => (
+    <Icon className="size-5" aria-hidden="true" />
+  );
+  const phoneItems: PopoverMenuItem[] = [
+    {
+      label: 'Starred messages',
+      icon: headerIcon(Star),
+      onClick: () => {
+        markUsed('chat.starred');
+        setStarredOpen(true);
+      },
+    },
+    {
+      label: 'Scheduled messages',
+      icon: headerIcon(CalendarClock),
+      onClick: () => {
+        markUsed('scheduled.list');
+        setScheduledOpen(true);
+      },
+    },
+    {
+      label: 'Reminders',
+      icon: headerIcon(AlarmClock),
+      onClick: () => {
+        setRemindersOpen(true);
+      },
+    },
+    {
+      label: 'Calendar',
+      icon: headerIcon(CalendarClock),
+      onClick: () => {
+        navigate('/calendar');
+      },
+    },
+    {
+      label: 'New group',
+      icon: headerIcon(UsersRound),
+      onClick: () => {
+        markUsed('group.create');
+        setNewGroup(true);
+      },
+    },
+  ];
 
   if (listStatus === 'idle' || (listStatus === 'loading' && all.length === 0)) {
     return <SidebarSkeleton />;
@@ -258,19 +334,21 @@ export const Sidebar = () => {
 
   return (
     <aside
-      className="glass flex h-full w-full flex-col border-r border-base-content/10"
+      className="flex h-full w-full flex-col border-r border-base-content/10 bg-base-100"
       aria-label="Conversations"
       data-guide="chat-list"
     >
       <InstallCard />
       <WelcomeCard />
-      <div className="space-y-3 border-b border-base-content/10 p-4">
+      <div className="space-y-3 px-4 pb-2 pt-3 sm:px-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold tracking-tight">Chats</h2>
-          <div className="flex gap-1">
+          <h2 className="font-display text-[22px] font-bold leading-7 tracking-tight">Chats</h2>
+          {/* Same-size round buttons, evenly spaced. On phones only search, new chat and "⋮" stay;
+              starred, scheduled, reminders and new group move into the "⋮" menu. */}
+          <div className="flex items-center gap-0.5 max-sm:gap-1">
             <button
               type="button"
-              className="btn btn-circle btn-ghost btn-sm"
+              className={HEADER_BUTTON}
               aria-label="Search messages"
               title="Search messages"
               data-guide="search.messages"
@@ -283,7 +361,7 @@ export const Sidebar = () => {
             </button>
             <button
               type="button"
-              className="btn btn-circle btn-ghost btn-sm"
+              className={cn(HEADER_BUTTON, 'max-sm:hidden')}
               aria-label="Starred messages"
               title="Starred messages"
               data-guide="starred.open"
@@ -296,7 +374,7 @@ export const Sidebar = () => {
             </button>
             <button
               type="button"
-              className="btn btn-circle btn-ghost btn-sm"
+              className={cn(HEADER_BUTTON, 'max-sm:hidden')}
               aria-label="Scheduled messages"
               title="Scheduled messages"
               data-guide="scheduled.open"
@@ -309,7 +387,7 @@ export const Sidebar = () => {
             </button>
             <button
               type="button"
-              className="btn btn-circle btn-ghost btn-sm"
+              className={cn(HEADER_BUTTON, 'max-sm:hidden')}
               aria-label="Reminders"
               title="Reminders"
               onClick={() => {
@@ -320,7 +398,7 @@ export const Sidebar = () => {
             </button>
             <button
               type="button"
-              className="btn btn-circle btn-ghost btn-sm"
+              className={HEADER_BUTTON}
               aria-label="New chat"
               title="New chat"
               data-guide="new-chat"
@@ -333,7 +411,7 @@ export const Sidebar = () => {
             </button>
             <button
               type="button"
-              className="btn btn-circle btn-ghost btn-sm"
+              className={cn(HEADER_BUTTON, 'max-sm:hidden')}
               aria-label="New group"
               title="New group"
               data-guide="new-group"
@@ -345,6 +423,8 @@ export const Sidebar = () => {
               <UsersRound className="size-5" aria-hidden="true" />
             </button>
             <ChatListMenu
+              triggerClassName={HEADER_MENU_TRIGGER}
+              phoneItems={phoneItems}
               onSelectChats={() => {
                 useSelection.getState().begin();
               }}
@@ -388,7 +468,7 @@ export const Sidebar = () => {
           role="tablist"
           aria-label="Filter chats"
           data-guide="chat-list.tabs"
-          className="flex gap-1 px-3 pt-2"
+          className="scroll-slim flex gap-2 overflow-x-auto px-4 pb-2 pt-1 sm:px-5"
         >
           {CHAT_TABS.map((t) => (
             <button
@@ -400,8 +480,10 @@ export const Sidebar = () => {
                 setTab(t.id);
               }}
               className={cn(
-                'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                tab === t.id ? 'bg-primary text-primary-content' : 'hover:bg-base-content/5',
+                'h-8 shrink-0 rounded-full px-3.5 text-sm font-medium transition-colors',
+                tab === t.id
+                  ? 'bg-primary text-primary-content'
+                  : 'bg-[var(--bg-sunken,oklch(var(--b3)))] text-[var(--text-2,oklch(var(--bc)/0.7))] hover:bg-[var(--bg-hover,oklch(var(--bc)/0.08))]',
               )}
             >
               {t.label}
@@ -422,18 +504,39 @@ export const Sidebar = () => {
           <h3 className="text-sm font-semibold">Archived</h3>
         </div>
       )}
+      {view === 'chats' && <ListTabs value={listId} onChange={setListId} />}
+      {view === 'chats' && (needsReplyCount > 0 || onlyNeedsReply) && (
+        <div className="px-4 pb-1 sm:px-5">
+          <button
+            type="button"
+            aria-pressed={onlyNeedsReply}
+            onClick={() => {
+              setOnlyNeedsReply((v) => !v);
+            }}
+            className={cn(
+              'h-8 rounded-full px-3.5 text-sm font-medium transition-colors',
+              onlyNeedsReply
+                ? 'bg-primary text-primary-content'
+                : 'bg-[var(--bg-sunken,oklch(var(--b3)))] text-[var(--text-2,oklch(var(--bc)/0.7))] hover:bg-[var(--bg-hover,oklch(var(--bc)/0.08))]',
+            )}
+          >
+            Needs reply · {needsReplyCount}
+          </button>
+        </div>
+      )}
 
       <div
-        className="scroll-slim flex-1 overflow-y-auto p-2"
+        className="scroll-slim flex-1 overflow-y-auto pb-2"
         onScroll={() => {
           useOpenRow.getState().close();
         }}
       >
+        {view === 'chats' && !search && <DigestCard onOpenChat={select} />}
         {view === 'chats' && archivedCount > 0 && (
           <button
             type="button"
             aria-label={`Archived (${archivedCount})`}
-            className="mb-2 flex min-h-[44px] w-full items-center gap-3 rounded-2xl border border-base-content/10 bg-base-100/70 p-2.5 text-left text-sm font-semibold backdrop-blur-md hover:bg-base-100"
+            className="flex min-h-[56px] w-full items-center gap-3 bg-base-100 px-4 py-2.5 text-left text-[15px] font-medium hover:bg-[var(--bg-hover,oklch(var(--bc)/0.05))]"
             onClick={() => {
               setView('archived');
             }}
@@ -442,10 +545,16 @@ export const Sidebar = () => {
             <span className="flex-1" aria-hidden="true">
               Archived
             </span>
-            <span className="text-base-content/60" aria-hidden="true">
+            <span
+              className="text-sm tabular-nums text-[var(--text-2,oklch(var(--bc)/0.65))]"
+              aria-hidden="true"
+            >
               {archivedCount}
             </span>
           </button>
+        )}
+        {view === 'chats' && (
+          <HiddenChatsRow chats={hiddenChats} onOpen={select} titleOf={conversationTitle} />
         )}
         {showSaved && (
           <SavedRow conversation={saved} isActive={saved?.id === selectedId} onAction={run} />
@@ -496,6 +605,7 @@ export const Sidebar = () => {
             ))}
           </ul>
         )}
+        <GlobalSearchResults query={search} chats={filtered} onOpenChat={select} />
       </div>
 
       <SearchPanel

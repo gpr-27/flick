@@ -73,12 +73,28 @@ export interface MentionAutocomplete {
   idsIn: (text: string) => string[];
 }
 
-export const useMentionAutocomplete = (conversationId: string): MentionAutocomplete => {
+/** "@everyone" in a group: offered in the list, and mentions every member (which notifies them all). */
+export const EVERYONE_ID = 'everyone';
+export const EVERYONE: UserSummary = {
+  id: EVERYONE_ID,
+  username: 'everyone',
+  display_name: 'Everyone',
+  avatar_url: null,
+  is_bot: false,
+};
+const EVERYONE_IN_TEXT = /(^|\s)@everyone(?![a-zA-Z0-9_.])/i;
+
+export const useMentionAutocomplete = (
+  conversationId: string,
+  isGroup = false,
+): MentionAutocomplete => {
   const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
   const [items, setItems] = useState<UserSummary[]>([]);
   const [active, setActive] = useState(0);
   const chosen = useRef(new Map<string, UserSummary>());
   const latest = useRef(0);
+  // The ids of all members, loaded once "@everyone" is in the text.
+  const everyoneIds = useRef<string[] | null>(null);
 
   const close = useCallback(() => {
     latest.current += 1; // drops an answer that is still on its way
@@ -88,6 +104,20 @@ export const useMentionAutocomplete = (conversationId: string): MentionAutocompl
 
   const update = useCallback(
     (text: string, caret: number) => {
+      if (isGroup && everyoneIds.current === null && EVERYONE_IN_TEXT.test(text)) {
+        everyoneIds.current = [];
+        getApi()
+          .call(ENDPOINTS.conversations.mentionCandidates, {
+            params: { conversation_id: conversationId },
+            query: { q: '', limit: 100 },
+          })
+          .then((res) => {
+            everyoneIds.current = res.items.filter((u) => !u.is_bot).map((u) => u.id);
+          })
+          .catch(() => {
+            everyoneIds.current = null;
+          });
+      }
       const found = findMention(text, caret);
       if (!found) {
         close();
@@ -102,13 +132,14 @@ export const useMentionAutocomplete = (conversationId: string): MentionAutocompl
           query: { q: found.query, limit: 8 },
         })
         .then((res) => {
-          if (ticket === latest.current) setItems(res.items);
+          const everyone = isGroup && 'everyone'.startsWith(found.query.toLowerCase());
+          if (ticket === latest.current) setItems(everyone ? [EVERYONE, ...res.items] : res.items);
         })
         .catch(() => {
           if (ticket === latest.current) setItems([]);
         });
     },
-    [conversationId, close],
+    [conversationId, isGroup, close],
   );
 
   const choose = useCallback(
@@ -145,13 +176,13 @@ export const useMentionAutocomplete = (conversationId: string): MentionAutocompl
     return false;
   };
 
-  const idsIn = useCallback(
-    (text: string) =>
-      [...chosen.current.values()]
-        .filter((u) => text.toLowerCase().includes(`@${u.username}`))
-        .map((u) => u.id),
-    [],
-  );
+  const idsIn = useCallback((text: string) => {
+    const picked = [...chosen.current.values()]
+      .filter((u) => u.id !== EVERYONE_ID && text.toLowerCase().includes(`@${u.username}`))
+      .map((u) => u.id);
+    if (!EVERYONE_IN_TEXT.test(text)) return picked;
+    return [...new Set([...picked, ...(everyoneIds.current ?? [])])].slice(0, 256);
+  }, []);
 
   return { items, active, open, update, onKeyDown, choose, idsIn };
 };

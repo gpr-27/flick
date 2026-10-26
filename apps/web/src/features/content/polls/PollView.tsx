@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { z } from 'zod';
 import { ENDPOINTS, type MessageContent } from '@chat/contracts';
-import type { PollTally as PollTallySchema } from '@chat/contracts';
 import { cn, notify } from '@/components/ui';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
+import { saveBlob } from '@/features/settings/exportData';
+import { useChatStore, userName } from '@/features/chat/useChatStore';
 import { nextChoice } from './nextChoice';
+import { isPollClosed, pollCsv } from './pollExport';
+import type { PollTally } from './pollTypes';
 
-type PollTally = z.infer<typeof PollTallySchema>;
 type Poll = Extract<MessageContent, { type: 'poll' }>;
 
 /** No vote event exists yet, so open polls re-read the tally now and then (see the report). */
@@ -18,17 +19,36 @@ export const PollView = ({
   poll,
   conversationId,
   messageId,
+  isMine = false,
 }: {
   poll: Poll;
   conversationId: string;
   messageId: string;
+  isMine?: boolean;
 }) => {
   const myId = useSessionStore((s) => s.user?.id);
   const sent = !messageId.startsWith('local:'); // still in the outbox: nothing to vote on yet
   const [tally, setTally] = useState<PollTally | null>(null);
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const closesAt = tally?.closes_at ?? poll.closes_at;
+  const closed = isPollClosed(closesAt, now);
 
   const params = { conversation_id: conversationId, message_id: messageId };
+
+  // Flip to "Closed" at the closing time without waiting for the next refresh.
+  useEffect(() => {
+    if (!closesAt || closed) return;
+    const timer = setTimeout(
+      () => {
+        setNow(Date.now());
+      },
+      Math.min(new Date(closesAt).getTime() - Date.now() + 500, 2_000_000_000),
+    );
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [closesAt, closed]);
 
   useEffect(() => {
     if (!sent) return;
@@ -59,7 +79,7 @@ export const PollView = ({
   const voters = new Set(options.flatMap((o) => o.voter_ids)).size;
 
   const vote = async (index: number): Promise<void> => {
-    if (!sent || busy) return;
+    if (!sent || busy || closed) return;
     setBusy(true);
     try {
       setTally(
@@ -75,11 +95,27 @@ export const PollView = ({
     }
   };
 
+  const exportResults = (): void => {
+    const users = useChatStore.getState().users;
+    const csv = pollCsv(
+      tally ?? {
+        message_id: messageId,
+        question: poll.question,
+        allow_multiple: poll.allow_multiple,
+        closes_at: closesAt,
+        options,
+      },
+      (id) => userName(users, id),
+    );
+    saveBlob(new Blob([csv], { type: 'text/csv' }), 'poll-results.csv');
+  };
+
   return (
     <div className="w-64">
       <p className="mb-1 font-semibold">{poll.question}</p>
       <p className="mb-2 text-xs opacity-70">
-        {poll.allow_multiple ? 'Select one or more' : 'Select one'}
+        {closed ? 'Closed' : poll.allow_multiple ? 'Select one or more' : 'Select one'}
+        {!closed && closesAt && ` · closes ${new Date(closesAt).toLocaleString()}`}
       </p>
       <ul className="space-y-1.5">
         {options.map((option) => {
@@ -90,7 +126,7 @@ export const PollView = ({
               <button
                 type="button"
                 onClick={() => void vote(option.index)}
-                disabled={!sent || busy}
+                disabled={!sent || busy || closed}
                 aria-pressed={chosen}
                 aria-label={`${option.text}, ${count} ${count === 1 ? 'vote' : 'votes'}${chosen ? ', your choice' : ''}`}
                 className={cn(
@@ -115,6 +151,11 @@ export const PollView = ({
       <p className="mt-1.5 text-xs opacity-70">
         {voters} {voters === 1 ? 'voter' : 'voters'}
       </p>
+      {isMine && sent && (
+        <button type="button" className="btn btn-ghost btn-xs mt-1" onClick={exportResults}>
+          Export results
+        </button>
+      )}
     </div>
   );
 };

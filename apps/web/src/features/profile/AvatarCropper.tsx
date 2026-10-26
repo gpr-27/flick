@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from '@/components/ui';
+import { decodeImage } from './decodeImage';
 import { MAX_ZOOM, cropToSquare, drawCrop, type CropView } from './avatarCrop';
 
 const PREVIEW = 256;
@@ -19,7 +20,7 @@ export const AvatarCropper = ({
     open={file !== null}
     onClose={onCancel}
     labelledBy="crop-title"
-    className="glass-card mx-4 w-full max-w-sm space-y-3 rounded-3xl p-6 animate-scale-in"
+    className="surface-raised mx-4 w-full max-w-sm space-y-3 rounded-2xl p-6 animate-scale-in"
   >
     {/* Mounted only while open, so every photo starts with a fresh view. */}
     {file && <CropBody file={file} onCancel={onCancel} onDone={onDone} />}
@@ -36,23 +37,25 @@ const CropBody = ({
   onDone: (blob: Blob) => void;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [image, setImage] = useState<HTMLCanvasElement | null>(null);
   const [view, setView] = useState<CropView>({ zoom: 1, panX: 0, panY: 0 });
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
 
-  // Load the picked file as an image.
+  // Decode the picked file: any format the browser can open, upright, at a sensible size.
   useEffect(() => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      setImage(img);
-    };
-    img.onerror = () => {
-      setFailed(true);
-    };
-    img.src = url;
+    let cancelled = false;
+    decodeImage(file).then(
+      (canvas) => {
+        if (!cancelled) setImage(canvas);
+      },
+      (error: unknown) => {
+        if (!cancelled)
+          setFailed(error instanceof Error ? error.message : 'That file could not be read.');
+      },
+    );
     return () => {
-      URL.revokeObjectURL(url);
+      cancelled = true;
     };
   }, [file]);
 
@@ -81,12 +84,12 @@ const CropBody = ({
 
   return (
     <>
-      <h2 id="crop-title" className="font-display text-lg font-bold">
+      <h2 id="crop-title" className="text-lg font-semibold">
         Crop your photo
       </h2>
-      {failed ? (
+      {failed !== null ? (
         <p role="alert" className="text-sm text-error">
-          That file could not be read as a picture.
+          {failed}
         </p>
       ) : (
         <canvas
@@ -96,6 +99,11 @@ const CropBody = ({
           aria-label="Photo preview"
           className="mx-auto size-64 rounded-full bg-base-content/10"
         />
+      )}
+      {saveFailed && (
+        <p role="alert" className="text-sm text-error">
+          The photo could not be prepared. Try another one.
+        </p>
       )}
       {slider('Zoom', 'zoom', 1, MAX_ZOOM, 0.05)}
       {slider('Left / right', 'panX', -1, 1, 0.05)}
@@ -109,7 +117,12 @@ const CropBody = ({
           className="btn btn-primary min-h-[44px] rounded-2xl"
           disabled={!image}
           onClick={() => {
-            if (image) void cropToSquare(image, view).then(onDone);
+            if (image) {
+              setSaveFailed(false);
+              cropToSquare(image, view).then(onDone, () => {
+                setSaveFailed(true);
+              });
+            }
           }}
         >
           Use photo

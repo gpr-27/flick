@@ -12,6 +12,7 @@ import { useChatStore, userName } from '../chat/useChatStore';
 import { useJumpStore } from '../organise/jump';
 import { useLockStore } from '../organise/lock';
 import { Snippet } from './Snippet';
+import { MEDIA, filterParams, type SearchFilters } from './searchFilters';
 
 type Hit = z.infer<typeof SearchHitSchema>;
 
@@ -34,6 +35,7 @@ export const SearchPanel = ({
   const [cursor, setCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [error, setError] = useState('');
+  const [filters, setFilters] = useState<SearchFilters>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const conversations = useChatStore((s) => s.conversations);
   const users = useChatStore((s) => s.users);
@@ -46,6 +48,7 @@ export const SearchPanel = ({
         query: {
           q,
           ...(conversationId ? { conversation_id: conversationId } : {}),
+          ...filterParams(filters),
           ...(after ? { cursor: after } : {}),
         },
       });
@@ -71,6 +74,7 @@ export const SearchPanel = ({
     setHits([]);
     setCursor(null);
     setStatus('idle');
+    setFilters({});
     onClose();
   };
 
@@ -117,6 +121,72 @@ export const SearchPanel = ({
           Search
         </button>
       </form>
+
+      <div
+        className="mb-3 flex flex-wrap items-center gap-1 text-xs"
+        aria-label="Filters"
+        role="group"
+      >
+        {MEDIA.map((m) => (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={filters.media === m}
+            className={`rounded-full px-3 py-1 font-semibold capitalize ${filters.media === m ? 'bg-primary text-primary-content' : 'bg-base-content/5'}`}
+            onClick={() => {
+              setFilters((f) => ({ ...f, media: f.media === m ? undefined : m }));
+            }}
+          >
+            {m}
+          </button>
+        ))}
+        {(['starred', 'pinned'] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            aria-pressed={Boolean(filters[k])}
+            className={`rounded-full px-3 py-1 font-semibold capitalize ${filters[k] ? 'bg-primary text-primary-content' : 'bg-base-content/5'}`}
+            onClick={() => {
+              setFilters((f) => ({ ...f, [k]: !f[k] }));
+            }}
+          >
+            {k}
+          </button>
+        ))}
+        <select
+          aria-label="From person"
+          className="select select-xs"
+          value={filters.sender ?? ''}
+          onChange={(e) => {
+            setFilters((f) => ({ ...f, sender: e.target.value || undefined }));
+          }}
+        >
+          <option value="">Anyone</option>
+          {Object.keys(users).map((id) => (
+            <option key={id} value={id}>
+              {userName(users, id)}
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          aria-label="From date"
+          className="input input-xs"
+          value={filters.from ?? ''}
+          onChange={(e) => {
+            setFilters((f) => ({ ...f, from: e.target.value || undefined }));
+          }}
+        />
+        <input
+          type="date"
+          aria-label="To date"
+          className="input input-xs"
+          value={filters.to ?? ''}
+          onChange={(e) => {
+            setFilters((f) => ({ ...f, to: e.target.value || undefined }));
+          }}
+        />
+      </div>
 
       <div className="scroll-slim min-h-0 flex-1 overflow-y-auto" aria-live="polite">
         {status === 'error' && (

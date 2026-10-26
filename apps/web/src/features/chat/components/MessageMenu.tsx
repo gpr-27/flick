@@ -1,13 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   AlarmClock,
+  Bookmark,
   Copy,
+  Volume2,
   Flag,
   Forward,
   Info,
   Languages,
   CheckSquare,
+  History,
   Pencil,
+  StickyNote,
   Pin,
   PinOff,
   Reply,
@@ -17,6 +21,7 @@ import {
 import { Modal, cn } from '@/components/ui';
 import { useSheetSwipeDown } from '../gestures/useSheetSwipeDown';
 import { REACTIONS } from '../reactions';
+import { canReadAloud, isReading, toggleReadAloud } from '../../platform/readAloud';
 
 export interface MessageMenuProps {
   onClose: () => void;
@@ -37,11 +42,19 @@ export interface MessageMenuProps {
   onStar?: () => void;
   onEdit: () => void;
   onTranslate: () => void;
+  /** Shown only when given (photos, PDFs, files, voice notes): "Explain with Flick". */
+  onDescribe?: (() => void) | undefined;
   onReport: () => void;
   /** Shown only when given: delivered/read details for my own message. */
   onInfo?: () => void;
   /** Shown only when given: "Remind me" about this message. */
   onRemind?: () => void;
+  /** Shown only when given: "Bookmark…" into a named collection. */
+  onBookmark?: () => void;
+  /** Shown only when given: add or change my private note. */
+  onNote?: () => void;
+  /** Shown only when given: earlier versions of an edited message. */
+  onEditHistory?: () => void;
   onDelete: (scope: 'me' | 'everyone') => void;
 }
 
@@ -156,6 +169,16 @@ export const MessageMenu = (props: MessageMenuProps) => {
                   Copy
                 </Item>
               )}
+              {props.copyText !== null && canReadAloud() && (
+                <Item
+                  icon={<Volume2 className="size-5" />}
+                  onClick={run(() => {
+                    toggleReadAloud(props.copyText ?? '');
+                  })}
+                >
+                  {isReading() ? 'Stop reading' : 'Read aloud'}
+                </Item>
+              )}
               {props.onForward && (
                 <Item icon={<Forward className="size-5" />} onClick={run(props.onForward)}>
                   Forward
@@ -177,6 +200,11 @@ export const MessageMenu = (props: MessageMenuProps) => {
                   {props.starred ? 'Unstar' : 'Star'}
                 </Item>
               )}
+              {props.onBookmark && (
+                <Item icon={<Bookmark className="size-5" />} onClick={run(props.onBookmark)}>
+                  Bookmark…
+                </Item>
+              )}
               {props.onRemind && (
                 <Item icon={<AlarmClock className="size-5" />} onClick={run(props.onRemind)}>
                   Remind me
@@ -187,9 +215,24 @@ export const MessageMenu = (props: MessageMenuProps) => {
                   Translate
                 </Item>
               )}
+              {props.onDescribe && (
+                <Item icon={<Languages className="size-5" />} onClick={run(props.onDescribe)}>
+                  Explain with Flick
+                </Item>
+              )}
               {props.canEdit && (
                 <Item icon={<Pencil className="size-5" />} onClick={run(props.onEdit)}>
                   Edit
+                </Item>
+              )}
+              {props.onNote && (
+                <Item icon={<StickyNote className="size-5" />} onClick={run(props.onNote)}>
+                  Add note
+                </Item>
+              )}
+              {props.onEditHistory && (
+                <Item icon={<History className="size-5" />} onClick={run(props.onEditHistory)}>
+                  Edit history
                 </Item>
               )}
               {props.onInfo && (

@@ -50,7 +50,16 @@ if (!container) throw new Error(`#root element missing (env: ${config.env})`);
 
 createRoot(container).render(
   <StrictMode>
-    <ClerkProvider publishableKey={config.clerkPublishableKey}>
+    {/* Every sign-in / sign-up step stays inside Flick: without these URLs Clerk falls back to its
+        hosted Account Portal and asks the person to create a second account there. */}
+    <ClerkProvider
+      publishableKey={config.clerkPublishableKey}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/"
+      signUpFallbackRedirectUrl="/"
+      afterSignOutUrl="/"
+    >
       <BrowserRouter>
         <App />
       </BrowserRouter>

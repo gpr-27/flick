@@ -23,4 +23,16 @@ export const useOpenPendingConversation = (): void => {
     // Not in the list (left the chat, or a stale link): drop it rather than keep waiting.
     usePendingOpen.setState({ conversationId: null, messageId: null, seq: null });
   }, [pendingId, listStatus, known]);
+
+  // App shortcut "Saved messages" (PWA manifest) starts the app at /?saved=1.
+  useEffect(() => {
+    if (listStatus !== 'ready') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('saved') !== '1') return;
+    const saved = Object.values(useChatStore.getState().conversations).find((c) => c.is_saved);
+    if (saved) useChatStore.getState().select(saved.id);
+    params.delete('saved');
+    const rest = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : ''));
+  }, [listStatus]);
 };

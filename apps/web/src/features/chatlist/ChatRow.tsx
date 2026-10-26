@@ -15,16 +15,19 @@ import {
   Lock,
   MailOpen,
   MoreVertical,
+  Phone,
   Pin,
   PinOff,
   Star,
   Trash2,
+  Video,
   type LucideIcon,
 } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
 import { Avatar, Badge, cn, formatCount } from '@/components/ui';
 import { FlickAvatar, FlickBadge } from '@/features/ai/FlickBadge';
 import { isFlickChat } from '@/features/ai/isFlickBot';
+import { useCallStore } from '@/features/calls/useCallStore';
 import { markUsed } from '@/features/guide/useGuideStore';
 import { formatRelativeTime } from '@/lib/time';
 import { previewContent } from '../chat/content/registry';
@@ -35,6 +38,7 @@ import { useDraftStore } from '../organise/drafts';
 import { useIsHidden } from '../organise/lock';
 import { isMuted } from '../organise/prefs';
 import { PreviewIcon } from './previewIcon';
+import { TagDots } from '../lists/TagDots';
 import { RowMenu } from './RowMenu';
 import {
   actionIdsFor,
@@ -104,6 +108,13 @@ export const ChatRow = ({
   const bot = isFlickChat(c);
   const name = conversationTitle(c);
   const manualUnread = c.prefs.marked_unread && unread === 0;
+
+  const initiateCall = useCallStore((s) => s.initiateCall);
+  const callsDisabled = useCallStore((s) => s.callStatus !== 'idle');
+  // Phones get small call buttons at the end of a person-to-person row (not for Flick, your own
+  // notes or a locked chat).
+  const peer = c.peer;
+  const callable = c.type === 'direct' && Boolean(peer) && !bot && !c.is_saved && !hidden;
 
   const selecting = useSelection((s) => s.active);
   const ticked = useSelection((s) => s.ids.includes(c.id));
@@ -191,9 +202,9 @@ export const ChatRow = ({
       }}
       {...merged}
       style={{ touchAction: 'pan-y' }}
-      className="group relative mb-2 select-none rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+      className="group relative select-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50"
     >
-      <div className="relative overflow-hidden rounded-2xl">
+      <div className="relative overflow-hidden">
         {swipe.revealed && (
           <ActionStrip conversation={c} side={swipe.revealed} onAction={onAction} />
         )}
@@ -204,12 +215,13 @@ export const ChatRow = ({
             transition: motion ? 'transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none',
           }}
           className={cn(
-            'relative flex min-h-[64px] w-full cursor-pointer items-center gap-3 rounded-2xl border p-2.5 text-left shadow-sm backdrop-blur-md transition-colors duration-200',
-            moving ? 'bg-base-100' : 'bg-base-100/70',
+            'relative flex min-h-[72px] w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left transition-colors duration-150',
             isActive && !selecting
-              ? 'border-primary/40 bg-primary/10 ring-1 ring-primary/30'
-              : 'border-base-content/10 hover:bg-base-100',
-            ticked && 'border-primary/50 bg-primary/10',
+              ? 'bg-[var(--bg-active,oklch(var(--p)/0.1))]'
+              : moving
+                ? 'bg-base-100'
+                : 'bg-base-100 hover:bg-[var(--bg-hover,oklch(var(--bc)/0.05))]',
+            ticked && 'bg-[var(--bg-active,oklch(var(--p)/0.1))]',
           )}
         >
           {selecting && (
@@ -232,21 +244,24 @@ export const ChatRow = ({
           )}
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-baseline justify-between gap-2">
               <span
                 className={cn(
                   'flex min-w-0 items-center gap-1.5',
-                  unread > 0 || manualUnread ? 'font-bold' : 'font-semibold',
+                  unread > 0 || manualUnread ? 'text-base font-semibold' : 'text-base font-medium',
                 )}
               >
                 <span className="truncate">{name}</span>
+                <TagDots conversationId={c.id} />
                 {bot && <FlickBadge />}
               </span>
               {last && (
                 <span
                   className={cn(
-                    'shrink-0 text-[11px] font-medium',
-                    unread > 0 || manualUnread ? 'text-primary' : 'text-base-content/60',
+                    'shrink-0 text-xs tabular-nums',
+                    unread > 0 || manualUnread
+                      ? 'font-semibold text-primary-text'
+                      : 'text-[var(--text-2,oklch(var(--bc)/0.65))]',
                   )}
                 >
                   {formatRelativeTime(last.created_at)}
@@ -258,7 +273,7 @@ export const ChatRow = ({
               <span
                 className={cn(
                   'flex min-w-0 items-center gap-1 truncate text-sm',
-                  unread > 0 ? 'text-base-content/80' : 'text-base-content/60',
+                  unread > 0 ? 'text-base-content' : 'text-[var(--text-2,oklch(var(--bc)/0.65))]',
                 )}
               >
                 {hidden ? (
@@ -282,7 +297,7 @@ export const ChatRow = ({
                 )}
               </span>
 
-              <span className="flex shrink-0 items-center gap-1.5 text-base-content/50">
+              <span className="flex shrink-0 items-center gap-1.5 text-[var(--text-2,oklch(var(--bc)/0.65))]">
                 {muted && <BellOff className="size-3.5" aria-label="Muted" role="img" />}
                 {(c.prefs.pinned || bot) && (
                   <Pin className="size-3.5" aria-label="Pinned" role="img" />
@@ -310,6 +325,45 @@ export const ChatRow = ({
               </span>
             </div>
           </div>
+
+          {callable && peer && !selecting && (
+            // Phones only. Like the swipe buttons these are for pointer users: hidden from screen
+            // readers (a button inside a listbox option would break it; the chat header has the
+            // same calls) and out of the tab order. `data-swipe-action` keeps taps on them from
+            // being treated as a swipe or a row tap.
+            <span
+              aria-hidden="true"
+              data-swipe-action
+              className="flex shrink-0 items-center sm:hidden"
+            >
+              {(['audio', 'video'] as const).map((type) => (
+                <span
+                  key={type}
+                  data-testid={`row-${type}-call`}
+                  title={type === 'video' ? 'Video call' : 'Voice call'}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (callsDisabled) return;
+                    markUsed(type === 'video' ? 'calls.video' : 'calls.voice');
+                    void initiateCall(c.id, peer, type);
+                  }}
+                  className={cn(
+                    'grid size-10 cursor-pointer place-items-center rounded-full text-[var(--text-2,oklch(var(--bc)/0.65))] transition-colors hover:text-primary active:bg-primary/10',
+                    callsDisabled && 'pointer-events-none opacity-40',
+                  )}
+                >
+                  {type === 'video' ? (
+                    <Video className="size-[18px]" />
+                  ) : (
+                    <Phone className="size-[18px]" />
+                  )}
+                </span>
+              ))}
+            </span>
+          )}
         </div>
       </div>
 
@@ -323,7 +377,7 @@ export const ChatRow = ({
             setMenuOpen(true);
           }}
           className={cn(
-            'absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-base-100/90 text-base-content/70 opacity-0 shadow transition-opacity hover:text-primary',
+            'absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-base-100 text-[var(--text-2,oklch(var(--bc)/0.65))] opacity-0 shadow-md ring-1 ring-base-content/10 transition-opacity hover:text-primary',
             'group-hover:opacity-100 group-focus-visible:opacity-100',
             '[@media(hover:none)]:pointer-events-none [@media(hover:none)]:hidden',
             selecting && 'pointer-events-none hidden',

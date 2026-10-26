@@ -30,7 +30,7 @@ const Action = ({
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-semibold hover:bg-base-200 active:bg-base-200 disabled:opacity-40 ${danger ? 'text-error' : ''}`}
+    className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl bg-[var(--bg-sunken,oklch(var(--b3)))] px-2 py-3 text-xs font-medium hover:bg-[var(--bg-hover,oklch(var(--bc)/0.1))] disabled:opacity-40 ${danger ? 'text-error' : 'text-primary-text'}`}
   >
     <span aria-hidden="true">{icon}</span>
     {label}
@@ -130,7 +130,7 @@ export const ContactInfo = ({
         overlayClassName="items-end p-0 sm:items-center sm:p-4"
         className="w-full sm:max-w-sm"
       >
-        <div className="glass-card scroll-slim max-h-[90dvh] overflow-y-auto rounded-t-3xl p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:rounded-3xl">
+        <div className="scroll-slim bg-base-100 max-h-[90dvh] overflow-y-auto rounded-t-3xl p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:rounded-3xl">
           <div className="flex justify-end">
             <button
               type="button"
@@ -143,11 +143,20 @@ export const ContactInfo = ({
           </div>
           <div className="flex flex-col items-center gap-1 text-center">
             <Avatar src={shown?.avatar_url} name="" size="xl" online={Boolean(profile?.online)} />
-            <h2 id="contact-info-title" className="mt-2 font-display text-xl font-bold">
+            <h2
+              id="contact-info-title"
+              className="mt-3 font-display text-[22px] font-bold leading-7"
+            >
               {shown?.display_name ?? 'Profile'}
             </h2>
-            {shown && <p className="text-sm text-base-content/60">@{shown.username}</p>}
-            {presence && <p className="text-sm text-base-content/60">{presence}</p>}
+            {shown && (
+              <p className="text-sm text-[var(--text-2,oklch(var(--bc)/0.65))]">
+                @{shown.username}
+              </p>
+            )}
+            {presence && (
+              <p className="text-sm text-[var(--text-2,oklch(var(--bc)/0.65))]">{presence}</p>
+            )}
           </div>
 
           {error && !profile ? (
@@ -166,12 +175,14 @@ export const ContactInfo = ({
             <>
               {profile.about && (
                 <section className="mt-4" aria-label="About">
-                  <h3 className="text-sm font-semibold text-base-content/60">About</h3>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-2,oklch(var(--bc)/0.65))]">
+                    About
+                  </h3>
                   <p className="whitespace-pre-wrap break-words">{profile.about}</p>
                 </section>
               )}
               {!isMe && (
-                <div className="mt-5 grid grid-cols-3 gap-1">
+                <div className="mt-5 grid grid-cols-3 gap-2">
                   <Action
                     icon={<MessageCircle className="size-5" />}
                     label="Message"

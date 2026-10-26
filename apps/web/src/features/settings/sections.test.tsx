@@ -219,7 +219,11 @@ describe('Flick assistant', () => {
 
   it('the model-name switch is stored', async () => {
     setup();
-    render(<AiSection />);
+    render(
+      <MemoryRouter>
+        <AiSection />
+      </MemoryRouter>,
+    );
     await userEvent.click(screen.getByRole('switch', { name: 'Show the model name' }));
     expect(state().showModelName).toBe(false);
   });
@@ -227,7 +231,11 @@ describe('Flick assistant', () => {
   it('saves the language, and a bad one is not sent', async () => {
     const user = userEvent.setup();
     const api = setup();
-    render(<AiSection />);
+    render(
+      <MemoryRouter>
+        <AiSection />
+      </MemoryRouter>,
+    );
     const field = await screen.findByLabelText('Preferred reply language');
     await waitFor(() => {
       expect(field).toBeEnabled();
@@ -271,7 +279,11 @@ describe('Flick assistant', () => {
         },
       },
     });
-    render(<AiSection />);
+    render(
+      <MemoryRouter>
+        <AiSection />
+      </MemoryRouter>,
+    );
     await user.click(screen.getByRole('button', { name: 'Clear' }));
     expect(api.call).not.toHaveBeenCalledWith(ENDPOINTS.users.clearFlickChat);
     await user.click(screen.getByRole('button', { name: 'Clear chat' }));
@@ -378,6 +390,7 @@ describe('accessibility', () => {
     for (const button of container.querySelectorAll('button')) {
       expect(
         button.className.includes('min-h-[44px]') || button.className.includes('size-11'),
+        button.outerHTML.slice(0, 200),
       ).toBe(true);
     }
   });

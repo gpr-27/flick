@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConversationSummary } from '@chat/contracts';
 import { installFakePush, removeFakePush } from '../../../test/browserFakes';
-import { BOB, CONV, ME, makeMessage } from '../../../test/fakes';
+import { BOB, CONV, ME, installFakeServices, makeMessage } from '../../../test/fakes';
 import { notifyIncoming } from './notifyIncoming';
 
 const summary = (mutedUntil: string | null = null) =>
@@ -19,6 +19,7 @@ const hide = (hidden: boolean) => vi.spyOn(document, 'hidden', 'get').mockReturn
 
 let open: () => void;
 beforeEach(() => {
+  installFakeServices(); // quiet hours are looked up on the server
   open = vi.fn();
 });
 afterEach(removeFakePush);

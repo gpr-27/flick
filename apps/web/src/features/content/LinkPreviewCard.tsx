@@ -41,7 +41,7 @@ export const LinkPreviewCard = ({ url }: { url: string }) => {
       href={preview.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-2 block overflow-hidden rounded-xl bg-black/10 no-underline"
+      className="mt-2 block overflow-hidden rounded-xl border border-[color-mix(in_srgb,currentColor_22%,transparent)] bg-[color-mix(in_srgb,currentColor_10%,transparent)] no-underline"
       aria-label={`Link preview: ${preview.title ?? preview.url}`}
     >
       {preview.image_url && (
@@ -50,18 +50,18 @@ export const LinkPreviewCard = ({ url }: { url: string }) => {
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"
-          className="max-h-40 w-full object-cover"
+          className="aspect-[1.91/1] w-full object-cover"
         />
       )}
       <span className="block px-3 py-2">
         {preview.site_name && (
-          <span className="block truncate text-xs uppercase opacity-70">{preview.site_name}</span>
+          <span className="block truncate text-xs opacity-90">{preview.site_name}</span>
         )}
         {preview.title && (
           <span className="line-clamp-2 block text-sm font-semibold">{preview.title}</span>
         )}
         {preview.description && (
-          <span className="line-clamp-2 block text-xs opacity-80">{preview.description}</span>
+          <span className="line-clamp-2 block text-xs opacity-90">{preview.description}</span>
         )}
       </span>
     </a>

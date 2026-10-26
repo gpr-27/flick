@@ -48,7 +48,7 @@ export const Modal = ({
   return createPortal(
     <div
       className={cn(
-        'fixed inset-0 z-[60] flex items-center justify-center pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] bg-base-content/40 backdrop-blur-sm animate-fade-in-up',
+        'fixed inset-0 z-[60] flex items-center justify-center pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] bg-black/50 backdrop-blur-[2px] animate-fade',
         overlayClassName,
       )}
       onClick={onBackdrop}
@@ -61,7 +61,7 @@ export const Modal = ({
         aria-label={labelledBy ? undefined : label}
         aria-describedby={describedBy}
         tabIndex={-1}
-        className={cn('outline-none', className)}
+        className={cn('outline-none max-sm:animate-sheet-up sm:animate-scale-in', className)}
       >
         {children}
       </div>

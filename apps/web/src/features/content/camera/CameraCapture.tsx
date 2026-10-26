@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Circle, RefreshCw, Send, Square, SwitchCamera, Video, X } from 'lucide-react';
-import { Modal, cn } from '@/components/ui';
+import {
+  Camera,
+  Circle,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Square,
+  SwitchCamera,
+  Video,
+  X,
+} from 'lucide-react';
+import { Modal, cn, notify } from '@/components/ui';
+import { DescribeImageDialog } from '@/features/ai/DescribeImageDialog';
+import { useAiEnabled } from '@/features/ai/useAiEnabled';
+import { useChatStore } from '@/features/chat/useChatStore';
+import { uploadAttachment } from '@/features/chat/upload';
 import { hasMediaSupport, mediaErrorMessage } from '@/features/calls/media';
 import { MAX_VIDEO_MS, captureFileName, formatTimer, pickVideoMime, takePhoto } from './capture';
 
@@ -42,6 +56,10 @@ export const CameraCapture = ({
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [taken, setTaken] = useState<Taken | null>(null);
+  const aiEnabled = useAiEnabled();
+  // The photo uploaded privately so Flick can look at it (before anything is sent).
+  const [askId, setAskId] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const canRecord = !photoOnly && pickVideoMime() !== undefined;
   const message =
     error ??
@@ -155,6 +173,24 @@ export const CameraCapture = ({
     setElapsed(0);
   };
 
+  const askFlick = async (): Promise<void> => {
+    if (!taken || asking) return;
+    setAsking(true);
+    try {
+      setAskId(
+        await uploadAttachment(taken.file, {
+          purpose: 'message',
+          mime: taken.file.type || 'image/jpeg',
+          fileName: taken.file.name,
+        }),
+      );
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : 'Could not upload the photo');
+    } finally {
+      setAsking(false);
+    }
+  };
+
   const use = (): void => {
     if (!taken) return;
     URL.revokeObjectURL(taken.url);
@@ -165,159 +201,182 @@ export const CameraCapture = ({
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={close}
-      label="Camera"
-      overlayClassName="items-stretch p-0 sm:items-center sm:p-4"
-      className="h-dvh w-full sm:h-auto sm:max-w-2xl"
-    >
-      <div className="relative flex h-full flex-col overflow-hidden bg-black text-white sm:rounded-3xl">
-        <button
-          type="button"
-          onClick={close}
-          className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 grid size-11 place-items-center rounded-full bg-black/50"
-          aria-label="Close camera"
-        >
-          <X className="size-5" aria-hidden="true" />
-        </button>
+    <>
+      <Modal
+        open={open}
+        onClose={close}
+        label="Camera"
+        overlayClassName="items-stretch p-0 sm:items-center sm:p-4"
+        className="h-dvh w-full sm:h-auto sm:max-w-2xl"
+      >
+        <div className="relative flex h-full flex-col overflow-hidden bg-black text-white sm:rounded-3xl">
+          <button
+            type="button"
+            onClick={close}
+            className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 grid size-11 place-items-center rounded-full bg-black/50"
+            aria-label="Close camera"
+          >
+            <X className="size-5" aria-hidden="true" />
+          </button>
 
-        <div className="relative flex min-h-0 flex-1 items-center justify-center sm:aspect-video sm:flex-none">
-          {taken ? (
-            taken.file.type.startsWith('video/') ? (
-              <video
-                src={taken.url}
-                controls
-                playsInline
-                className="h-full w-full object-contain"
-                aria-label="Your video"
-              />
+          <div className="relative flex min-h-0 flex-1 items-center justify-center sm:aspect-video sm:flex-none">
+            {taken ? (
+              taken.file.type.startsWith('video/') ? (
+                <video
+                  src={taken.url}
+                  controls
+                  playsInline
+                  className="h-full w-full object-contain"
+                  aria-label="Your video"
+                />
+              ) : (
+                <img src={taken.url} alt="Your photo" className="h-full w-full object-contain" />
+              )
             ) : (
-              <img src={taken.url} alt="Your photo" className="h-full w-full object-contain" />
-            )
-          ) : (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              aria-label="Camera preview"
-              className={cn('h-full w-full object-cover', facing === 'user' && 'scale-x-[-1]')}
-            />
-          )}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                aria-label="Camera preview"
+                className={cn('h-full w-full object-cover', facing === 'user' && 'scale-x-[-1]')}
+              />
+            )}
 
-          {message && (
-            <div
-              role="alert"
-              className="absolute inset-0 grid place-items-center bg-black/80 p-6 text-center"
-            >
-              <div className="flex max-w-sm flex-col items-center gap-4">
-                <p>{message}</p>
-                <button type="button" className="btn btn-primary" onClick={close}>
-                  Close
-                </button>
-              </div>
-            </div>
-          )}
-
-          {recording && (
-            <span className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-sm font-semibold tabular-nums">
-              <Circle className="size-2.5 animate-pulse fill-current" aria-hidden="true" />
-              <span role="timer">{formatTimer(elapsed)}</span>
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-col items-center gap-4 bg-black/90 px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
-          {taken ? (
-            <div className="flex w-full max-w-sm gap-3">
-              <button type="button" onClick={retake} className="btn h-12 flex-1 gap-2">
-                <RefreshCw className="size-4" aria-hidden="true" /> Retake
-              </button>
-              <button type="button" onClick={use} className="btn btn-primary h-12 flex-1 gap-2">
-                <Send className="size-4" aria-hidden="true" /> Use{' '}
-                {taken.file.type.startsWith('video/') ? 'video' : 'photo'}
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center gap-8">
-                {canRecord ? (
-                  <div
-                    className="flex rounded-full bg-white/10 p-1 text-sm"
-                    role="tablist"
-                    aria-label="Camera mode"
-                  >
-                    {(['photo', 'video'] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        role="tab"
-                        aria-selected={mode === m}
-                        disabled={recording}
-                        onClick={() => {
-                          setMode(m);
-                        }}
-                        className={cn(
-                          'flex h-10 items-center gap-1.5 rounded-full px-4',
-                          mode === m && 'bg-white text-black',
-                        )}
-                      >
-                        {m === 'photo' ? (
-                          <Camera className="size-4" aria-hidden="true" />
-                        ) : (
-                          <Video className="size-4" aria-hidden="true" />
-                        )}
-                        {m === 'photo' ? 'Photo' : 'Video'}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="flex items-center gap-10">
-                <span className="size-12" aria-hidden="true" />
-                {mode === 'photo' ? (
-                  <button
-                    type="button"
-                    onClick={() => void shoot()}
-                    disabled={!ready}
-                    className="grid size-[72px] place-items-center rounded-full border-4 border-white bg-white/20 active:scale-95 disabled:opacity-40"
-                    aria-label="Take photo"
-                  >
-                    <span className="size-14 rounded-full bg-white" />
+            {message && (
+              <div
+                role="alert"
+                className="absolute inset-0 grid place-items-center bg-black/80 p-6 text-center"
+              >
+                <div className="flex max-w-sm flex-col items-center gap-4">
+                  <p>{message}</p>
+                  <button type="button" className="btn btn-primary" onClick={close}>
+                    Close
                   </button>
-                ) : (
+                </div>
+              </div>
+            )}
+
+            {recording && (
+              <span className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-sm font-semibold tabular-nums">
+                <Circle className="size-2.5 animate-pulse fill-current" aria-hidden="true" />
+                <span role="timer">{formatTimer(elapsed)}</span>
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col items-center gap-4 bg-black/90 px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
+            {taken ? (
+              <div className="flex w-full max-w-sm flex-wrap gap-3">
+                {aiEnabled && !taken.file.type.startsWith('video/') && (
                   <button
                     type="button"
-                    onClick={recording ? stopRecording : startRecording}
-                    disabled={!ready}
-                    className="grid size-[72px] place-items-center rounded-full border-4 border-white bg-white/20 active:scale-95 disabled:opacity-40"
-                    aria-label={recording ? 'Stop recording' : 'Start recording'}
+                    onClick={() => void askFlick()}
+                    disabled={asking}
+                    className="btn h-12 w-full gap-2"
                   >
-                    {recording ? (
-                      <Square className="size-7 fill-red-600 text-red-600" aria-hidden="true" />
-                    ) : (
-                      <span className="size-14 rounded-full bg-red-600" />
-                    )}
+                    <Sparkles className="size-4" aria-hidden="true" />{' '}
+                    {asking ? 'Uploading…' : 'Ask Flick about this photo'}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFacing((f) => (f === 'user' ? 'environment' : 'user'));
-                  }}
-                  disabled={recording}
-                  className="grid size-12 place-items-center rounded-full bg-white/10 disabled:opacity-40"
-                  aria-label="Switch camera"
-                >
-                  <SwitchCamera className="size-5" aria-hidden="true" />
+                <button type="button" onClick={retake} className="btn h-12 flex-1 gap-2">
+                  <RefreshCw className="size-4" aria-hidden="true" /> Retake
+                </button>
+                <button type="button" onClick={use} className="btn btn-primary h-12 flex-1 gap-2">
+                  <Send className="size-4" aria-hidden="true" /> Use{' '}
+                  {taken.file.type.startsWith('video/') ? 'video' : 'photo'}
                 </button>
               </div>
-            </>
-          )}
+            ) : (
+              <>
+                <div className="flex items-center gap-8">
+                  {canRecord ? (
+                    <div
+                      className="flex rounded-full bg-white/10 p-1 text-sm"
+                      role="tablist"
+                      aria-label="Camera mode"
+                    >
+                      {(['photo', 'video'] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          role="tab"
+                          aria-selected={mode === m}
+                          disabled={recording}
+                          onClick={() => {
+                            setMode(m);
+                          }}
+                          className={cn(
+                            'flex h-10 items-center gap-1.5 rounded-full px-4',
+                            mode === m && 'bg-white text-black',
+                          )}
+                        >
+                          {m === 'photo' ? (
+                            <Camera className="size-4" aria-hidden="true" />
+                          ) : (
+                            <Video className="size-4" aria-hidden="true" />
+                          )}
+                          {m === 'photo' ? 'Photo' : 'Video'}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-10">
+                  <span className="size-12" aria-hidden="true" />
+                  {mode === 'photo' ? (
+                    <button
+                      type="button"
+                      onClick={() => void shoot()}
+                      disabled={!ready}
+                      className="grid size-[72px] place-items-center rounded-full border-4 border-white bg-white/20 active:scale-95 disabled:opacity-40"
+                      aria-label="Take photo"
+                    >
+                      <span className="size-14 rounded-full bg-white" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={recording ? stopRecording : startRecording}
+                      disabled={!ready}
+                      className="grid size-[72px] place-items-center rounded-full border-4 border-white bg-white/20 active:scale-95 disabled:opacity-40"
+                      aria-label={recording ? 'Stop recording' : 'Start recording'}
+                    >
+                      {recording ? (
+                        <Square className="size-7 fill-red-600 text-red-600" aria-hidden="true" />
+                      ) : (
+                        <span className="size-14 rounded-full bg-red-600" />
+                      )}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFacing((f) => (f === 'user' ? 'environment' : 'user'));
+                    }}
+                    disabled={recording}
+                    className="grid size-12 place-items-center rounded-full bg-white/10 disabled:opacity-40"
+                    aria-label="Switch camera"
+                  >
+                    <SwitchCamera className="size-5" aria-hidden="true" />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+      {askId && (
+        <DescribeImageDialog
+          attachmentId={askId}
+          conversationId={useChatStore.getState().selectedId ?? ''}
+          open
+          onClose={() => {
+            setAskId(null);
+          }}
+        />
+      )}
+    </>
   );
 };

@@ -61,3 +61,36 @@ describe('excerptOf', () => {
     expect(excerptOf({ type: 'text', text: 'hi' })).toBe('hi');
   });
 });
+
+describe('keyword alerts', () => {
+  const textMessage = (text: string) =>
+    ({
+      sender_user_id: 'other',
+      deleted_at: null,
+      created_at: new Date().toISOString(),
+      content: { type: 'text', text },
+    }) as never;
+  const base = { myId: 'me', tabHidden: true, now: Date.now() };
+  const muted = new Date(Date.now() + 3_600_000).toISOString();
+
+  it('lets a keyword through a muted chat, and nothing else', async () => {
+    const { shouldNotify, hasKeyword } = await import('./rules');
+    expect(
+      shouldNotify({
+        ...base,
+        message: textMessage('Dinner at SEVEN?'),
+        mutedUntil: muted,
+        keywords: ['seven'],
+      }),
+    ).toBe(true);
+    expect(
+      shouldNotify({
+        ...base,
+        message: textMessage('hello'),
+        mutedUntil: muted,
+        keywords: ['seven'],
+      }),
+    ).toBe(false);
+    expect(hasKeyword(null, ['a'])).toBe(false);
+  });
+});

@@ -320,7 +320,7 @@ describe('messages', () => {
       'src',
       DOWNLOAD.url,
     );
-    await user.click(screen.getByRole('button', { name: 'Close image preview' }));
+    await user.click(screen.getByRole('button', { name: 'Close media viewer' }));
     expect(screen.queryByRole('img', { name: 'Attachment preview' })).not.toBeInTheDocument();
   });
 

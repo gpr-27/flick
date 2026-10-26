@@ -1,7 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { CaptionsOverlay } from '../../platform/CaptionsOverlay';
 import { Mic, MicOff, PhoneOff, ScreenShare, ScreenShareOff, Video, VideoOff } from 'lucide-react';
 import { cn, useFocusTrap } from '@/components/ui';
-import { useGroupCallStore, type ParticipantTile } from '../useGroupCallStore';
+import { REACTION_EMOJIS, useGroupCallStore, type ParticipantTile } from '../useGroupCallStore';
 
 const Tile = ({ tile }: { tile: ParticipantTile }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -91,7 +92,8 @@ export const GroupCallOverlay = () => {
   const micOn = useGroupCallStore((s) => s.micOn);
   const cameraOn = useGroupCallStore((s) => s.cameraOn);
   const sharing = useGroupCallStore((s) => s.sharing);
-  const { leave, dismissError, toggleMic, toggleCamera, toggleScreenShare } =
+  const reactions = useGroupCallStore((s) => s.reactions);
+  const { sendReaction, leave, dismissError, toggleMic, toggleCamera, toggleScreenShare } =
     useGroupCallStore.getState();
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, status !== 'idle');
@@ -109,6 +111,7 @@ export const GroupCallOverlay = () => {
       tabIndex={-1}
       className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-br from-[#1b1830] via-[#241f3d] to-[#3a2540] text-white outline-none"
     >
+      <CaptionsOverlay />
       {status === 'error' ? (
         <div className="m-auto flex max-w-sm flex-col items-center gap-4 px-6 text-center">
           <p role="alert" className="text-lg">
@@ -132,6 +135,30 @@ export const GroupCallOverlay = () => {
               <Tile key={p.identity} tile={p} />
             ))}
           </ul>
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            {reactions.map((r) => (
+              <span
+                key={r.id}
+                className="absolute bottom-24 animate-fade-in-up text-4xl"
+                style={{ left: `${r.left}%` }}
+              >
+                {r.emoji}
+              </span>
+            ))}
+          </div>
+          <div className="flex justify-center gap-2 px-4 pt-2" role="group" aria-label="Reactions">
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                aria-label={`React ${emoji}`}
+                className="grid size-10 place-items-center rounded-full bg-white/10 text-xl hover:bg-white/20"
+                onClick={() => void sendReaction(emoji)}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
           <div className="flex justify-center gap-3 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
             <Control
               label={micOn ? 'Mute' : 'Unmute'}

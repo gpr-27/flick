@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, Forward, Star, Trash2, X } from 'lucide-react';
+import { Copy, Forward, ListChecks, Star, Trash2, X } from 'lucide-react';
 import type { MessageRecord } from '@chat/contracts';
 import { Modal, notify } from '@/components/ui';
 import { ForwardModal } from '../../organise/ForwardModal';
 import { toggleStar } from '../../organise/messageActions';
 import { useChatStore } from '../useChatStore';
+import { ChecklistDialog } from '@/features/grouptools/ChatToolsDialog';
 import { planSelection } from './selectionRules';
 import { useSelectionStore } from './useSelectionStore';
 
@@ -28,6 +29,7 @@ export const SelectionBar = ({
   const deleteMessage = useChatStore((s) => s.deleteMessage);
   const [forwarding, setForwarding] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [listing, setListing] = useState(false);
 
   // Kept in thread order, so copy and forward read the way the chat does.
   const selected = useMemo(() => {
@@ -44,13 +46,14 @@ export const SelectionBar = ({
   // Escape ends the selection, unless a dialog from here is open (Escape closes that instead).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape' && !forwarding && !deleting && !e.defaultPrevented) clear();
+      if (e.key === 'Escape' && !forwarding && !deleting && !listing && !e.defaultPrevented)
+        clear();
     };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [clear, forwarding, deleting]);
+  }, [clear, forwarding, deleting, listing]);
 
   const copy = async (): Promise<void> => {
     if (plan.copyText === null) return;
@@ -125,6 +128,17 @@ export const SelectionBar = ({
         <button
           type="button"
           onClick={() => {
+            setListing(true);
+          }}
+          className={iconButton}
+          aria-label="Make list"
+          title="Make a checklist"
+        >
+          <ListChecks className="size-5" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
             setDeleting(true);
           }}
           className={`${iconButton} text-error`}
@@ -134,6 +148,21 @@ export const SelectionBar = ({
           <Trash2 className="size-5" aria-hidden="true" />
         </button>
       </div>
+
+      {listing && selected[0] && (
+        <ChecklistDialog
+          conversationId={selected[0].conversation_id}
+          initialItems={selected
+            .flatMap((m) =>
+              m.content?.type === 'text' ? [m.content.text.split('\n')[0] ?? ''] : [],
+            )
+            .join('\n')}
+          onClose={() => {
+            setListing(false);
+            clear();
+          }}
+        />
+      )}
 
       <ForwardModal
         message={null}
