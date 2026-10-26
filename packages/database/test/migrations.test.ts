@@ -73,6 +73,10 @@ describe('migrations', () => {
       ).rows.length;
     expect(await aiLanguageColumn()).toBe(1);
 
+    // Everything newer than 0018 (notes and edits, drafts, folders, AI, productivity, ...) goes first.
+    const newer = Object.keys(migrations).filter((n) => n > '0018_long_text');
+    for (let i = 0; i < newer.length; i++) await migrateDown(t.db);
+    await migrateDown(t.db); // undoes 0018 (long text)
     await migrateDown(t.db); // undoes 0017 (notification centre)
     expect(await tables()).not.toContain('notifications');
 

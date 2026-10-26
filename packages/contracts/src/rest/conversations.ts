@@ -129,7 +129,7 @@ export const UpdateConversationRequest = z
 // ------------------------------------------------- media, links and files tab
 
 /** media = photos, videos and GIFs; files = documents; links = text messages with a web link. */
-export const SharedKind = z.enum(['media', 'files', 'links']);
+export const SharedKind = z.enum(['media', 'files', 'links', 'voice']);
 export const SharedQuery = z.object({
   kind: SharedKind,
   before_seq: z.coerce.number().int().min(1).optional(),

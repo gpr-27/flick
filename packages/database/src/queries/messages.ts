@@ -272,6 +272,12 @@ export function prefixTsQuery(query: string): string | null {
 
 export interface SearchOptions {
   conversationId?: string;
+  senderId?: string;
+  from?: string;
+  to?: string;
+  media?: 'images' | 'video' | 'audio' | 'files' | 'links';
+  starred?: boolean;
+  pinned?: boolean;
   // Position of the last hit of the previous page. `createdAtText` is the exact value returned
   // in `created_at_text`; a JS Date would lose the microseconds and skip or repeat rows.
   after?: { createdAtText: string; id: string };
@@ -304,7 +310,7 @@ export async function searchMessages(
       'messages.body_text',
       'messages.created_at',
       sql<string>`messages.created_at::text`.as('created_at_text'),
-      sql<string>`ts_headline('simple', coalesce(messages.body_text, ''), ${tsquery},
+      sql<string>`ts_headline('simple', coalesce(messages.body_text, (select mt.text from message_transcripts mt where mt.message_id = messages.id), ''), ${tsquery},
         'StartSel=' || chr(1) || ', StopSel=' || chr(2) || ', MaxFragments=1, MaxWords=25, MinWords=8')`.as(
         'snippet',
       ),
@@ -312,9 +318,34 @@ export async function searchMessages(
     .where('cm.user_id', '=', userId)
     .where('cm.left_at', 'is', null)
     .where('messages.deleted_at', 'is', null)
-    .where(sql<boolean>`messages.search @@ ${tsquery}`)
+    .where(
+      sql<boolean>`(messages.search @@ ${tsquery} or exists (select 1 from message_transcripts mt where mt.message_id = messages.id and mt.search @@ ${tsquery}))`,
+    )
     .where(visibleTo(userId));
   if (options.conversationId) q = q.where('messages.conversation_id', '=', options.conversationId);
+  if (options.senderId) q = q.where('messages.sender_id', '=', options.senderId);
+  if (options.from) q = q.where('messages.created_at', '>=', new Date(options.from));
+  if (options.to) q = q.where('messages.created_at', '<=', new Date(options.to));
+  if (options.media === 'links') q = q.where(sql<boolean>`messages.body_text ~* 'https?://'`);
+  else if (options.media) {
+    const types: Record<string, MessageType[]> = {
+      images: ['image', 'gif'],
+      video: ['video'],
+      audio: ['voice'],
+      files: ['file'],
+    };
+    q = q.where('messages.type', 'in', types[options.media] ?? []);
+  }
+  if (options.starred) {
+    q = q.where(
+      sql<boolean>`exists (select 1 from starred_messages sm where sm.message_id = messages.id and sm.user_id = ${userId})`,
+    );
+  }
+  if (options.pinned) {
+    q = q.where(
+      sql<boolean>`exists (select 1 from pinned_messages pm where pm.message_id = messages.id)`,
+    );
+  }
   if (options.after) {
     q = q.where(
       sql<boolean>`(messages.created_at, messages.id) < (${options.after.createdAtText}::timestamptz, ${options.after.id}::uuid)`,

@@ -19,6 +19,8 @@ import {
   GROQ_BASE_URL,
   GROQ_MODELS,
   OpenAICompatAdapter,
+  requiredCaps,
+  supportsCaps,
   type ClientFactories,
 } from './providers.js';
 import type {
@@ -29,6 +31,7 @@ import type {
   AnswerInfo,
   AttemptResult,
   CallOptions,
+  ModelCaps,
   ProviderAdapter,
 } from './types.js';
 import { raceAbort, sleep } from './util.js';
@@ -247,15 +250,21 @@ export class AiChain {
     const started = this.now();
     const ctx = new CallContext(options.signal, options.totalTimeoutMs ?? this.totalTimeoutMs);
     try {
-      const win = await this.walk(ctx, options, async (adapter, model, scope) => {
-        const text = await raceAbort(
-          adapter.complete({ model, request, signal: scope.signal }),
-          scope.signal,
-        );
-        if (!text.trim() || (options.validate && !options.validate(text)))
-          throw new InvalidOutputError();
-        return text;
-      });
+      const win = await this.walk(
+        ctx,
+        options,
+        requiredCaps(request),
+        async (adapter, model, scope) => {
+          const text = await raceAbort(
+            adapter.complete({ model, request, signal: scope.signal }),
+            scope.signal,
+          );
+          if (!text.trim() || (options.validate && !options.validate(text)))
+            throw new InvalidOutputError();
+          return text;
+        },
+        request.preference,
+      );
       win.scope.dispose();
       return {
         ...win.info,
@@ -279,6 +288,7 @@ export class AiChain {
     let answer: AnswerInfo | undefined;
     let used = false;
     const walk = this.walk.bind(this);
+    const preference = request.preference;
     const record = this.record.bind(this);
     const logger = this.logger;
     const totalTimeoutMs = options.totalTimeoutMs ?? this.totalTimeoutMs;
@@ -289,17 +299,23 @@ export class AiChain {
       let iterator: AsyncIterator<string> | undefined;
       let settled = false;
       try {
-        const win = await walk(ctx, options, async (adapter, model, s) => {
-          const it = adapter.stream({ model, request, signal: s.signal })[Symbol.asyncIterator]();
-          try {
-            const first = await raceAbort(it.next(), s.signal);
-            if (first.done || !first.value) throw new InvalidOutputError();
-            return { it, first: first.value };
-          } catch (err) {
-            void Promise.resolve(it.return?.()).catch(() => undefined);
-            throw err;
-          }
-        });
+        const win = await walk(
+          ctx,
+          options,
+          requiredCaps(request),
+          async (adapter, model, s) => {
+            const it = adapter.stream({ model, request, signal: s.signal })[Symbol.asyncIterator]();
+            try {
+              const first = await raceAbort(it.next(), s.signal);
+              if (first.done || !first.value) throw new InvalidOutputError();
+              return { it, first: first.value };
+            } catch (err) {
+              void Promise.resolve(it.return?.()).catch(() => undefined);
+              throw err;
+            }
+          },
+          preference,
+        );
         scope = win.scope;
         iterator = win.value.it;
         answer = win.info;
@@ -382,16 +398,30 @@ export class AiChain {
   private async walk<T>(
     ctx: CallContext,
     options: CallOptions,
+    need: ModelCaps,
     run: (adapter: ProviderAdapter, model: string, scope: AttemptScope) => Promise<T>,
+    preference?: 'fast' | 'quality',
   ): Promise<WalkWin<T>> {
     const failures: AttemptFailure[] = [];
     let attempts = 0;
     const timeoutMs = options.timeoutMs ?? this.attemptTimeoutMs;
+    let incapable = 0;
 
-    for (const adapter of this.adapters) {
+    // 'fast': the Anthropic entries go last (the sort is stable, so the rest keeps its order).
+    const adapters =
+      preference === 'fast'
+        ? [...this.adapters].sort(
+            (a, b) => Number(a.provider === 'anthropic') - Number(b.provider === 'anthropic'),
+          )
+        : this.adapters;
+    for (const adapter of adapters) {
       let accountDown = false;
       for (const model of adapter.models) {
         if (accountDown) break;
+        if (!supportsCaps(adapter.capabilities?.(model), need)) {
+          incapable += 1; // this model cannot read the images / PDFs in the request
+          continue;
+        }
         ctx.throwIfDone();
         const info: AnswerInfo = { provider: adapter.provider, account: adapter.account, model };
         const remaining = await this.remainingCooldown(
@@ -499,7 +529,9 @@ export class AiChain {
       failures,
       this.adapters.length === 0
         ? 'No AI providers are configured'
-        : 'All AI providers are unavailable',
+        : failures.length === 0 && incapable > 0
+          ? 'No configured AI model can read images or PDFs. Add an Anthropic or Gemini key.'
+          : 'All AI providers are unavailable',
     );
   }
 }

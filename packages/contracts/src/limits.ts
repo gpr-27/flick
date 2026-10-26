@@ -2,13 +2,14 @@
 
 const KiB = 1024;
 const MiB = 1024 * KiB;
+const GiB = 1024 * MiB;
 
 export const LIMITS = {
-  /** Max size of one Socket.IO message (UTF-8 bytes). A max-length text message is ~64 KiB, so 256 KiB leaves room. */
-  MAX_FRAME_BYTES: 256 * KiB,
+  /** Max size of one Socket.IO message (UTF-8 bytes). A max-length text message is at most ~260 KB (4-byte characters), so 1 MiB leaves room. */
+  MAX_FRAME_BYTES: 1 * MiB,
   /** Max characters in a text message or caption. */
-  MAX_TEXT_LENGTH: 16_000,
-  MAX_CAPTION_LENGTH: 4_000,
+  MAX_TEXT_LENGTH: 65_000,
+  MAX_CAPTION_LENGTH: 16_000,
   /** Max delivery acks in one frame. */
   MAX_ACKS_PER_FRAME: 200,
   /** Max conversations in one sync_request. */
@@ -25,7 +26,7 @@ export const LIMITS = {
   /** Groups up to this size are fanned out in one pass; bigger ones are sent in batches. */
   INLINE_FANOUT_MAX_MEMBERS: 256,
   FANOUT_BATCH_SIZE: 500,
-  MAX_UPLOAD_BYTES: 100 * MiB,
+  MAX_UPLOAD_BYTES: 1 * GiB,
   MAX_AVATAR_BYTES: 5 * MiB,
   /** Max characters in the profile "about" line. */
   MAX_ABOUT_LENGTH: 139,
@@ -74,4 +75,18 @@ export function utf8ByteLength(text: string): number {
     } else bytes += 3;
   }
   return bytes;
+}
+
+/** A byte count for people: 1536 -> "1.5 KB", 1073741824 -> "1 GB". Uses 1024-based units. */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${rounded} ${units[unit]}`;
 }

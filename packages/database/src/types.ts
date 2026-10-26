@@ -28,7 +28,11 @@ export type MessageType =
   | 'sticker'
   | 'poll'
   | 'system'
-  | 'call_event';
+  | 'call_event'
+  | 'checklist'
+  | 'expense'
+  | 'game'
+  | 'event';
 export type AttachmentStatus = 'pending' | 'uploaded' | 'attached' | 'deleted';
 export type JoinRequestStatus = 'pending' | 'approved' | 'rejected';
 export type CallType = 'audio' | 'video';
@@ -56,6 +60,7 @@ export interface UsersTable {
 }
 
 export interface UserSettingsTable {
+  login_alerts: Generated<boolean>;
   user_id: string;
   last_seen_privacy: Generated<PrivacyLevel>;
   photo_privacy: Generated<PrivacyLevel>;
@@ -378,6 +383,117 @@ export interface RemindersTable {
   sent_at: Timestamp | null;
 }
 
+export interface MessageEditsTable {
+  id: Generated<string>;
+  message_id: string;
+  body_text: string | null;
+  edited_at: CreatedAt;
+}
+
+export interface MessageNotesTable {
+  user_id: string;
+  message_id: string;
+  body: string;
+  updated_at: CreatedAt;
+}
+
+export interface ConversationDraftsTable {
+  user_id: string;
+  conversation_id: string;
+  body: string;
+  updated_at: CreatedAt;
+}
+
+export interface ChatListsTable {
+  id: Generated<string>;
+  user_id: string;
+  kind: 'folder' | 'tag';
+  name: string;
+  color: string | null;
+  conversation_ids: string[];
+  created_at: CreatedAt;
+}
+
+export interface AiChatPrivacyTable {
+  user_id: string;
+  conversation_id: string;
+  allow: boolean;
+  updated_at: CreatedAt;
+}
+
+export interface ChatWebhooksTable {
+  id: Generated<string>;
+  conversation_id: string;
+  created_by: string;
+  token_hash: string;
+  name: string;
+  created_at: CreatedAt;
+}
+
+export interface AiStyleProfilesTable {
+  user_id: string;
+  summary: Generated<string>;
+  persona: ColumnType<unknown, string | null | undefined, string | null>;
+  updated_at: CreatedAt;
+}
+
+export interface AiChatStyleTable {
+  user_id: string;
+  conversation_id: string;
+  style: string;
+  custom: string | null;
+  updated_at: CreatedAt;
+}
+
+export interface AiMemoriesTable {
+  id: Generated<string>;
+  user_id: string;
+  fact: string;
+  created_at: CreatedAt;
+}
+export interface AiTopicsTable {
+  id: Generated<string>;
+  user_id: string;
+  title: string;
+  started_message_seq: Int8;
+  created_at: CreatedAt;
+}
+export interface AiFeedbackTable {
+  id: Generated<string>;
+  user_id: string;
+  message_id: string;
+  rating: 'up' | 'down';
+  created_at: CreatedAt;
+}
+
+export interface MessageTranscriptsTable {
+  message_id: string;
+  language: string | null;
+  text: string;
+  summary: string | null;
+  // Generated tsvector; never written.
+  search: ColumnType<string, never, never>;
+  created_at: CreatedAt;
+}
+
+export interface AutoTranslatePrefsTable {
+  user_id: string;
+  conversation_id: string;
+  target_language: string;
+}
+
+export interface TranscriptPrefsTable {
+  user_id: string;
+  auto_transcribe: Generated<boolean>;
+  dont_translate: ColumnType<string[], string[] | undefined, string[]>;
+}
+
+export interface ChatTranscribePrefsTable {
+  user_id: string;
+  conversation_id: string;
+  enabled: boolean;
+}
+
 export interface Database {
   users: UsersTable;
   user_settings: UserSettingsTable;
@@ -409,6 +525,64 @@ export interface Database {
   scheduled_messages: ScheduledMessagesTable;
   notifications: NotificationsTable;
   reminders: RemindersTable;
+  message_edits: MessageEditsTable;
+  message_notes: MessageNotesTable;
+  conversation_drafts: ConversationDraftsTable;
+  chat_lists: ChatListsTable;
+  ai_chat_privacy: AiChatPrivacyTable;
+  message_transcripts: MessageTranscriptsTable;
+  auto_translate_prefs: AutoTranslatePrefsTable;
+  transcript_prefs: TranscriptPrefsTable;
+  chat_transcribe_prefs: ChatTranscribePrefsTable;
+  ai_memories: AiMemoriesTable;
+  ai_topics: AiTopicsTable;
+  ai_feedback: AiFeedbackTable;
+  ai_style_profiles: AiStyleProfilesTable;
+  ai_chat_style: AiChatStyleTable;
+  message_tags: MessageTagsTable;
+  bookmark_collections: BookmarkCollectionsTable;
+  bookmarks: BookmarksTable;
+  productivity_settings: ProductivitySettingsTable;
+  event_rsvps: EventRsvpsTable;
+  chat_webhooks: ChatWebhooksTable;
+}
+
+export interface EventRsvpsTable {
+  message_id: string;
+  user_id: string;
+  response: 'going' | 'maybe' | 'no';
+  updated_at: CreatedAt;
+}
+
+export interface MessageTagsTable {
+  user_id: string;
+  message_id: string;
+  tag: 'note' | 'link' | 'task' | 'idea' | 'receipt';
+  created_at: CreatedAt;
+}
+export interface BookmarkCollectionsTable {
+  id: Generated<string>;
+  user_id: string;
+  name: string;
+  created_at: CreatedAt;
+}
+export interface BookmarksTable {
+  user_id: string;
+  collection_id: string;
+  message_id: string;
+  created_at: CreatedAt;
+}
+export interface ProductivitySettingsTable {
+  user_id: string;
+  digest: Generated<'off' | 'daily' | 'weekly'>;
+  quiet_enabled: Generated<boolean>;
+  quiet_start: Generated<string>;
+  quiet_end: Generated<string>;
+  quiet_timezone: Generated<string>;
+  quiet_days: Generated<number[]>;
+  priority_contacts: Generated<string[]>;
+  last_digest_at: Timestamp | null;
+  updated_at: CreatedAt;
 }
 
 // Every application table; the seed truncates these and a test checks they all exist.
@@ -443,6 +617,26 @@ export const APP_TABLES: ReadonlyArray<keyof Database> = [
   'scheduled_messages',
   'notifications',
   'reminders',
+  'message_edits',
+  'message_notes',
+  'conversation_drafts',
+  'chat_lists',
+  'ai_chat_privacy',
+  'message_transcripts',
+  'auto_translate_prefs',
+  'transcript_prefs',
+  'chat_transcribe_prefs',
+  'ai_memories',
+  'ai_topics',
+  'ai_feedback',
+  'ai_style_profiles',
+  'ai_chat_style',
+  'message_tags',
+  'bookmark_collections',
+  'bookmarks',
+  'productivity_settings',
+  'event_rsvps',
+  'chat_webhooks',
 ];
 
 export type User = Selectable<UsersTable>;

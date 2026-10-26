@@ -1,12 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import type {
+  ChatCompletionContentPart,
   ChatCompletionCreateParamsBase,
   ChatCompletionMessageParam,
 } from 'openai/resources/chat/completions';
 import type {
   AiRequest,
   ChatMessage,
+  ContentPart,
+  ModelCaps,
   ProviderAdapter,
   ProviderCallParams,
   ProviderName,
@@ -30,6 +33,62 @@ export const GEMINI_OPENAI_BASE_URL = 'https://generativelanguage.googleapis.com
 
 const DEFAULT_MAX_TOKENS = 1024;
 
+/** Which models can read images / PDFs. Groq's chat models here are text only. */
+export function modelCaps(provider: ProviderName): ModelCaps {
+  return provider === 'groq' ? { vision: false, pdf: false } : { vision: true, pdf: true };
+}
+
+/** What a request needs from a model. */
+export function requiredCaps(request: AiRequest): ModelCaps {
+  const need: ModelCaps = { vision: false, pdf: false };
+  for (const m of request.messages) {
+    if (typeof m.content === 'string') continue;
+    for (const p of m.content) {
+      if (p.type === 'image') need.vision = true;
+      else if (p.type === 'document') need.pdf = true;
+    }
+  }
+  return need;
+}
+
+export function supportsCaps(have: ModelCaps | undefined, need: ModelCaps): boolean {
+  return (!need.vision || !!have?.vision) && (!need.pdf || !!have?.pdf);
+}
+
+export function anthropicContent(
+  content: string | ContentPart[],
+): string | Anthropic.ContentBlockParam[] {
+  if (typeof content === 'string') return content;
+  return content.map((p): Anthropic.ContentBlockParam => {
+    if (p.type === 'text') return { type: 'text', text: p.text };
+    if (p.type === 'image') {
+      return {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: p.mime as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+          data: p.data,
+        },
+      };
+    }
+    return {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: p.data },
+    };
+  });
+}
+
+export function openAiContent(
+  content: string | ContentPart[],
+): string | ChatCompletionContentPart[] {
+  if (typeof content === 'string') return content;
+  return content.map((p): ChatCompletionContentPart => {
+    if (p.type === 'text') return { type: 'text', text: p.text };
+    // Gemini's OpenAI-compatible endpoint reads PDFs given as data URIs the same way as images.
+    return { type: 'image_url', image_url: { url: `data:${p.mime};base64,${p.data}` } };
+  });
+}
+
 /** Anthropic requires the first turn to be `user` and forbids a trailing assistant prefill. */
 export function normalizeTurns(messages: ChatMessage[]): ChatMessage[] {
   const out = [...messages];
@@ -47,13 +106,20 @@ export class AnthropicAdapter implements ProviderAdapter {
     readonly models: readonly string[] = ANTHROPIC_MODELS,
   ) {}
 
+  capabilities(): ModelCaps {
+    return modelCaps('anthropic');
+  }
+
   private params(model: string, request: AiRequest): Anthropic.MessageCreateParamsNonStreaming {
     // No temperature/top_p (rejected by current models) and no assistant prefill.
     return {
       model,
       max_tokens: request.maxTokens ?? DEFAULT_MAX_TOKENS,
       ...(request.system ? { system: request.system } : {}),
-      messages: normalizeTurns(request.messages).map((m) => ({ role: m.role, content: m.content })),
+      messages: normalizeTurns(request.messages).map((m) => ({
+        role: m.role,
+        content: anthropicContent(m.content),
+      })),
       output_config: { effort: 'low' },
     };
   }
@@ -92,10 +158,24 @@ export class OpenAICompatAdapter implements ProviderAdapter {
     readonly models: readonly string[],
   ) {}
 
+  capabilities(): ModelCaps {
+    return modelCaps(this.provider);
+  }
+
   private params(model: string, request: AiRequest): ChatCompletionCreateParamsBase {
     const messages: ChatCompletionMessageParam[] = [];
     if (request.system) messages.push({ role: 'system', content: request.system });
-    for (const m of request.messages) messages.push({ role: m.role, content: m.content });
+    for (const m of request.messages) {
+      if (m.role === 'assistant') {
+        const text =
+          typeof m.content === 'string'
+            ? m.content
+            : m.content.map((p) => (p.type === 'text' ? p.text : '')).join('');
+        messages.push({ role: 'assistant', content: text });
+      } else {
+        messages.push({ role: 'user', content: openAiContent(m.content) });
+      }
+    }
     const maxTokens = request.maxTokens ?? DEFAULT_MAX_TOKENS;
     const params: ChatCompletionCreateParamsBase = { model, messages };
     if (this.provider === 'groq') {

@@ -35,6 +35,10 @@ const TYPE_LABEL: Record<MessageType, string> = {
   poll: 'Poll',
   system: 'Message',
   call_event: 'Call',
+  checklist: 'Checklist',
+  expense: 'Expense',
+  game: 'Game',
+  event: 'Event',
 };
 
 const shorten = (text: string): string => {

@@ -33,6 +33,7 @@ export const PollTally = z.object({
   message_id: Id,
   question: z.string(),
   allow_multiple: z.boolean(),
+  closes_at: z.string().nullish(),
   options: z.array(z.object({ index: z.number().int(), text: z.string(), voter_ids: z.array(Id) })),
 });
 
@@ -45,6 +46,13 @@ export const StarredList = Paginated(MessageRecord);
 export const SearchQuery = z.object({
   q: z.string().trim().min(1).max(200),
   conversation_id: Id.optional(),
+  /** Filters: sender, date range, media kind, starred / pinned only. */
+  sender_id: Id.optional(),
+  from: IsoDateTime.optional(),
+  to: IsoDateTime.optional(),
+  media: z.enum(['images', 'video', 'audio', 'files', 'links']).optional(),
+  starred: z.enum(['true']).optional(),
+  pinned: z.enum(['true']).optional(),
   cursor: Cursor.optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });

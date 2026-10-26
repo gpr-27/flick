@@ -33,6 +33,11 @@ describe('client payload rules', () => {
     expect(parse('send_message', send('a'.repeat(LIMITS.MAX_TEXT_LENGTH + 1)))).toBe(false);
   });
 
+  it('allows 65,000 characters and a frame big enough for the worst case', () => {
+    expect(LIMITS.MAX_TEXT_LENGTH).toBe(65_000);
+    expect(LIMITS.MAX_FRAME_BYTES).toBeGreaterThanOrEqual(LIMITS.MAX_TEXT_LENGTH * 4 + 4096);
+  });
+
   it('does not let clients send system or call_event content', () => {
     for (const content of [CONTENT.system, CONTENT.call_event])
       expect(parse('send_message', { ...CLIENT_EVENTS.send_message, content })).toBe(false);

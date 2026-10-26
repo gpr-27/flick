@@ -24,6 +24,14 @@ function content(c: MessageContent): string {
       return c.event;
     case 'call_event':
       return c.outcome;
+    case 'checklist':
+      return c.title;
+    case 'expense':
+      return c.description;
+    case 'game':
+      return c.game;
+    case 'event':
+      return c.title;
     default:
       return assertNever(c);
   }

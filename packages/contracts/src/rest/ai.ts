@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Id } from '../common.js';
+import { LIMITS } from '../limits.js';
 
 // The server tries providers in a fixed order (Anthropic, then Groq, then Gemini) and skips
 // ones that are cooling down. Every endpoint answers JSON, or server-sent events when the
@@ -21,6 +22,92 @@ export const AiTranslateRequest = z.object({
   /** A language name or code, e.g. "Hindi" or "fr". */
   targetLang: z.string().trim().min(2).max(40),
 });
+
+/** Tones "rewrite" can aim for. */
+export const AI_COMPOSE_TONES = ['casual', 'formal', 'shorter', 'longer', 'friendly'] as const;
+export const AiComposeTone = z.enum(AI_COMPOSE_TONES);
+
+/** How long a written message should be, relative to the usual chat length. */
+export const AI_COMPOSE_LENGTHS = ['shorter', 'longer'] as const;
+export const AiComposeLength = z.enum(AI_COMPOSE_LENGTHS);
+
+/** One-tap changes "refine" can make to a draft. "custom" uses `instruction`. */
+export const AI_REFINE_ACTIONS = [
+  'formalize',
+  'elaborate',
+  'shorten',
+  'casual',
+  'friendly',
+  'grammar',
+  'emojis',
+  'translate',
+  'custom',
+] as const;
+export const AiRefineAction = z.enum(AI_REFINE_ACTIONS);
+
+/**
+ * POST /ai/compose ("Write with Flick"). The answer is text for the composer; it is never sent.
+ * - polish: fix grammar and clarity, keep the meaning and the language.
+ * - rewrite: rephrase `text`, optionally in a `tone`.
+ * - write: turn an instruction ("tell Ravi I'll be late") into a ready message. `text` is the
+ *   instruction; `draft` may hold what is already in the box. `tone` and `length` steer the style.
+ * - refine: change `text` with one `action`; "translate" needs `language`, "custom" an `instruction`.
+ * - reply: draft a reply to the chat. The server reads the last ~10 messages itself (the caller
+ *   must be a member of `conversation_id`); `text` is an optional hint ("say yes").
+ */
+export const AiComposeRequest = z.discriminatedUnion('mode', [
+  z.object({
+    mode: z.literal('polish'),
+    text: z.string().trim().min(1).max(LIMITS.MAX_TEXT_LENGTH),
+  }),
+  z.object({
+    mode: z.literal('rewrite'),
+    text: z.string().trim().min(1).max(LIMITS.MAX_TEXT_LENGTH),
+    tone: AiComposeTone.optional(),
+  }),
+  z.object({
+    mode: z.literal('write'),
+    text: z.string().trim().min(1).max(2_000),
+    draft: z.string().max(LIMITS.MAX_TEXT_LENGTH).optional(),
+    /** Lets the server apply this chat's style. */
+    conversation_id: Id.optional(),
+    tone: AiComposeTone.optional(),
+    length: AiComposeLength.optional(),
+  }),
+  z.object({
+    mode: z.literal('refine'),
+    text: z.string().trim().min(1).max(LIMITS.MAX_TEXT_LENGTH),
+    action: AiRefineAction,
+    language: z.string().trim().min(2).max(40).optional(),
+    instruction: z.string().trim().min(1).max(200).optional(),
+  }),
+  z.object({
+    mode: z.literal('reply'),
+    conversation_id: Id,
+    text: z.string().trim().min(1).max(500).optional(),
+    draft: z.string().max(LIMITS.MAX_TEXT_LENGTH).optional(),
+    tone: AiComposeTone.optional(),
+    length: AiComposeLength.optional(),
+  }),
+  // cleanup: dictated speech to tidy text (no fillers or repeats); simplify: plain, short words;
+  // bullets: turn notes into a message; bio: a short profile "About" from the hints in `text`;
+  // code: explain a code snippet; complete: the next few words after `text` (ghost text).
+  z.object({
+    mode: z.enum(['cleanup', 'simplify', 'bullets', 'bio', 'code']),
+    text: z.string().trim().min(1).max(LIMITS.MAX_TEXT_LENGTH),
+  }),
+  z.object({
+    mode: z.literal('complete'),
+    text: z.string().trim().min(1).max(600),
+    conversation_id: Id.optional(),
+  }),
+  // tone: check how `text` may read to the other person; the answer is "OK" or a note plus a softer version.
+  z.object({
+    mode: z.literal('tone'),
+    text: z.string().trim().min(1).max(LIMITS.MAX_TEXT_LENGTH),
+  }),
+]);
+export type AiComposeRequest = z.infer<typeof AiComposeRequest>;
 
 /** POST /ai/chat ("Ask Flick") */
 export const AskAiRequest = z.object({

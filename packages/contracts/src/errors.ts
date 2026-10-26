@@ -15,6 +15,7 @@ export const ERROR_CODES = {
   FORBIDDEN: { retryable: false, http: 403 },
   NOT_A_MEMBER: { retryable: false, http: 403 },
   BLOCKED: { retryable: false, http: 403 },
+  ADMINS_ONLY: { retryable: false, http: 403 }, // announcement-only group: members cannot send
   NOT_FOUND: { retryable: false, http: 404 },
   // business rules
   CONFLICT: { retryable: false, http: 409 },
@@ -27,6 +28,7 @@ export const ERROR_CODES = {
   FEATURE_DISABLED: { retryable: false, http: 501 }, // e.g. LiveKit or GIPHY not configured
   // transient
   RATE_LIMITED: { retryable: true, http: 429 },
+  SLOW_MODE: { retryable: true, http: 429 }, // group slow mode: details.wait_seconds
   TIMEOUT: { retryable: true, http: 504 },
   SERVICE_UNAVAILABLE: { retryable: true, http: 503 },
   AI_UNAVAILABLE: { retryable: true, http: 503 },

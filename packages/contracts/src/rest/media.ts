@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { HttpUrl, Id, IsoDateTime, MimeType } from '../common.js';
-import { LIMITS } from '../limits.js';
 
 // Files go straight to object storage: the client gets a presigned POST, uploads,
 // then calls "complete" so the server can check size and sniff the real type.
@@ -8,17 +7,13 @@ import { LIMITS } from '../limits.js';
 
 export const UploadPurpose = z.enum(['message', 'avatar', 'group_avatar']);
 
-export const PresignUploadRequest = z
-  .object({
-    purpose: UploadPurpose,
-    mime: MimeType,
-    size: z.number().int().min(1).max(LIMITS.MAX_UPLOAD_BYTES),
-    file_name: z.string().min(1).max(255).optional(),
-  })
-  .refine((v) => v.purpose === 'message' || v.size <= LIMITS.MAX_AVATAR_BYTES, {
-    path: ['size'],
-    message: 'avatar too large',
-  });
+export const PresignUploadRequest = z.object({
+  purpose: UploadPurpose,
+  mime: MimeType,
+  // The server checks the upper limit per purpose so it can say what the limit is and why.
+  size: z.number().int().min(1),
+  file_name: z.string().min(1).max(255).optional(),
+});
 
 export const PresignUploadResponse = z.object({
   attachment_id: Id,

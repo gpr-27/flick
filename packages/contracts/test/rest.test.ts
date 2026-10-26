@@ -87,12 +87,17 @@ describe('request schemas', () => {
     expect(DeleteMessageQuery.safeParse({ for: 'everyone' }).success).toBe(true);
     expect(DeleteMessageQuery.safeParse({ for: 'nobody' }).success).toBe(false);
     expect(LivekitTokenRequest.safeParse({}).success).toBe(false); // needs conversation_id or call_link
+    // The size limit per purpose is checked by the server, which answers 413 with the limit and the
+    // reason (see media.int.test.ts). The schema only checks that the size is a positive integer.
     expect(
       PresignUploadRequest.safeParse({
         purpose: 'avatar',
         mime: 'image/png',
         size: 50 * 1024 * 1024,
       }).success,
+    ).toBe(true);
+    expect(
+      PresignUploadRequest.safeParse({ purpose: 'message', mime: 'image/png', size: 0 }).success,
     ).toBe(false);
     expect(
       UpdateConversationRequest.safeParse({ settings: { disappearing_timer_s: 86_400 } }).success,

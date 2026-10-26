@@ -2,9 +2,22 @@ export type ProviderName = 'anthropic' | 'groq' | 'gemini';
 
 export type ChatRole = 'user' | 'assistant';
 
+/** One piece of a multimodal turn. `data` is base64 without the data: prefix. */
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; mime: string; data: string }
+  | { type: 'document'; mime: 'application/pdf'; data: string };
+
 export interface ChatMessage {
   role: ChatRole;
-  content: string;
+  /** Plain text, or parts when the turn carries images / PDFs. */
+  content: string | ContentPart[];
+}
+
+/** What a model can read besides text. */
+export interface ModelCaps {
+  vision: boolean;
+  pdf: boolean;
 }
 
 /** Provider-neutral request. Never logged. */
@@ -15,6 +28,8 @@ export interface AiRequest {
   maxTokens?: number;
   /** 'json' asks OpenAI-compatible providers for a JSON object; prompts must also ask for JSON. */
   responseFormat?: 'text' | 'json';
+  /** 'fast' tries Groq / Gemini before Anthropic; 'quality' (default) keeps the configured order. */
+  preference?: 'fast' | 'quality';
 }
 
 export interface CallOptions {
@@ -93,6 +108,8 @@ export interface ProviderAdapter {
   readonly provider: ProviderName;
   readonly account: string;
   readonly models: readonly string[];
+  /** Absent means text only. */
+  capabilities?(model: string): ModelCaps;
   complete(params: ProviderCallParams): Promise<string>;
   stream(params: ProviderCallParams): AsyncIterable<string>;
 }

@@ -51,6 +51,17 @@ export const CONTENT = {
     started_at: NOW,
     duration_s: 61,
   },
+  checklist: { type: 'checklist', title: 'Trip', items: [{ text: 'Tickets', done: false }] },
+  expense: {
+    type: 'expense',
+    description: 'Dinner',
+    amount_cents: 4200,
+    currency: 'USD',
+    payer_id: ALICE,
+    split_among: [ALICE, BOB],
+  },
+  game: { type: 'game', game: 'wyr', options: ['Tea', 'Coffee'], state: {} },
+  event: { type: 'event', title: 'Dinner', starts_at: '2026-11-01T18:00:00Z', place: 'Home' },
 } satisfies { [K in ContentType]: z.input<typeof MessageContent> & { type: K } };
 
 export const RECORD = {

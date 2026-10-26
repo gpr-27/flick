@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { HttpUrl, Id, IsoDateTime } from './common.js';
 import { LIMITS } from './limits.js';
+import { EventContent } from './content-event.js';
+import { ChecklistContent, ExpenseContent, GameContent } from './content-tools.js';
 
 /**
  * Message content: the `content` object of send_message, one small schema per type.
@@ -23,6 +25,19 @@ export const TextContent = z.object({
   // Only the @flick bot sets these: which provider and model wrote the reply (shown under it).
   ai_provider: z.string().max(40).optional(),
   ai_model: z.string().max(100).optional(),
+  // What the bot read to write the reply ("Why did Flick say this?").
+  ai_sources: z
+    .object({
+      messages: z.number().int().min(0).max(1000),
+      files: z.number().int().min(0).max(20),
+      app_knowledge: z.boolean(),
+    })
+    .optional(),
+  // The sender turned the link preview off for this message.
+  no_preview: z.boolean().optional(),
+  // "Send in <language>": `text` is the translation everyone reads; the sender sees the original.
+  original_text: z.string().max(LIMITS.MAX_TEXT_LENGTH).optional(),
+  translated_to: z.string().max(40).optional(),
   ...base,
 });
 
@@ -31,6 +46,8 @@ export const ImageContent = z.object({
   attachment_id: Id,
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  /** Made with the sticker maker: drawn small and without a frame. */
+  sticker: z.boolean().optional(),
   caption,
   ...base,
 });
@@ -41,6 +58,8 @@ export const VideoContent = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   duration_ms: z.number().int().positive(),
+  /** A round video note, drawn in a circle. */
+  round: z.boolean().optional(),
   caption,
   ...base,
 });
@@ -64,6 +83,8 @@ export const VoiceContent = z.object({
     .max(60 * 60 * 1000),
   /** Loudness samples 0-100, drawn as bars before the audio is downloaded. */
   waveform: z.array(z.number().int().min(0).max(100)).min(1).max(128),
+  /** Left by a caller after a missed call. */
+  voicemail: z.boolean().optional(),
   ...base,
 });
 
@@ -91,6 +112,8 @@ export const PollContent = z
     question: z.string().trim().min(1).max(300),
     options: z.array(z.string().trim().min(1).max(100)).min(2).max(12),
     allow_multiple: z.boolean(),
+    /** The poll closes at this time: it shows Closed and rejects votes. Open forever when absent. */
+    closes_at: z.string().datetime().optional(),
     ...base,
   })
   .refine((p) => new Set(p.options).size === p.options.length, {
@@ -150,6 +173,10 @@ export const MessageContent = z.discriminatedUnion('type', [
   PollVoteContent,
   SystemContent,
   CallEventContent,
+  ChecklistContent,
+  ExpenseContent,
+  GameContent,
+  EventContent,
 ]);
 export type MessageContent = z.infer<typeof MessageContent>;
 export type ContentType = MessageContent['type'];

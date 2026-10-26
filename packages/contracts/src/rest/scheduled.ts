@@ -24,3 +24,11 @@ export type ScheduledMessage = z.infer<typeof ScheduledMessage>;
 export const ScheduledList = z.object({ items: z.array(ScheduledMessage) });
 
 export const ScheduledParams = z.object({ scheduled_id: Id });
+
+/** Change a waiting message's text and/or send time (same lead-time rules as scheduling). */
+export const UpdateScheduledRequest = z
+  .object({
+    text: z.string().trim().min(1).max(LIMITS.MAX_TEXT_LENGTH).optional(),
+    send_at: IsoDateTime.optional(),
+  })
+  .refine((v) => v.text !== undefined || v.send_at !== undefined, { message: 'Nothing to change' });
