@@ -21,6 +21,8 @@ export const AiTranslateRequest = z.object({
   text: z.string().trim().min(1).max(5_000),
   /** A language name or code, e.g. "Hindi" or "fr". */
   targetLang: z.string().trim().min(2).max(40),
+  /** The chat the text comes from, so the chat's "AI off" switch applies. */
+  conversation_id: Id.optional(),
 });
 
 /** Tones "rewrite" can aim for. */

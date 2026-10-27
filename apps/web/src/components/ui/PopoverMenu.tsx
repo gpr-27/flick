@@ -1,6 +1,9 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
+import { useBackClose } from '@/lib/useBackClose';
 import { cn } from './cn';
+import { useAnchoredPosition } from './useAnchoredPosition';
 import { useFocusTrap } from './useFocusTrap';
 
 export interface PopoverMenuItem {
@@ -34,7 +37,7 @@ interface PopoverMenuProps {
 }
 
 const itemClass =
-  'flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[15px] hover:bg-[var(--bg-hover)] focus-visible:bg-[var(--bg-hover)] focus-visible:outline-none disabled:opacity-40 [&>svg]:shrink-0 [&>svg]:text-[var(--text-2)]';
+  'flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[15px] [@media(hover:hover)]:hover:bg-[var(--bg-hover)] focus-visible:bg-[var(--bg-hover)] focus-visible:outline-none disabled:opacity-40 [&>svg]:shrink-0 [&>svg]:text-[var(--text-2)]';
 
 /**
  * A small "⋮"/"+" menu: a 44px trigger and a popover of actions. Used on phones to
@@ -52,10 +55,17 @@ export const PopoverMenu = ({
 }: PopoverMenuProps) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const pos = useAnchoredPosition(triggerRef, menuRef, {
+    prefer: up ? 'up' : 'down',
+    align: alignLeft ? 'left' : 'right',
+    active: open,
+  });
   const close = (): void => {
     setOpen(false);
   };
   useFocusTrap(menuRef, open, { onEscape: close });
+  useBackClose(open, close);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -69,6 +79,7 @@ export const PopoverMenu = ({
   return (
     <div className={cn('relative', className)}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => {
           setOpen((v) => !v);
@@ -85,52 +96,60 @@ export const PopoverMenu = ({
         {icon}
       </button>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" aria-hidden="true" onClick={close} />
-          <div
-            ref={menuRef}
-            role="menu"
-            aria-label={label}
-            onKeyDown={onKeyDown}
-            className={cn(
-              'surface-raised absolute z-40 min-w-56 rounded-2xl p-1.5 animate-scale-in',
-              up ? 'bottom-full mb-2' : 'top-full mt-1',
-              alignLeft ? 'left-0' : 'right-0',
-            )}
-          >
-            {items.map((item) =>
-              item.to ? (
-                <Link
-                  key={item.label}
-                  to={item.to}
-                  role="menuitem"
-                  onClick={close}
-                  className={cn(itemClass, item.className)}
-                >
-                  {item.icon}
-                  {item.label}
-                </Link>
-              ) : (
-                <button
-                  key={item.label}
-                  type="button"
-                  role="menuitem"
-                  disabled={item.disabled}
-                  onClick={() => {
-                    close();
-                    item.onClick?.();
-                  }}
-                  className={cn(itemClass, item.className)}
-                >
-                  {item.icon}
-                  {item.label}
-                </button>
-              ),
-            )}
-          </div>
-        </>
-      )}
+      {open &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[65]" aria-hidden="true" onClick={close} />
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label={label}
+              onKeyDown={onKeyDown}
+              style={{
+                position: 'fixed',
+                top: pos?.top ?? 0,
+                left: pos?.left ?? 0,
+                maxHeight: pos?.maxHeight,
+                maxWidth: pos?.maxWidth,
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+                visibility: pos ? 'visible' : 'hidden',
+              }}
+              className="surface-raised z-[66] min-w-56 rounded-2xl p-1.5 animate-scale-in"
+            >
+              {items.map((item) =>
+                item.to ? (
+                  <Link
+                    key={item.label}
+                    to={item.to}
+                    role="menuitem"
+                    onClick={close}
+                    className={cn(itemClass, item.className)}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Link>
+                ) : (
+                  <button
+                    key={item.label}
+                    type="button"
+                    role="menuitem"
+                    disabled={item.disabled}
+                    onClick={() => {
+                      close();
+                      item.onClick?.();
+                    }}
+                    className={cn(itemClass, item.className)}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ),
+              )}
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 };

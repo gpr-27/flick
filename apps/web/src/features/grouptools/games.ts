@@ -6,6 +6,8 @@ export interface TicTacToeState {
   turn?: 'x' | 'o';
   x?: string;
   o?: string;
+  /** One-person chat (Saved messages): the same person plays X and O. */
+  solo?: boolean;
 }
 
 const LINES: readonly (readonly [number, number, number])[] = [
@@ -31,9 +33,11 @@ export function ticTacToeResult(board: readonly Mark[]): 'x' | 'o' | 'draw' | nu
 }
 
 /** Whether this user may play the next move. The first two different people to move become X and O. */
-export function canMove(state: TicTacToeState, userId: string): boolean {
+export function canMove(state: TicTacToeState, userId: string, soloChat = false): boolean {
   const board = state.board ?? emptyBoard();
   if (ticTacToeResult(board)) return false;
+  // In a chat with only yourself there is no opponent: you play both X and O.
+  if (soloChat || state.solo) return true;
   const turn = state.turn ?? 'x';
   const owner = state[turn];
   if (owner) return owner === userId;

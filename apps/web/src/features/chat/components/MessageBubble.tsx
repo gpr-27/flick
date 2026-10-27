@@ -1,5 +1,6 @@
 import { AutoTranslated } from '@/features/translation/AutoTranslated';
 import { memo, useState } from 'react';
+import { AlbumGrid, ALBUM_ITEM_ATTR } from '../album/AlbumGrid';
 import {
   AlertCircle,
   Check,
@@ -78,6 +79,8 @@ export interface MessageBubbleProps {
   selected?: boolean;
   /** Start choosing with this message, or tick / untick it when already choosing. */
   onSelect?: (message: MessageRecord) => void;
+  /** Every ticked message id (an album ticks its items one by one). */
+  selectedIds?: readonly string[];
 }
 
 const HEART = '❤️';
@@ -134,8 +137,21 @@ const MessageBubbleImpl = ({
   selecting = false,
   selected = false,
   onSelect,
+  selectedIds = [],
 }: MessageBubbleProps) => {
-  const { message, local } = row;
+  const { message: lead, local } = row;
+  // An album is one bubble of several messages. `message` is the one the actions (menu, reply,
+  // star, delete, select) work on: the item that was pressed, or the first one.
+  const album = row.album;
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const message =
+    (album && activeItemId
+      ? album.items.find((i) => i.message.message_id === activeItemId)?.message
+      : undefined) ?? lead;
+  const itemUnder = (target: EventTarget | null): string | null =>
+    target instanceof Element
+      ? (target.closest(`[${ALBUM_ITEM_ATTR}]`)?.getAttribute(ALBUM_ITEM_ATTR) ?? null)
+      : null;
   const [menuOpen, setMenuOpen] = useState(false);
   const [translateOpen, setTranslateOpen] = useState(false);
   // "Translate" in the menu shows the translation under the message (see InlineTranslation).
@@ -152,11 +168,11 @@ const MessageBubbleImpl = ({
   const [remindOpen, setRemindOpen] = useState(false);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const contact = useContactInfo();
-  const isMine = message.sender_user_id === myId;
-  const isSystem = message.content?.type === 'system';
-  const deleted = message.content === null;
+  const isMine = lead.sender_user_id === myId;
+  const isSystem = lead.content?.type === 'system';
+  const deleted = lead.content === null;
   const settled = !local;
-  const time = formatMessageTime(message.created_at);
+  const time = formatMessageTime(lead.created_at);
   const isBot = isFlickBot(message.sender_user_id, sender);
   const author = isMine ? 'You' : isBot ? 'Flick' : (sender?.display_name ?? 'Someone');
   const editable =
@@ -164,7 +180,7 @@ const MessageBubbleImpl = ({
     settled &&
     message.content &&
     ['text', 'image', 'file'].includes(message.content.type);
-  const replyTo = message.content?.reply_to;
+  const replyTo = lead.content?.reply_to;
   // A message that is still sending, or was deleted, has no actions.
   const hasActions = settled && !deleted && message.content !== null;
   const openMenu = (): void => {
@@ -185,7 +201,10 @@ const MessageBubbleImpl = ({
     onLongPress: (target) => {
       const link = target?.closest('a[href]')?.getAttribute('href');
       if (link) setHeldLink(link);
-      else openMenu();
+      else {
+        setActiveItemId(itemUnder(target ?? null));
+        openMenu();
+      }
     },
     onReply: () => {
       onReply(message);
@@ -193,17 +212,40 @@ const MessageBubbleImpl = ({
     onHeart: heart,
   });
 
+  // An album shows the reactions and stars of all its items together.
+  const shownReactions = album
+    ? album.items.reduce<MessageRecord['reactions']>((all, item) => {
+        for (const r of item.message.reactions) {
+          const known = all.find((x) => x.emoji === r.emoji);
+          if (known) {
+            known.user_ids = [...new Set([...known.user_ids, ...r.user_ids])];
+          } else {
+            all.push({ ...r, user_ids: [...r.user_ids] });
+          }
+        }
+        return all;
+      }, [])
+    : message.reactions;
+  const anyStarred = album ? album.items.some((i) => i.message.starred) : message.starred;
+  /** The item a tapped reaction chip applies to: the one I reacted on (to undo it), else the first. */
+  const reactTarget = (emoji: string): MessageRecord =>
+    (album
+      ? album.items.find((i) =>
+          i.message.reactions.some((r) => r.emoji === emoji && r.user_ids.includes(myId)),
+        )?.message
+      : undefined) ?? message;
+
   const dateSeparator = showDate && (
     <div
       className="my-3 flex justify-center"
       role="separator"
-      aria-label={formatDateSeparator(message.created_at)}
+      aria-label={formatDateSeparator(lead.created_at)}
     >
       <span
         data-guide="chat.date"
         className="mx-auto w-fit rounded-full bg-base-100/90 px-3 py-1 text-xs font-medium text-[var(--text-2)] shadow-[var(--shadow-1)]"
       >
-        {formatDateSeparator(message.created_at)}
+        {formatDateSeparator(lead.created_at)}
       </span>
     </div>
   );
@@ -240,7 +282,7 @@ const MessageBubbleImpl = ({
           'group relative flex items-end gap-2 rounded-xl',
           isMine ? 'flex-row-reverse' : 'flex-row',
           selecting && 'cursor-pointer pl-9',
-          selected && 'bg-primary/15',
+          selected && !album && 'bg-primary/15',
         )}
         aria-label={`${author} at ${time}`}
         role="article"
@@ -250,12 +292,17 @@ const MessageBubbleImpl = ({
             ? (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onSelect?.(message);
+                const itemId = itemUnder(e.target);
+                onSelect?.(
+                  (album && itemId
+                    ? album.items.find((i) => i.message.message_id === itemId)?.message
+                    : undefined) ?? lead,
+                );
               }
             : undefined
         }
       >
-        {selecting && hasActions && (
+        {selecting && hasActions && !album && (
           <span
             role="checkbox"
             aria-checked={selected}
@@ -341,14 +388,16 @@ const MessageBubbleImpl = ({
               onContextMenu={(e) => {
                 if (!hasActions || selecting) return;
                 e.preventDefault();
+                setActiveItemId(itemUnder(e.target));
                 markUsed('message.menu');
                 // A hold on a link has already opened the link actions; do not stack the menu on it.
                 if (heldLink === null) setMenuOpen(true);
               }}
               className={cn(
                 'animate-bubble-in relative touch-pan-y overflow-hidden px-3 py-[7px] text-[15px] leading-[22px] transition-opacity [-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none sm:px-3.5',
-                local?.status === 'pending' && 'opacity-70',
+                local?.status === 'pending' && !album && 'opacity-70',
                 (highlighted || menuOpen) && 'ring-2 ring-primary',
+                album && 'p-1',
                 isMine
                   ? cn(
                       'bubble-sent rounded-[18px]',
@@ -389,7 +438,7 @@ const MessageBubbleImpl = ({
                   </span>
                 </button>
               )}
-              {message.content?.forwarded && (
+              {lead.content?.forwarded && (
                 <p className="mb-1 flex items-center gap-1 text-xs italic opacity-90">
                   <Forward className="size-3" aria-hidden="true" />
                   Forwarded
@@ -399,6 +448,15 @@ const MessageBubbleImpl = ({
                 <p className="text-sm italic opacity-90">
                   {message.deleted_at ? 'This message was deleted' : 'Opened'}
                 </p>
+              ) : album ? (
+                <AlbumGrid
+                  group={album}
+                  onOpen={contentContext.onOpenImage}
+                  selecting={selecting}
+                  selectedIds={selectedIds}
+                  onRetry={onRetry}
+                  onDiscard={onDiscard}
+                />
               ) : (
                 message.content &&
                 renderContent(message.content, {
@@ -411,7 +469,10 @@ const MessageBubbleImpl = ({
                 })
               )}
               {!isMine && !isBot && !deleted && message.content?.type === 'text' && (
-                <TranslateChip text={message.content.text} />
+                <TranslateChip
+                  text={message.content.text}
+                  conversationId={message.conversation_id}
+                />
               )}
               {!isMine && !isBot && !deleted && message.content?.type === 'text' && (
                 <MessageHints
@@ -430,15 +491,14 @@ const MessageBubbleImpl = ({
               {inlineTranslate && !deleted && message.content?.type === 'text' && (
                 <InlineTranslation
                   messageId={message.message_id}
+                  conversationId={message.conversation_id}
                   text={message.content.text}
                   onHide={() => {
                     setInlineTranslate(false);
                   }}
                 />
               )}
-              {message.viewed && !deleted && (
-                <p className="mt-1 text-xs italic opacity-90">Opened</p>
-              )}
+              {lead.viewed && !deleted && <p className="mt-1 text-xs italic opacity-90">Opened</p>}
               {isBot && message.content?.type === 'text' && message.content.ai_model && (
                 <ModelTag
                   label={modelLabel(message.content.ai_provider ?? '', message.content.ai_model)}
@@ -461,16 +521,16 @@ const MessageBubbleImpl = ({
             )}
           </div>
 
-          {message.reactions.length > 0 && (
+          {shownReactions.length > 0 && (
             <div className={cn('-mt-2 flex flex-wrap gap-1 px-2', isMine && 'justify-end')}>
-              {message.reactions.map(({ emoji, user_ids }) => {
+              {shownReactions.map(({ emoji, user_ids }) => {
                 const reactedByMe = user_ids.includes(myId);
                 return (
                   <button
                     key={emoji}
                     type="button"
                     onClick={() => {
-                      onReact(message, emoji);
+                      onReact(reactTarget(emoji), emoji);
                     }}
                     aria-pressed={reactedByMe}
                     className={cn(
@@ -501,12 +561,12 @@ const MessageBubbleImpl = ({
               isMine && 'flex-row-reverse',
             )}
           >
-            <time dateTime={message.created_at}>{time}</time>
-            {message.edited_at && !deleted && <span className="italic">edited</span>}
-            {message.expires_at && !deleted && (
+            <time dateTime={lead.created_at}>{time}</time>
+            {lead.edited_at && !deleted && <span className="italic">edited</span>}
+            {lead.expires_at && !deleted && (
               <Timer className="size-3.5" role="img" aria-label="Disappearing message" />
             )}
-            {message.starred && !deleted && (
+            {anyStarred && !deleted && (
               <Star className="size-3 fill-current text-warning" aria-label="Starred" role="img" />
             )}
             {pinned && <Pin className="size-3 text-primary-text" aria-label="Pinned" role="img" />}
@@ -517,7 +577,7 @@ const MessageBubbleImpl = ({
               </span>
             )}
 
-            {local?.status === 'failed' && (
+            {local?.status === 'failed' && !album && (
               <span className="flex items-center gap-2 font-semibold text-error">
                 {local.error?.message ?? 'Not sent'}
                 {local.error?.retryable !== false && (
@@ -547,7 +607,7 @@ const MessageBubbleImpl = ({
               <button
                 type="button"
                 onClick={() => {
-                  onReply(message);
+                  onReply(lead);
                 }}
                 className="tap-target grid size-7 place-items-center rounded-full text-[var(--text-2)] transition-opacity hover:text-primary-text focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
                 aria-label="Reply to this message"
@@ -559,7 +619,10 @@ const MessageBubbleImpl = ({
             {hasActions && (
               <button
                 type="button"
-                onClick={openMenu}
+                onClick={() => {
+                  setActiveItemId(null);
+                  openMenu();
+                }}
                 className="tap-target grid size-7 place-items-center rounded-full text-[var(--text-2)] transition-opacity hover:text-primary-text focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
                 aria-label="Actions for this message"
                 aria-haspopup="menu"
@@ -746,6 +809,7 @@ const MessageBubbleImpl = ({
       {message.content?.type === 'text' && (
         <TranslateDialog
           text={message.content.text}
+          conversationId={message.conversation_id}
           open={translateOpen}
           onClose={() => {
             setTranslateOpen(false);

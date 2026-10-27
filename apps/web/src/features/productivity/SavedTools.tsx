@@ -1,3 +1,5 @@
+import { Markdown } from '@/features/content/richText/Markdown';
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useEffect, useState } from 'react';
 import { Sparkles, Tag } from 'lucide-react';
 import { ENDPOINTS, type SavedTag } from '@chat/contracts';
@@ -118,12 +120,12 @@ export const SavedTools = ({ savedConversationId }: { savedConversationId: strin
           </form>
           {answer && (
             <div className="rounded-xl bg-base-content/5 p-3 text-sm">
-              <p className="whitespace-pre-wrap">{answer.text}</p>
+              <Markdown text={answer.text} />
               {answer.sources.length > 0 && (
                 <ul className="mt-2 flex flex-col gap-1 border-t border-base-content/10 pt-2 text-xs text-base-content/70">
                   {answer.sources.map((s) => (
                     <li key={s.message_id} className="line-clamp-2">
-                      “{s.text}”
+                      “{stripMarkdown(s.text)}”
                     </li>
                   ))}
                 </ul>

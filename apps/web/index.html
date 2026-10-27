@@ -56,7 +56,7 @@
             serif: "Georgia, 'Times New Roman', serif",
             mono: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
           };
-          var family = saved.fontFamily || 'system';
+          var family = saved.fontFamily || 'serif';
           if (families[family]) {
             root.style.setProperty('--app-font', families[family]);
             root.style.setProperty('--display-font', families[family]);

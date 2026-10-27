@@ -57,6 +57,15 @@ export function canShowInline(mime: string): boolean {
 }
 
 /** The Content-Type a download is served with: the real one for inline media, else opaque. */
+/**
+ * A PDF may be shown in the browser when the person asks to preview it. The type was checked against
+ * the file's bytes when the upload finished, and a PDF viewer runs in its own sandbox. Everything
+ * else (HTML, SVG, scripts, unknown types) is never shown inline.
+ */
+export function canPreviewInline(mime: string): boolean {
+  return mime === 'application/pdf';
+}
+
 export function downloadContentType(mime: string): string {
   return canShowInline(mime) ? mime : 'application/octet-stream';
 }

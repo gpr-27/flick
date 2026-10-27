@@ -22,6 +22,7 @@ import {
   toggleRead,
   unarchiveChats,
 } from './rowActions';
+import { useBackClose } from '@/lib/useBackClose';
 import { useSelection } from './useSelection';
 
 const barButton = 'btn btn-ghost btn-sm min-h-[44px] min-w-[44px] px-2';
@@ -40,6 +41,8 @@ export const SelectionBar = ({
   onDelete: (chats: ConversationSummary[]) => void;
 }) => {
   const end = useSelection((s) => s.end);
+  // Back leaves select mode first.
+  useBackClose(true, end);
 
   // Escape leaves select mode.
   useEffect(() => {

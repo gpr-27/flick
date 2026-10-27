@@ -8,6 +8,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 // Tailwind + daisyUI "Soft Pastel Glass" theme (light: pastel-glass, dark: pastel-night).
 const config: Config & { daisyui: Record<string, unknown> } = {
   content: [join(here, 'index.html'), join(here, 'src/**/*.{ts,tsx}')],
+  // Every `hover:` utility only applies on devices that can really hover. On a phone a tap leaves
+  // :hover "stuck" on the last touched element, which looked like a highlight stuck on one chat.
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       fontFamily: {
@@ -67,6 +70,11 @@ const config: Config & { daisyui: Record<string, unknown> } = {
           '20%, 40%': { transform: 'rotate(16deg)' },
         },
         fade: { from: { opacity: '0' }, to: { opacity: '1' } },
+        // A chat sliding in over the list on phones.
+        'page-in': {
+          from: { opacity: '0', transform: 'translateX(24px)' },
+          to: { opacity: '1', transform: 'translateX(0)' },
+        },
         'sheet-up': {
           from: { transform: 'translateY(100%)' },
           to: { transform: 'translateY(0)' },
@@ -83,6 +91,7 @@ const config: Config & { daisyui: Record<string, unknown> } = {
         'heart-pop': 'heart-pop 0.8s ease-out both',
         'scale-in': 'scale-in 0.18s var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)) both',
         fade: 'fade 0.15s ease-out both',
+        'page-in': 'page-in 0.18s var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)) backwards',
         'sheet-up': 'sheet-up 0.28s var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)) both',
         'blob-drift': 'blob-drift 22s ease-in-out infinite',
         'ring-ripple': 'ring-ripple 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite',

@@ -144,10 +144,21 @@ const postWithProgress = (
   form: FormData,
   onProgress: (fraction: number) => void,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('The upload was cancelled.', 'AbortError'));
+      return;
+    }
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
+    signal?.addEventListener('abort', () => {
+      xhr.abort();
+    });
+    xhr.onabort = () => {
+      reject(new DOMException('The upload was cancelled.', 'AbortError'));
+    };
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(e.loaded / e.total);
     };
@@ -173,9 +184,12 @@ export const uploadAttachment = async (
     mime: string;
     fileName: string;
     onProgress?: (fraction: number) => void;
+    /** Abort to cancel the upload (the file picker's "remove"). */
+    signal?: AbortSignal;
   },
 ): Promise<string> => {
   assertFitsLimit(blob.size, options.purpose);
+  options.signal?.throwIfAborted();
   const api = getApi();
   const presign = await api.call(ENDPOINTS.media.presignUpload, {
     body: {
@@ -189,12 +203,19 @@ export const uploadAttachment = async (
   for (const [name, value] of Object.entries(presign.fields)) form.append(name, value);
   form.append('file', blob, options.fileName); // S3 requires the file field to come last
   if (options.onProgress) {
-    await postWithProgress(presign.url, form, options.onProgress, uploadTimeoutMs(blob.size));
+    await postWithProgress(
+      presign.url,
+      form,
+      options.onProgress,
+      uploadTimeoutMs(blob.size),
+      options.signal,
+    );
   } else {
+    const timeout = AbortSignal.timeout(uploadTimeoutMs(blob.size));
     const res = await fetch(presign.url, {
       method: 'POST',
       body: form,
-      signal: AbortSignal.timeout(uploadTimeoutMs(blob.size)),
+      signal: options.signal ? AbortSignal.any([timeout, options.signal]) : timeout,
     });
     if (!res.ok) throw new Error(`Upload failed (${res.status})`);
   }

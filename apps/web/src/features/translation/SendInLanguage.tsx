@@ -3,7 +3,7 @@ import { Languages } from 'lucide-react';
 import type { MessageContent } from '@chat/contracts';
 import { getErrorMessage } from '@/lib/api';
 import { LANGUAGES } from '@/features/ai/languages';
-import { translateBatch } from './translationApi';
+import { translateLong } from './translationApi';
 
 type TextContent = Extract<MessageContent, { type: 'text' }>;
 
@@ -14,9 +14,11 @@ type TextContent = Extract<MessageContent, { type: 'text' }>;
  */
 export const SendInLanguage = ({
   text,
+  conversationId,
   onSend,
 }: {
   text: string;
+  conversationId: string;
   onSend: (content: TextContent) => void;
 }) => {
   const [open, setOpen] = useState(false);
@@ -30,8 +32,7 @@ export const SendInLanguage = ({
     setBusy(true);
     setError(null);
     try {
-      const out = await translateBatch([{ id: 'draft', text: draft }], language, false);
-      const translated = out.get('draft');
+      const translated = (await translateLong(draft, language, conversationId))?.trim();
       if (!translated) throw new Error('empty');
       onSend({ type: 'text', text: translated, original_text: draft, translated_to: language });
       setOpen(false);

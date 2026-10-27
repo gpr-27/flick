@@ -23,3 +23,16 @@ export const serverQuiet = (senderId: string | null | undefined): boolean => {
   if (!current || !isQuietNow(current)) return false;
   return !(senderId && current.priority_contacts.includes(senderId));
 };
+
+/**
+ * Copies the priority-contact list chosen in Settings > Notifications to the server, whose
+ * quiet-hours check (the push worker) reads `priority_contacts` from the productivity settings.
+ */
+export const syncPriorityContacts = async (ids: string[]): Promise<void> => {
+  const api = getApi();
+  const server = await api.call(ENDPOINTS.productivity.getSettings);
+  const saved = await api.call(ENDPOINTS.productivity.putSettings, {
+    body: { ...server, priority_contacts: ids.slice(0, 50) },
+  });
+  setQuietSettings(saved);
+};

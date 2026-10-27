@@ -54,6 +54,7 @@ interface ChatOptions {
   type?: 'text' | 'image' | 'voice';
   body?: string | null;
   mentions?: string[];
+  content?: Record<string, unknown>;
 }
 
 /** A chat where the first member sends one message (seq 1). */
@@ -80,6 +81,7 @@ async function makeChat(members: string[], options: ChatOptions = {}) {
       type: options.type ?? 'text',
       body_text: options.body === undefined ? 'hello there' : options.body,
       mentions: options.mentions ?? [],
+      ...(options.content ? { content: options.content } : {}),
     })
     .returning('id')
     .executeTakeFirstOrThrow();
@@ -122,6 +124,23 @@ const alertsOf = (userId: string) =>
   db.selectFrom('notifications').selectAll().where('user_id', '=', userId).execute();
 
 describe('notify job', () => {
+  it('sends one push per album: the first item says "4 photos", the others stay silent', async () => {
+    const [alice, bob] = [await makeUser('alice'), await makeUser('bob')];
+    await makeDevice(bob);
+    const album = (index: number) => ({
+      type: 'image',
+      album: { id: randomUUID(), index, count: 4 },
+    });
+    const first = await makeChat([alice, bob], { type: 'image', body: null, content: album(0) });
+    const second = await makeChat([alice, bob], { type: 'image', body: null, content: album(1) });
+    const { calls, deps } = fakeSender();
+
+    expect((await handleNotify(deps, jobFor(bob, first))).result).toBe('sent');
+    expect((await handleNotify(deps, jobFor(bob, second))).result).toBe('skipped_album');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.payload.body).toBe('Sent you 4 photos');
+  });
+
   it('pushes once to an offline user with the sender as title, the text as body and ids in data', async () => {
     const [alice, bob] = [await makeUser('alice'), await makeUser('bob')];
     const device = await makeDevice(bob);

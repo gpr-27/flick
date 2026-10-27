@@ -1,11 +1,41 @@
-# Flick: the in-app guide
+# Feature guide and tour
 
-Code: `apps/web/src/features/guide/` (the guide), `apps/api/src/modules/users/repo/guide.ts` (the
-saved progress), contracts in `packages/contracts/src/rest/users.ts`.
+Flick teaches itself. A new person gets a short 10-step welcome tour once, and later, the first time
+they open a feature, a short tip shows how to use it. Nothing is forced, a feature you already use is
+never explained to you, and everything can be switched off or replayed in Settings > Guide and tips.
+There is no AI in the guide; it is plain code and fixed text. Status: Built.
 
-The aim: nobody is ever confused by the app. A new person gets a short tour once. Later, the first
-time someone opens a feature, a short tip shows how to use it. People who have been around are
-never forced through anything, and a feature someone already uses is never explained to them.
+## Related
+
+- [Settings](settings.md): the "Guide and tips" section
+- [Features catalog](README.md): the complete list of what the tips cover
+- [Chat list](chat-list.md): the "Take a 1-minute tour" and "Resume tour" card
+- [PWA and push](pwa-and-push.md): the install and notification tips
+- [Testing](../testing.md): how the guide is tested
+- Code: `apps/web/src/features/guide/` (the guide), `apps/api/src/modules/users/repo/guide.ts` (the
+  saved progress), contracts in `packages/contracts/src/rest/users.ts`.
+
+## What is in it
+
+42 topics: the **Welcome tour** (10 steps) and 41 first-open **tips**, listed in Settings under 8 areas.
+
+| Area                          | Topics (count) | Examples                                                                                                         |
+| ----------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Getting started               | 7              | Welcome tour, chat list, new chat, people and inviting friends, notifications when closed, install, offline      |
+| Writing messages              | 10             | Basics, attach, camera, voice notes, formatting and tables, schedule, GIFs and stickers, polls, emoji, view once |
+| Reading and managing messages | 9              | Message actions, ticks, dates, jump to newest, disappearing, pinned, starred, search in chat, chat options       |
+| Saved and search              | 3              | Saved messages, search your messages, scheduled messages                                                         |
+| Groups                        | 2              | Create a group, group info                                                                                       |
+| Calls                         | 5              | Voice, video and screen sharing, controls, group calls, the Calls tab                                            |
+| Flick assistant               | 4              | Flick chat, ask Flick, group AI, suggest replies                                                                 |
+| You and the app               | 2              | Profile, Settings                                                                                                |
+
+The welcome tour steps are: your chats, start a new chat, type your message, add photos and files, do
+more with any message, find anything again, voice and video calls, meet Flick, settings and your
+profile, put Flick on your home screen. It lists `covers` so reaching its end marks the matching tips
+as seen.
+
+The four Flick assistant tips explain the optional AI features (see [AI overview](../ai/README.md)).
 
 ## What people see
 

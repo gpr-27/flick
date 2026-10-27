@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { FlickTopic } from '@chat/contracts';
-import { listTopics, renameTopic, startTopic } from './flickApi';
+import { listTopics, renameTopic, resumeTopic, startTopic } from './flickApi';
 
 interface TopicsState {
   topics: FlickTopic[];
@@ -8,6 +8,8 @@ interface TopicsState {
   load: () => Promise<void>;
   start: (title?: string) => Promise<void>;
   rename: (id: string, title: string) => Promise<void>;
+  /** Continue an older topic: Flick knows its earlier conversation again. */
+  resume: (id: string) => Promise<FlickTopic>;
 }
 
 /** Topics inside the Flick chat: a new topic is a fresh context (Flick sees only what follows). */
@@ -24,6 +26,12 @@ export const useFlickTopics = create<TopicsState>((set, get) => ({
   start: async (title) => {
     const topic = await startTopic(title);
     set({ topics: [topic, ...get().topics] });
+  },
+  resume: async (id) => {
+    const topic = await resumeTopic(id);
+    // Resuming the current topic changes nothing (the server answers with it).
+    if (!get().topics.some((t) => t.id === topic.id)) set({ topics: [topic, ...get().topics] });
+    return topic;
   },
   rename: async (id, title) => {
     const topic = await renameTopic(id, title);

@@ -20,7 +20,7 @@ export const ListTabs = ({
     <div
       role="group"
       aria-label="Folders and tags"
-      className="flex gap-1 overflow-x-auto px-3 pt-1"
+      className="scroll-slim flex gap-1 overflow-x-auto px-3 py-1"
     >
       {lists.map((l) => (
         <button
@@ -32,7 +32,9 @@ export const ListTabs = ({
           }}
           className={cn(
             'flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-            value === l.id ? 'bg-primary text-primary-content' : 'hover:bg-base-content/5',
+            value === l.id
+              ? 'bg-primary text-primary-content'
+              : '[@media(hover:hover)]:hover:bg-base-content/5',
           )}
         >
           {l.kind === 'tag' && (

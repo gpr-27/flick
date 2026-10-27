@@ -31,7 +31,7 @@ const Tile = ({
     style={style}
     onClick={onSelect}
     className={cn(
-      'relative h-20 w-full overflow-hidden rounded-xl border border-base-content/10 outline-none ring-offset-2 ring-offset-base-100 transition-transform focus-visible:ring-2 focus-visible:ring-primary active:scale-95',
+      'relative h-20 min-h-[44px] w-full overflow-hidden rounded-xl border border-base-content/10 outline-none ring-offset-2 ring-offset-base-100 transition-transform focus-visible:ring-2 focus-visible:ring-primary active:scale-95',
       selected && 'ring-2 ring-primary',
       className,
     )}
@@ -53,7 +53,7 @@ const Preview = ({ id, dim }: { id: string | null; dim: number }) => {
       className={cn('relative isolate h-32 overflow-hidden rounded-2xl', !style && 'app-bg')}
       style={style ?? undefined}
     >
-      {dim > 0 && (
+      {style && dim > 0 && (
         <div
           aria-hidden="true"
           className="absolute inset-0 -z-10"
@@ -77,13 +77,30 @@ export const WallpaperPicker = ({
   onApply,
   onCancel,
   applyLabel = 'Apply',
+  noneLabel = 'Default',
+  fallbackId = null,
+  hideActions = false,
+  onSelect,
 }: {
   value: string | null;
   onApply: (id: string | null) => void;
   onCancel: () => void;
   applyLabel?: string;
+  /** Name of the first tile (it picks "no wallpaper of its own"). */
+  noneLabel?: string;
+  /** What shows when nothing is picked (the wallpaper for all chats), for the preview. */
+  fallbackId?: string | null;
+  /** Hide Cancel / Apply: the parent decides what to do with the pick. */
+  hideActions?: boolean;
+  /** Called on every pick, before anything is applied. */
+  onSelect?: (id: string | null) => void;
 }) => {
-  const [selected, setSelected] = useState<string | null>(value);
+  const [selected, setSelectedRaw] = useState<string | null>(value);
+  const setSelected = (next: string | null | ((cur: string | null) => string | null)): void => {
+    const id = typeof next === 'function' ? next(selected) : next;
+    setSelectedRaw(id);
+    onSelect?.(id);
+  };
   const [dim, setDim] = useSetting('wallpaperDim');
   const items = useCustomWallpapers((s) => s.items);
   const loaded = useCustomWallpapers((s) => s.loaded);
@@ -123,7 +140,7 @@ export const WallpaperPicker = ({
 
   return (
     <div className="space-y-3">
-      <Preview id={selected} dim={dim} />
+      <Preview id={selected ?? fallbackId} dim={dim} />
 
       <div
         className="flex gap-1.5 overflow-x-auto pb-1"
@@ -134,7 +151,7 @@ export const WallpaperPicker = ({
           <button
             key={c.id}
             type="button"
-            className="btn btn-xs btn-ghost shrink-0 rounded-full border border-base-content/10"
+            className="btn btn-sm btn-ghost min-h-[44px] shrink-0 rounded-full border border-base-content/10"
             onClick={() => {
               sections.current[c.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}
@@ -160,20 +177,20 @@ export const WallpaperPicker = ({
             </h3>
             <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
               <Tile
-                label="Default"
+                label={noneLabel}
                 selected={selected === null}
                 onSelect={() => {
                   setSelected(null);
                 }}
                 className="app-bg grid place-items-center text-xs font-semibold"
               >
-                Default
+                {noneLabel}
               </Tile>
               <button
                 type="button"
                 disabled={busy || full}
                 onClick={() => fileRef.current?.click()}
-                className="flex h-20 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-base-content/30 text-xs font-medium hover:bg-base-content/5 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+                className="flex h-20 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-base-content/30 text-xs font-medium hover:bg-base-content/5 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
               >
                 <ImagePlus className="size-5" aria-hidden="true" />
                 {busy ? 'Preparing…' : 'Upload from gallery'}
@@ -198,9 +215,11 @@ export const WallpaperPicker = ({
                     onClick={() => {
                       removeCustom(item.id);
                     }}
-                    className="absolute left-1 top-1 grid size-6 place-items-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-primary"
+                    className="group absolute left-0 top-0 grid size-11 place-items-center rounded-full text-white focus-visible:ring-2 focus-visible:ring-primary"
                   >
-                    <X className="size-3.5" aria-hidden="true" />
+                    <span className="grid size-6 place-items-center rounded-full bg-black/60 group-hover:bg-black/80">
+                      <X className="size-3.5" aria-hidden="true" />
+                    </span>
                   </button>
                 </div>
               ))}
@@ -211,8 +230,7 @@ export const WallpaperPicker = ({
             </p>
             {missing && (
               <p role="status" className="mt-1 text-xs text-warning">
-                This chat uses a custom wallpaper that is stored on another device, so the default
-                shows here.
+                This wallpaper is stored on another device, so the normal background shows here.
               </p>
             )}
             <input
@@ -261,7 +279,7 @@ export const WallpaperPicker = ({
         </div>
       </div>
 
-      <label className="flex items-center gap-3 text-sm">
+      <label className="flex min-h-[44px] items-center gap-3 text-sm">
         <span className="shrink-0">Dim wallpaper</span>
         <input
           type="range"
@@ -279,20 +297,22 @@ export const WallpaperPicker = ({
         <span className="w-9 shrink-0 text-right text-xs tabular-nums opacity-70">{dim}%</span>
       </label>
 
-      <div className="flex justify-end gap-2">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          onClick={() => {
-            onApply(selected);
-          }}
-        >
-          {applyLabel}
-        </button>
-      </div>
+      {!hideActions && (
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => {
+              onApply(selected);
+            }}
+          >
+            {applyLabel}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -4,7 +4,15 @@
 // users (a button inside an option would break the listbox), so they are hidden from screen
 // readers and out of the tab order. The same actions are in the row menu, which opens with the
 // context-menu key, Shift+F10, a right-click or the "⋮", and in select mode.
-import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
+import {
+  memo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+} from 'react';
 import {
   Archive,
   ArchiveRestore,
@@ -82,12 +90,13 @@ export interface ChatRowProps {
   isActive: boolean;
   isFocusTarget: boolean;
   onSelect: (id: string) => void;
-  onFocus: () => void;
+  /** Called with the row's chat id (one stable callback for every row, so rows can be memoized). */
+  onFocus: (id: string) => void;
   /** Run a swipe/menu action (the Sidebar owns the dialogs some of them open). */
   onAction: (id: ActionId, c: ConversationSummary) => void;
 }
 
-export const ChatRow = ({
+const ChatRowImpl = ({
   conversation: c,
   myId,
   isOnline,
@@ -193,7 +202,9 @@ export const ChatRow = ({
       data-conversation-id={c.id}
       data-guide={bot ? 'flick-chat' : undefined}
       onClick={activate}
-      onFocus={onFocus}
+      onFocus={() => {
+        onFocus(c.id);
+      }}
       onKeyDown={onKeyDown}
       onContextMenu={(e) => {
         // A long press on a phone also sends this event; there it starts select mode instead.
@@ -201,7 +212,12 @@ export const ChatRow = ({
         if ((e.nativeEvent as { pointerType?: string }).pointerType !== 'touch') setMenuOpen(true);
       }}
       {...merged}
-      style={{ touchAction: 'pan-y' }}
+      style={{
+        touchAction: 'pan-y',
+        // Rows off screen are not laid out or painted; 72px is the row's minimum height.
+        contentVisibility: 'auto',
+        containIntrinsicSize: 'auto 72px',
+      }}
       className="group relative select-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50"
     >
       <div className="relative overflow-hidden">
@@ -220,7 +236,7 @@ export const ChatRow = ({
               ? 'bg-[var(--bg-active,oklch(var(--p)/0.1))]'
               : moving
                 ? 'bg-base-100'
-                : 'bg-base-100 hover:bg-[var(--bg-hover,oklch(var(--bc)/0.05))]',
+                : 'bg-base-100 [@media(hover:hover)]:hover:bg-[var(--bg-hover,oklch(var(--bc)/0.05))]',
             ticked && 'bg-[var(--bg-active,oklch(var(--p)/0.1))]',
           )}
         >
@@ -284,7 +300,7 @@ export const ChatRow = ({
                 ) : draft && !isActive ? (
                   <>
                     <span className="shrink-0 font-semibold text-primary">Draft:</span>
-                    <span className="truncate">{draft}</span>
+                    <span className="truncate">{stripMarkdown(draft)}</span>
                   </>
                 ) : last ? (
                   <>
@@ -351,7 +367,7 @@ export const ChatRow = ({
                     void initiateCall(c.id, peer, type);
                   }}
                   className={cn(
-                    'grid size-10 cursor-pointer place-items-center rounded-full text-[var(--text-2,oklch(var(--bc)/0.65))] transition-colors hover:text-primary active:bg-primary/10',
+                    'grid size-10 cursor-pointer place-items-center rounded-full text-[var(--text-2,oklch(var(--bc)/0.65))] [@media(hover:hover)]:hover:text-primary active:bg-primary/10',
                     callsDisabled && 'pointer-events-none opacity-40',
                   )}
                 >
@@ -377,8 +393,8 @@ export const ChatRow = ({
             setMenuOpen(true);
           }}
           className={cn(
-            'absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-base-100 text-[var(--text-2,oklch(var(--bc)/0.65))] opacity-0 shadow-md ring-1 ring-base-content/10 transition-opacity hover:text-primary',
-            'group-hover:opacity-100 group-focus-visible:opacity-100',
+            'absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-base-100 text-[var(--text-2,oklch(var(--bc)/0.65))] opacity-0 shadow-md ring-1 ring-base-content/10 transition-opacity [@media(hover:hover)]:hover:text-primary',
+            '[@media(hover:hover)]:group-hover:opacity-100 group-focus-visible:opacity-100',
             '[@media(hover:none)]:pointer-events-none [@media(hover:none)]:hidden',
             selecting && 'pointer-events-none hidden',
           )}
@@ -458,3 +474,6 @@ const ActionStrip = ({
     </div>
   );
 };
+
+/** Memoized: scrolling or hovering one row, or opening another, must not re-render the others. */
+export const ChatRow = memo(ChatRowImpl);

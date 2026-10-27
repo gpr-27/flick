@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Avatar } from '@/components/ui';
 import { useDirectory } from '@/features/directory/useDirectory';
+import { syncPriorityContacts } from '@/features/productivity/quiet';
 import { useSetting } from '@/features/settings/useSettingsStore';
 
 export const KeywordAlerts = () => {
@@ -69,7 +70,10 @@ export const PriorityContacts = () => {
   const [text, setText] = useState('');
   const dir = useDirectory(text);
   const toggle = (id: string): void => {
-    setIds(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id].slice(0, 50));
+    const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id].slice(0, 50);
+    setIds(next);
+    // The server's quiet hours read its own copy of the list.
+    void syncPriorityContacts(next).catch(() => undefined);
   };
   return (
     <div className="py-1">

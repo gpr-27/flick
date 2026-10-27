@@ -72,3 +72,17 @@ describe('Navbar with a chat open', () => {
     expect(screen.getByRole('banner')).not.toHaveClass('max-sm:hidden');
   });
 });
+
+describe('Navbar Calendar link', () => {
+  it('has a direct Calendar link in the main navigation', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('link', { name: 'Calendar', hidden: true })).toHaveAttribute(
+      'href',
+      '/calendar',
+    );
+  });
+});

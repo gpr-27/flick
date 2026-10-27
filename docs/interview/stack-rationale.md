@@ -1,8 +1,13 @@
 # Why this stack, and why not the alternatives
 
-Each section has the same shape: what it does in Flick, why I chose it, what I rejected, what it costs, and one line I
-would say in an interview. The short decision records are in [`decisions/`](../decisions/README.md); this page puts the
-alternatives side by side and adds the hiring angle.
+This page explains why Flick uses each technology and not the alternatives: TypeScript, React with TanStack Query and
+Zustand, Fastify, Socket.IO, PostgreSQL with a transactional outbox, Redis, pg-boss, Clerk, S3-style storage, LiveKit, the
+AI provider chain, Docker, Prometheus and the test tools. Each section has the same shape: what it does in Flick, why I
+chose it, what I rejected, what it costs, and one line I would say in an interview. The short decision records are in
+[`decisions/`](../decisions/README.md); this page puts the alternatives side by side and adds the hiring angle.
+
+Related: [`interview-guide.md`](interview-guide.md), [`../decisions/README.md`](../decisions/README.md),
+[`../architecture/overview.md`](../architecture/overview.md), [`../ai/architecture.md`](../ai/architecture.md).
 
 **Where the market numbers come from.** The 2025 Stack Overflow Developer Survey, professional developers only:
 <https://survey.stackoverflow.co/2025/technology/>. Other points come from the sources named inline. Anything marked
@@ -178,16 +183,45 @@ listing tools I cannot defend
 
 ## The AI provider chain
 
-- **What it does here:** summaries, reply suggestions, translation and the `@flick` bot, through an ordered chain of
-  providers. A rate-limited provider gets a Redis cooldown and the next one is tried. See
-  [ADR-0014](../decisions/0014-ai-provider-fallback-chain.md) and [`ai.md`](../features/ai.md).
+- **What it does here:** every AI feature (writing help, translation, voice transcription, image, PDF and file
+  explanation, conversation understanding, the Flick assistant chat, group and productivity helpers, and the `@flick`
+  bot) goes through one ordered chain: Anthropic, then two Groq accounts, then two Gemini accounts. A rate-limited
+  provider gets a Redis cooldown and the next one is tried. See
+  [ADR-0014](../decisions/0014-ai-provider-fallback-chain.md), [`../ai/README.md`](../ai/README.md) and
+  [`../ai/feature-map.md`](../ai/feature-map.md).
 - **Why:** free tiers have tight limits and outages. A chain keeps the feature usable and costs nothing when idle.
+  Capability routing ([ADR-0017](../decisions/0017-multimodal-provider-routing.md)) skips providers that cannot read
+  images or PDFs.
+- **Guard rails:** a per-user daily quota and a per-chat privacy switch
+  ([ADR-0016](../decisions/0016-ai-quota-and-privacy-guard.md)); untrusted text is fenced; nothing is logged; cheap checks
+  (scam, mood, link safety) are local rules ([ADR-0023](../decisions/0023-heuristics-first-ai-optional.md)).
 - **Rejected:** a single provider (unreliable), a router service (another dependency that sees the content), a local
-  model (too heavy).
+  model (too heavy), a model call for every message (cost, latency, privacy).
 - **Trade-off:** answer style differs between providers, and model names change, so the chain is configuration. With no
-  keys the feature says "unavailable"; it is never faked.
-- **Interview:** "The bot replies through the normal send path, so the answer is stored, ordered and delivered like any
-  message. It also needs the duplicate-delivery guard, because the dispatcher can emit an event twice."
+  keys the feature says "not configured"; it is never faked.
+- **Interview:** "The AI is a feature layer, never in the delivery path. The bot replies through the normal send path,
+  so the answer is stored, ordered and delivered like any message. It also needs the duplicate-delivery guard, because the
+  dispatcher can emit an event twice."
+
+## Files: presigned S3 uploads and linked-message albums
+
+- **What it does here:** files up to 1 GB of any type go from the browser straight to S3 with a presigned POST; an album
+  is N ordinary messages linked by a small metadata object.
+- **Why:** the API never carries file bytes, and every delivery guarantee already built applies to each photo with no new
+  schema ([ADR-0018](../decisions/0018-any-file-type-1gb-presigned-uploads.md),
+  [ADR-0019](../decisions/0019-albums-as-linked-messages.md)).
+- **Rejected:** an allowlist of types (easy to bypass, blocks real use), proxying uploads (memory and bandwidth), one
+  message with an attachment list (one failure blocks all).
+- **Trade-off:** files are stored uninspected (no virus scan), so safety depends on serving rules; uploads are not
+  resumable.
+- **Interview:** "Safety comes from how I serve files, not from guessing what they are."
+
+## Markdown, tokens and the redesign
+
+- **What it does here:** one small safe Markdown parser renders messages and AI answers ([ADR-0021](../decisions/0021-markdown-rendering-everywhere.md));
+  a token-based design system with tested contrast drives light and dark themes ([ADR-0022](../decisions/0022-ui-redesign-and-serif-default.md)).
+- **Rejected:** a general Markdown library plus an HTML sanitiser (bigger attack surface), keeping the glass look.
+- **Interview:** "No raw HTML path exists, so there is no XSS path to review."
 
 ## Docker Compose
 
@@ -240,6 +274,8 @@ actually does.
 | Redis                         | (presence, rate limits)    | Used, ephemeral only                                         |
 | Postgres-backed job queue     | (pg-boss)                  | Used                                                         |
 | Authentication                | (Clerk)                    | Used. Development keys on the demo                           |
+| LLM integration               | (provider fallback chain, quotas, privacy switch) | Used. Know the failure handling per error type |
+| Presigned uploads             | (S3, safe serving)         | Used. Not virus scanned, not resumable                       |
 | Docker                        | (Compose)                  | Used                                                         |
 | Prometheus and Grafana        | -                          | Used; dashboards not checked against a live Prometheus       |
 | Kafka                         | (Redpanda)                 | **NOT used in the current build. Do not claim it.** Deferred |

@@ -1,3 +1,4 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { ENDPOINTS, type ScheduledMessage } from '@chat/contracts';
@@ -237,7 +238,7 @@ export const CalendarPage = () => {
                       minute: '2-digit',
                     })}
                   </p>
-                  <p className="line-clamp-2 break-words">{item.title}</p>
+                  <p className="line-clamp-2 break-words">{stripMarkdown(item.title)}</p>
                 </div>
                 <button
                   type="button"

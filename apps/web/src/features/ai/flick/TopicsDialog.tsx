@@ -1,5 +1,6 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useState, type FormEvent } from 'react';
-import { Pencil, Search, X } from 'lucide-react';
+import { Pencil, RotateCcw, Search, X } from 'lucide-react';
 import type { MessageRecord } from '@chat/contracts';
 import { Modal, notify } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
@@ -19,6 +20,7 @@ export const TopicsDialog = ({
 }) => {
   const topics = useFlickTopics((s) => s.topics);
   const rename = useFlickTopics((s) => s.rename);
+  const resume = useFlickTopics((s) => s.resume);
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -34,6 +36,20 @@ export const TopicsDialog = ({
     }
   };
 
+  const resumeTopic = async (id: string): Promise<void> => {
+    try {
+      await resume(id);
+      onClose();
+      // After the sheet has closed (it hands the focus back to its opener), type to Flick.
+      setTimeout(() => {
+        document.getElementById('composer-input')?.focus();
+      }, 50);
+    } catch (err) {
+      notify.error(getErrorMessage(err, "Couldn't resume the topic."));
+    }
+  };
+
+  const currentId = topics[0]?.id;
   const shown = searchTopics(topics, query);
   return (
     <Modal open={open} onClose={onClose} labelledBy="topics-title" className="max-w-md p-4">
@@ -103,15 +119,34 @@ export const TopicsDialog = ({
                       onClose();
                     }}
                   >
-                    {t.title}
+                    {stripMarkdown(t.title)}
                     <span className="block text-xs font-normal text-base-content/50">
+                      {t.id === currentId ? 'Current' : 'Completed'}
+                      {' · '}
                       {new Date(t.created_at).toLocaleDateString()}
                     </span>
                   </button>
+                  {t.resumes_topic_id && (
+                    <span className="shrink-0 rounded-full bg-base-100 px-2 py-0.5 text-xs font-medium text-primary-text">
+                      Resumed
+                    </span>
+                  )}
+                  {t.id !== currentId && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs gap-1"
+                      aria-label={`Resume ${stripMarkdown(t.title)}`}
+                      onClick={() => {
+                        void resumeTopic(t.id);
+                      }}
+                    >
+                      <RotateCcw className="size-3.5" aria-hidden="true" /> Resume
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-ghost btn-xs btn-circle"
-                    aria-label={`Rename ${t.title}`}
+                    aria-label={`Rename ${stripMarkdown(t.title)}`}
                     onClick={() => {
                       setTitle(t.title);
                       setEditing(t.id);

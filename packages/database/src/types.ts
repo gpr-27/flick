@@ -456,6 +456,8 @@ export interface AiTopicsTable {
   user_id: string;
   title: string;
   started_message_seq: Int8;
+  /** The earlier topic this one continues (a resumed topic), if any. */
+  resumes_topic_id: Generated<string | null>;
   created_at: CreatedAt;
 }
 export interface AiFeedbackTable {
@@ -471,6 +473,8 @@ export interface MessageTranscriptsTable {
   language: string | null;
   text: string;
   summary: string | null;
+  /** Who asked for it or last edited it. */
+  author_id: string | null;
   // Generated tsvector; never written.
   search: ColumnType<string, never, never>;
   created_at: CreatedAt;

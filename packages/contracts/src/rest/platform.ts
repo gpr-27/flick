@@ -16,6 +16,9 @@ export const CreatedWebhook = WebhookItem.extend({ token: z.string() });
 /** Body of POST /hooks/:id/:token. */
 export const HookPostBody = z.object({ text: z.string().trim().min(1).max(4000) });
 
+/** The address that forwards email into the person's Saved messages; null when the feature is off. */
+export const EmailAlias = z.object({ address: z.string().nullable() });
+
 /** Media stored per chat, for Settings > Storage. */
 export const MediaUsage = z.object({
   total_bytes: z.number().int().nonnegative(),

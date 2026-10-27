@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../../app.js';
 import type { Db } from '../../db.js';
 import { ApiError, handle, parse } from '../users/errors.js';
+import { emailAliasFor } from './emailAlias.js';
 
 const { platform } = ENDPOINTS;
 
@@ -171,6 +172,26 @@ export function platformRoutes(app: FastifyInstance, deps: AppDeps): void {
         await postAsBot(db, saved.id, message);
       }
       return reply.code(200).send({ ok: true });
+    }),
+  );
+
+  // ---- the user's forwarding address for email-to-chat (null when it is not configured) ----
+  app.get(
+    platform.emailAlias.path,
+    guard,
+    handle(async (req) => {
+      const user = await db
+        .selectFrom('users')
+        .select('username')
+        .where('id', '=', req.auth!.userId)
+        .executeTakeFirst();
+      return {
+        address: emailAliasFor(
+          user?.username,
+          config.INBOUND_EMAIL_SECRET,
+          config.INBOUND_EMAIL_DOMAIN,
+        ),
+      };
     }),
   );
 

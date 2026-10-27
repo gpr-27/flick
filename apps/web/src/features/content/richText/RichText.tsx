@@ -281,20 +281,30 @@ const renderBlock = (b: Block, key: number, renderText: RenderText | undefined):
  * The text of a message. Plain text (no block markdown) keeps the exact look it always had: one
  * paragraph with line breaks kept. `renderText` draws the plain parts, e.g. to highlight @mentions.
  */
-export const RichText = ({ text, renderText }: { text: string; renderText?: RenderText }) => {
+export const RichText = ({
+  text,
+  renderText,
+  className,
+  inherit = false,
+}: {
+  text: string;
+  renderText?: RenderText;
+  /** Extra classes on the outer element. */
+  className?: string;
+  /** Keep the surrounding font size and line height instead of the chat bubble's 15px. */
+  inherit?: boolean;
+}) => {
   const blocks = useMemo(() => parseBlocks(text), [text]);
+  const base = inherit ? '' : 'text-[15px] leading-relaxed';
   if (blocks.every((b) => b.kind === 'para')) {
     return (
-      <p
-        dir="auto"
-        className="whitespace-pre-wrap [overflow-wrap:anywhere] text-[15px] leading-relaxed"
-      >
+      <p dir="auto" className={cn('whitespace-pre-wrap [overflow-wrap:anywhere]', base, className)}>
         {renderInline(text, renderText)}
       </p>
     );
   }
   return (
-    <div className="min-w-0 max-w-full space-y-2 [overflow-wrap:anywhere] text-[15px] leading-relaxed">
+    <div className={cn('min-w-0 max-w-full space-y-2 [overflow-wrap:anywhere]', base, className)}>
       {blocks.map((b, i) => renderBlock(b, i, renderText))}
     </div>
   );

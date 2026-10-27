@@ -4,6 +4,8 @@
 // Rule for the service worker: EVERY push shows a notification. Browsers take away the permission
 // of a site that receives pushes without showing anything, and iOS does it almost at once.
 
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
+
 export interface PushPayload {
   title: string;
   body: string;
@@ -26,7 +28,7 @@ export const parsePushPayload = (raw: unknown): PushPayload | null => {
   if (!isString(p.title) || !isString(p.conversation_id) || !isString(p.message_id)) return null;
   return {
     title: p.title,
-    body: typeof p.body === 'string' ? p.body : '',
+    body: typeof p.body === 'string' ? stripMarkdown(p.body) : '',
     conversation_id: p.conversation_id,
     message_id: p.message_id,
     ...(typeof p.seq === 'number' && Number.isInteger(p.seq) ? { seq: p.seq } : {}),

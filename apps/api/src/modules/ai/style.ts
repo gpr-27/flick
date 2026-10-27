@@ -14,6 +14,16 @@ export async function loadStyleSample(db: Db, userId: string): Promise<string[]>
     .where('deleted_at', 'is', null)
     .where('body_text', 'is not', null)
     .where('type', '=', 'text')
+    // A chat where the user switched "Allow Flick to read this chat" off is never a style source.
+    .where(
+      'conversation_id',
+      'not in',
+      db
+        .selectFrom('ai_chat_privacy')
+        .select('conversation_id')
+        .where('user_id', '=', userId)
+        .where('allow', '=', false),
+    )
     .orderBy('created_at', 'desc')
     .limit(SAMPLE.messages)
     .execute();

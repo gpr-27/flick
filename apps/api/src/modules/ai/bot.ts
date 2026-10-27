@@ -11,7 +11,8 @@ import type { Redis } from '../../redis.js';
 import { attachmentDeps } from './analyze.js';
 import { AttachmentError, FILE_RULES, defaultPrompt, loadAttachment } from './attachments.js';
 import { buildFlickContext, wrapContext } from './app-context.js';
-import { getMembership, loadLines, stripTags, transcript } from './context.js';
+import { getMembership, loadLines, stripTags, transcript, type ChatLine } from './context.js';
+import { earlierBlock } from './topic-context.js';
 import type { AiService } from './service.js';
 import { AI_OFF_MESSAGE, getSpeed, isAiAllowed } from './privacy.js';
 import { quotaMessage, takeQuota } from './quota.js';
@@ -21,6 +22,7 @@ import {
   explicitMemory,
   extractMemories,
   memoryBlock,
+  resumedLines,
   topicStartSeq,
 } from './flick-extras.js';
 
@@ -162,12 +164,15 @@ export async function flickBotOnMessage(
     // In the Flick chat: "remember that ..." is saved first, and a topic marker hides older messages.
     let memories = '';
     let afterSeq: number | undefined;
+    let earlier: ChatLine[] = [];
     if (direct) {
       const fact = explicitMemory(text);
       if (fact) await addMemory(db, senderId, fact);
       memories = await memoryBlock(db, senderId);
       const start = await topicStartSeq(db, senderId);
       if (start > 0) afterSeq = start - 1;
+      // A resumed topic: Flick also reads what was said in the topic it continues.
+      earlier = await resumedLines(db, senderId, message.conversation_id, member);
     }
     const lines = await loadLines(db, senderId, message.conversation_id, member, {
       ...CONTEXT,
@@ -195,7 +200,7 @@ export async function flickBotOnMessage(
         return 'replied';
       }
     }
-    const history = `<messages>\n${transcript(lines)}\n</messages>`;
+    const history = `${earlierBlock(earlier)}<messages>\n${transcript(lines)}\n</messages>`;
     const latest = `written by ${asker}`;
     const content: string | ContentPart[] = file
       ? [

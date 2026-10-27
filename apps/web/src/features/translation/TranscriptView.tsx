@@ -3,17 +3,18 @@ import { Copy, Languages, Pencil, Share2 } from 'lucide-react';
 import type { TranscriptData } from '@chat/contracts';
 import { notify } from '@/components/ui/notify';
 import { getErrorMessage } from '@/lib/api';
-import { UI_LANGUAGE } from '@/features/ai/languageDetect';
+import { LANGUAGES } from '@/features/ai/languages';
 import { useAiEnabled } from '@/features/ai/useAiEnabled';
 import { useAutoTranslateTarget } from './autoTranslate';
+import { defaultTarget } from './translateTarget';
 import {
   fetchTranscript,
   saveTranscriptEdit,
   transcribeAttachment,
-  translateBatch,
+  translateLong,
 } from './translationApi';
 
-// The transcript of a voice note or video under its player: summary line, text, detected language,
+// The transcript of a voice note under its player (voice notes and audio only: never video): summary line, text, detected language,
 // copy / share / edit, and "Translate" in one step (it transcribes first when there is no transcript).
 // It also serves as the captions: when the chat is translated for me the caption is in my language.
 
@@ -22,18 +23,31 @@ const known = new Map<string, TranscriptData>();
 const askedAt = new Map<string, number>();
 const RETRY_MS = [8_000, 20_000];
 
+const PICK_KEY = 'flick.translateTo';
+const readPick = (): string | null => {
+  try {
+    return localStorage.getItem(PICK_KEY);
+  } catch {
+    return null;
+  }
+};
+const rememberPick = (language: string): void => {
+  try {
+    localStorage.setItem(PICK_KEY, language);
+  } catch {
+    /* private mode: the choice just is not remembered */
+  }
+};
+
 const button = 'flex items-center gap-1 text-xs font-semibold underline disabled:opacity-50';
 
 export const TranscriptView = ({
   attachmentId,
   conversationId,
-  compact = false,
   className = '',
 }: {
   attachmentId: string;
   conversationId?: string | undefined;
-  /** Captions under a video: no editing tools. */
-  compact?: boolean;
   className?: string;
 }) => {
   const aiEnabled = useAiEnabled();
@@ -46,6 +60,7 @@ export const TranscriptView = ({
   const [editing, setEditing] = useState<string | null>(null);
   const [translated, setTranslated] = useState<string | null>(null);
   const [showTranslated, setShowTranslated] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
 
   const store = (t: TranscriptData | null): void => {
     if (t) known.set(attachmentId, t);
@@ -78,21 +93,34 @@ export const TranscriptView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachmentId, transcript === null]);
 
-  const translateTo = chatLanguage ?? UI_LANGUAGE;
+  const translateTo =
+    picked ?? defaultTarget(chatLanguage, transcript?.language ?? null, readPick());
 
-  const translate = async (t: TranscriptData): Promise<void> => {
+  const translate = async (t: TranscriptData, language = translateTo): Promise<void> => {
     setBusy('translate');
+    setError(null);
     try {
-      const out = await translateBatch([{ id: 'transcript', text: t.text }], translateTo, false);
-      const text = out.get('transcript') ?? null;
+      const text = await translateLong(t.text, language, conversationId ?? '');
       if (!text) throw new Error('empty');
+      if (text.trim().toLowerCase() === t.text.trim().toLowerCase()) {
+        setError(`This is already in ${language}. Pick another language to translate it to.`);
+        return;
+      }
       setTranslated(text);
       setShowTranslated(true);
     } catch (e) {
-      setError(getErrorMessage(e, "Couldn't translate this."));
+      setError(getErrorMessage(e, `Couldn't translate this to ${language}. Try again.`));
     } finally {
       setBusy(null);
     }
+  };
+
+  const pick = (language: string): void => {
+    setPicked(language);
+    rememberPick(language);
+    setTranslated(null);
+    setShowTranslated(false);
+    setError(null);
   };
 
   const transcribe = async (thenTranslate: boolean): Promise<void> => {
@@ -100,12 +128,40 @@ export const TranscriptView = ({
     setError(null);
     try {
       const text = await transcribeAttachment(attachmentId);
+      if (!text.trim()) {
+        setError('No speech was found in this voice message.');
+        return;
+      }
       const stored = await fetchTranscript(attachmentId).catch(() => null);
-      const t = stored ?? { text: text || '(No speech found)', language: null, summary: null };
+      const t = stored ?? { text, language: null, summary: null };
       store(t);
-      if (thenTranslate && text) await translate(t);
+      if (thenTranslate) {
+        setBusy(null);
+        await translate(t, picked ?? defaultTarget(chatLanguage, t.language, readPick()));
+      }
     } catch (e) {
-      setError(getErrorMessage(e, "Couldn't transcribe this."));
+      setError(getErrorMessage(e, "Couldn't transcribe this. Try again."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** "Wrong language?": transcribe again, telling Whisper which language is spoken. */
+  const retranscribe = async (language: string): Promise<void> => {
+    setBusy('transcribe');
+    setError(null);
+    try {
+      const text = await transcribeAttachment(attachmentId, language);
+      if (!text.trim()) {
+        setError('No speech was found in this voice message.');
+        return;
+      }
+      const stored = await fetchTranscript(attachmentId).catch(() => null);
+      store(stored ?? { text, language, summary: null });
+      setTranslated(null);
+      setShowTranslated(false);
+    } catch (e) {
+      setError(getErrorMessage(e, `Couldn't transcribe this as ${language}. Try again.`));
     } finally {
       setBusy(null);
     }
@@ -113,12 +169,27 @@ export const TranscriptView = ({
 
   // Captions in my language: the chat is translated for me, so the transcript is too.
   useEffect(() => {
-    if (!transcript || !chatLanguage || translated !== null || busy) return;
+    if (!transcript || !chatLanguage || picked || translated !== null || busy) return;
     if (transcript.language && transcript.language === chatLanguage) return;
     // Started from a microtask so the effect itself sets no state.
     void Promise.resolve().then(() => translate(transcript));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transcript, chatLanguage]);
+
+  const picker = (
+    <select
+      value={translateTo}
+      onChange={(e) => {
+        pick(e.target.value);
+      }}
+      aria-label="Translate to"
+      className="select select-bordered select-xs text-base-content"
+    >
+      {[...new Set([translateTo, ...LANGUAGES])].map((l) => (
+        <option key={l}>{l}</option>
+      ))}
+    </select>
+  );
 
   const save = async (): Promise<void> => {
     if (editing === null || !editing.trim()) return;
@@ -152,7 +223,7 @@ export const TranscriptView = ({
     if (aiEnabled === false) return null;
     return (
       <div className={`flex flex-col gap-1 ${className}`}>
-        {!compact && (
+        {
           <div className="flex gap-3">
             <button
               type="button"
@@ -169,10 +240,11 @@ export const TranscriptView = ({
               className={button}
             >
               <Languages className="size-3" aria-hidden="true" />
-              Translate
+              {busy === 'translate' ? 'Translating…' : `Translate to ${translateTo}`}
             </button>
+            {picker}
           </div>
-        )}
+        }
         {error && (
           <p role="alert" className="text-xs">
             {error}
@@ -228,9 +300,30 @@ export const TranscriptView = ({
           {showTranslated && translated
             ? `Translated from ${transcript.language}`
             : transcript.language}
+          {aiEnabled !== false && (
+            <>
+              {' · '}
+              <select
+                value=""
+                disabled={busy !== null}
+                onChange={(e) => {
+                  if (e.target.value) void retranscribe(e.target.value);
+                }}
+                aria-label="Wrong language? Transcribe again as"
+                className="select select-ghost select-xs h-5 min-h-0 px-1 text-xs"
+              >
+                <option value="">
+                  {busy === 'transcribe' ? 'Transcribing…' : 'Wrong language?'}
+                </option>
+                {LANGUAGES.map((l) => (
+                  <option key={l}>{l}</option>
+                ))}
+              </select>
+            </>
+          )}
         </p>
       )}
-      {!compact && editing === null && (
+      {editing === null && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {translated ? (
             <button
@@ -252,10 +345,11 @@ export const TranscriptView = ({
                 onClick={() => void translate(transcript)}
               >
                 <Languages className="size-3" aria-hidden="true" />
-                {busy === 'translate' ? 'Translating…' : 'Translate'}
+                {busy === 'translate' ? 'Translating…' : `Translate to ${translateTo}`}
               </button>
             )
           )}
+          {aiEnabled !== false && picker}
           <button type="button" className={button} onClick={copy}>
             <Copy className="size-3" aria-hidden="true" />
             Copy

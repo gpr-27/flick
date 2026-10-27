@@ -243,7 +243,7 @@ function VirtualMessageListInner<T>(
         aria-busy={isLoadingOlder || undefined}
         tabIndex={0}
         data-testid="message-scroller"
-        className={`scroll-slim h-full overflow-y-auto [overflow-anchor:none] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${className ?? ''}`}
+        className={`scroll-slim h-full overflow-y-auto overscroll-contain [overflow-anchor:none] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${className ?? ''}`}
       >
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtualizer.getVirtualItems().map(renderRow)}

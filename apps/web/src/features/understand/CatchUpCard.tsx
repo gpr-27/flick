@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { Spinner } from '@/components/ui';
@@ -68,7 +69,7 @@ export const CatchUpCard = ({
       )}
       {done && (
         <div className="mt-2">
-          {done.text && <p className="px-3 pb-1 text-[var(--text-2)]">{done.text}</p>}
+          {done.text && <Markdown text={done.text} className="px-3 pb-1 text-[var(--text-2)]" />}
           <ItemList items={done.items} />
         </div>
       )}

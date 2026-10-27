@@ -9,7 +9,9 @@ import { DEFAULT_SETTINGS, sanitizeSettings, type Settings } from './settingsSch
 export const SETTINGS_KEY = 'flick.settings.v1';
 // Version 2: the default text size became small and the default font serif. A saved value that is
 // still the OLD default (normal / rounded) moves to the new one; anything else the user chose stays.
-export const SETTINGS_VERSION = 2;
+// Version 3: the redesign briefly made the system font the default; serif is the default again, so
+// a saved 'system' (it was never a choice anyone could have made on purpose that early) moves back.
+export const SETTINGS_VERSION = 3;
 
 /** Before this store, the theme and the message sound had a key each. Used once, on first run. */
 const readLegacy = (): Partial<Settings> => {
@@ -59,6 +61,7 @@ export const useSettingsStore = create<SettingsState>()(
           if (old.fontSize === 'normal') old.fontSize = 'small';
           if (old.fontFamily === 'rounded') old.fontFamily = 'serif';
         }
+        if (version < 3 && old.fontFamily === 'system') old.fontFamily = 'serif';
         return sanitizeSettings(old);
       },
       // Nothing saved yet (first run): keep what the store started with.

@@ -43,7 +43,8 @@ describe('FlickPanel', () => {
     const user = userEvent.setup();
     render(<FlickPanel conversation={makeConversation()} open onClose={vi.fn()} />);
     await user.click(await screen.findByRole('button', { name: 'Summarize unread' }));
-    expect(await screen.findByText('- Dinner at 8')).toBeInTheDocument();
+    // The bullet is drawn as a list item, not as raw "- " text.
+    expect(await screen.findByRole('listitem')).toHaveTextContent('Dinner at 8');
     expect(screen.getByText('Answered by Anthropic · claude-sonnet-5-5')).toBeInTheDocument();
     expect(api.summarizeUnread).toHaveBeenCalledWith(CONV, expect.anything());
   });
@@ -104,7 +105,7 @@ describe('TranslateDialog', () => {
     await user.selectOptions(await screen.findByLabelText('Translate to'), 'English');
     expect(await screen.findByText('Hello')).toBeInTheDocument();
     expect(screen.getByText('Answered by Gemini · gemini-3.8-flash')).toBeInTheDocument();
-    expect(api.translateText).toHaveBeenCalledWith('Hola', 'English');
+    expect(api.translateText).toHaveBeenCalledWith('Hola', 'English', undefined, undefined);
   });
 });
 

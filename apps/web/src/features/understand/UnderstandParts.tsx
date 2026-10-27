@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import type { ReactNode } from 'react';
 import { Modal, Spinner } from '@/components/ui';
 import { ModelTag } from '@/features/ai/ModelTag';
@@ -51,7 +52,7 @@ export const ItemList = ({ items, onJump }: { items: UnderstandItem[]; onJump?: 
             }}
             className="w-full rounded-xl px-3 py-2 text-left leading-5 enabled:hover:bg-[var(--bg-hover)]"
           >
-            {item.text}
+            <Markdown text={item.text} />
           </button>
         </li>
       );
@@ -77,7 +78,7 @@ export const Result = ({
   const r: UnderstandResult = state.result;
   return (
     <>
-      {r.text && <p className="whitespace-pre-wrap break-words leading-6">{r.text}</p>}
+      {r.text && <Markdown text={r.text} className="leading-6" />}
       {r.items.length > 0 && <ItemList items={r.items} {...(onJump ? { onJump } : {})} />}
       {r.model && <ModelTag label={modelLabel(r.provider, r.model)} />}
     </>

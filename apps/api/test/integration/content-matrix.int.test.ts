@@ -124,6 +124,20 @@ const SENDABLE: Case[] = [
     make: (c) => sendAsAlice(c, { type: 'text', text: `hello ${c.token}` }),
   },
   {
+    // "Send in <language>": Telugu text with an emoji and a 4-byte letter, plus the original.
+    name: 'translated text (Telugu, 4-byte characters)',
+    type: 'text',
+    searchable: true,
+    forwardable: true,
+    make: (c) =>
+      sendAsAlice(c, {
+        type: 'text',
+        text: `${c.token} నమస్కారం, మీరు ఎలా ఉన్నారు? 😀𝒳`,
+        original_text: `hello how are you ${c.token}`,
+        translated_to: 'Telugu',
+      }),
+  },
+  {
     name: 'text with emoji, accents and newlines',
     type: 'text',
     searchable: true,

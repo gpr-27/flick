@@ -3,8 +3,11 @@
 // file in ./components and changes settings through useSettingsStore or the server.
 import { TranslationSettings } from '@/features/translation/TranslationSettings';
 import { useState, type ReactNode } from 'react';
+import { useBackClose } from '@/lib/useBackClose';
+import { useHideTabBar } from '@/app/chromeStore';
 import {
   Bell,
+  ChevronLeft,
   ChevronRight,
   Info,
   MessageSquare,
@@ -146,6 +149,14 @@ export const SettingsPage = () => {
   // Laptops always show one section; phones can have all of them closed.
   const [active, setActive] = useState<string | null>(null);
   const shown = wide ? (active ?? 'account') : active;
+  const openSection = SECTIONS.find((x) => x.id === active);
+  // On phones an opened section is a page of its own: Back closes it, a second Back leaves
+  // Settings, and the bottom tab bar steps aside.
+  const sectionOpen = !wide && active !== null;
+  useBackClose(sectionOpen, () => {
+    setActive(null);
+  });
+  useHideTabBar(sectionOpen);
   useFeatureGuide('settings.page');
   useMarkUsedWhen('settings.page', active !== null);
 
@@ -169,9 +180,33 @@ export const SettingsPage = () => {
   return (
     <main className="app-bg min-h-dvh-screen px-4 pb-[max(4rem,calc(1rem+env(safe-area-inset-bottom)))] pt-[calc(4.5rem+env(safe-area-inset-top))] sm:pt-[calc(5rem+env(safe-area-inset-top))]">
       <div className="mx-auto max-w-5xl animate-fade-in-up">
-        <h1 className="mb-2 text-[22px] font-bold">Settings</h1>
+        {sectionOpen && openSection ? (
+          <div>
+            <h1 className="sr-only">Settings</h1>
+            <header className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-20 -mx-4 mb-3 flex items-center gap-1 border-b border-base-content/10 bg-base-100/95 px-2 backdrop-blur">
+              <button
+                type="button"
+                onClick={() => {
+                  setActive(null);
+                }}
+                className="-ml-1 flex min-h-[48px] items-center gap-0.5 rounded-xl pl-1 pr-3 text-[15px] font-medium text-primary-text active:bg-[var(--bg-hover)]"
+              >
+                <ChevronLeft className="size-6" aria-hidden="true" />
+                Settings
+              </button>
+              <h2 className="flex-1 truncate pr-12 text-center text-base font-semibold">
+                {openSection.title}
+              </h2>
+            </header>
+            <div id={`settings-${openSection.id}`} className="space-y-4">
+              {openSection.content()}
+            </div>
+          </div>
+        ) : (
+          <h1 className="mb-2 text-[22px] font-bold">Settings</h1>
+        )}
 
-        {wide ? (
+        {sectionOpen && openSection ? null : wide ? (
           <div className="grid grid-cols-[14rem_1fr] items-start gap-6">
             <nav aria-label="Settings sections" className="sticky top-24">
               <ul className="space-y-0.5">

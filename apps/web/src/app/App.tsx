@@ -5,6 +5,9 @@ import { ConnectionStatusBanner } from '@/components/app/ConnectionStatusBanner'
 import { FullScreenError, FullScreenLoader } from '@/components/app/FullScreenStates';
 import { MobileTabBar } from '@/components/app/MobileTabBar';
 import { Navbar } from '@/components/app/Navbar';
+import { EdgeSwipeBack } from '@/app/EdgeSwipeBack';
+import { useChromeStore } from '@/app/chromeStore';
+import { useExitGuard } from '@/lib/useBackClose';
 import { useChatStore } from '@/features/chat/useChatStore';
 import { AppToaster } from '@/components/ui';
 import { getTransport } from '@/lib/services';
@@ -113,7 +116,13 @@ const SignedInApp = () => {
   const { pathname } = useLocation();
   const chatOpen = useChatStore((st) => st.selectedId !== null);
   // The phone tab bar steps aside inside an open chat and on call-link pages.
-  const showTabBar = !(chatOpen && pathname === '/') && !pathname.startsWith('/call/');
+  // It also steps aside inside a Settings section (a page of its own on phones).
+  const hideForScreen = useChromeStore((st) => st.hideTabBar > 0);
+  const showTabBar =
+    !(chatOpen && pathname === '/') && !pathname.startsWith('/call/') && !hideForScreen;
+
+  // Installed app: the first Back at the very start shows "Press back again to exit".
+  useExitGuard();
 
   useRealtimeBindings(userId);
   useNotificationBindings(userId);
@@ -174,6 +183,7 @@ const SignedInApp = () => {
       <GroupCallOverlay />
       <GuideHost />
       <GlobalKeys />
+      <EdgeSwipeBack />
     </div>
   );
 };

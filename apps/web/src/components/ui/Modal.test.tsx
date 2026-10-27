@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { resetBackStackForTests } from '@/lib/useBackClose';
 import { Modal } from './Modal';
 
 const Harness = () => {
@@ -39,5 +40,35 @@ describe('Modal focus management', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
+  });
+});
+
+describe('Modal and the phone Back button', () => {
+  afterEach(() => {
+    resetBackStackForTests();
+  });
+
+  it('Back closes the dialog instead of leaving the page', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    expect((window.history.state as Record<string, unknown>).__flickBack).toBeDefined();
+    await act(async () => {
+      window.history.back();
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('closing with Escape takes the extra history step away', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    expect((window.history.state as Record<string, unknown>).__flickBack).toBeDefined();
+    await user.keyboard('{Escape}');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect((window.history.state as Record<string, unknown> | null)?.__flickBack).toBeUndefined();
   });
 });

@@ -22,7 +22,7 @@ describe('settings defaults', () => {
       theme: 'system',
       accent: 'violet',
       fontSize: 'small',
-      fontFamily: 'system',
+      fontFamily: 'serif',
       density: 'comfortable',
       corners: 'rounded',
       enterSends: true,
@@ -108,6 +108,28 @@ describe('the small / serif defaults', () => {
     const { useSettingsStore: fresh } = await import('./useSettingsStore');
     await fresh.persist.rehydrate();
     expect(fresh.getState()).toMatchObject({ fontSize: 'normal', fontFamily: 'rounded' });
+  });
+
+  it('serif is the default font again: a saved "system" from before version 3 moves back, once', async () => {
+    localStorage.setItem(
+      'flick.settings.v1',
+      JSON.stringify({ version: 2, state: { fontFamily: 'system' } }),
+    );
+    vi.resetModules();
+    const { useSettingsStore: fresh } = await import('./useSettingsStore');
+    await fresh.persist.rehydrate();
+    expect(fresh.getState().fontFamily).toBe('serif');
+  });
+
+  it('a "system" font saved by version 3 is a choice and stays', async () => {
+    localStorage.setItem(
+      'flick.settings.v1',
+      JSON.stringify({ version: 3, state: { fontFamily: 'system' } }),
+    );
+    vi.resetModules();
+    const { useSettingsStore: fresh } = await import('./useSettingsStore');
+    await fresh.persist.rehydrate();
+    expect(fresh.getState().fontFamily).toBe('system');
   });
 });
 

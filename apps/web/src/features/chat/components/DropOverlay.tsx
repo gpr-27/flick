@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { UploadCloud } from 'lucide-react';
 
-/** Window event MessageInput listens to: detail is the dropped File. */
+/** Window event MessageInput listens to: detail is the list of dropped Files. */
 export const DROP_FILE_EVENT = 'flick:drop-file';
 
 const hasFiles = (e: DragEvent): boolean =>
@@ -47,8 +47,9 @@ export const DropOverlay = () => {
       }}
       onDrop={(e) => {
         e.preventDefault();
-        const file = e.dataTransfer.files[0];
-        if (file) window.dispatchEvent(new CustomEvent(DROP_FILE_EVENT, { detail: file }));
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0)
+          window.dispatchEvent(new CustomEvent(DROP_FILE_EVENT, { detail: files }));
       }}
       className="absolute inset-0 z-40 grid place-items-center bg-base-100/80 backdrop-blur-sm"
     >

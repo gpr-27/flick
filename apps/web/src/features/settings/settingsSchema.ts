@@ -81,7 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   accent: 'violet',
   fontSize: 'small',
-  fontFamily: 'system',
+  fontFamily: 'serif',
   density: 'comfortable',
   corners: 'rounded',
   reduceMotion: false,

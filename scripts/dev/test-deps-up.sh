@@ -22,7 +22,7 @@ fi
 
 compose up -d --wait postgres redis minio >&2
 # `run` waits for the one-shot job and fails if it fails.
-compose run --rm minio-init >&2
+compose run --rm -T minio-init <"$(dirname "$0")/../../infra/minio/init-bucket.sh" >&2
 
 cat <<EOF
 export DATABASE_URL=postgres://chat:chat@localhost:${TEST_POSTGRES_PORT:-55432}/chat_test

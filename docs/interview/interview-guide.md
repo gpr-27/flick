@@ -1,7 +1,14 @@
 # Flick interview guide
 
-For an SDE-1 interview. Every answer below was checked against the code in this repo and points to a real file.
-If the guide and the code ever disagree, the code wins: fix the guide.
+This guide prepares you to explain Flick in an SDE-1 interview: a two-minute pitch, the one diagram to draw, thirty
+likely questions with answers, "why not X" cards, honest limits, drills, and the numbers to know. Sections 8 and 9 (new)
+explain the AI architecture and the album and upload designs in interview-friendly terms. Every answer was checked
+against the code in this repo and points to a real file. If the guide and the code ever disagree, the code wins: fix
+the guide.
+
+Related: [`stack-rationale.md`](stack-rationale.md), [`../architecture/overview.md`](../architecture/overview.md),
+[`../ai/README.md`](../ai/README.md), [`../ai/architecture.md`](../ai/architecture.md), [`../status.md`](../status.md),
+[`../decisions/README.md`](../decisions/README.md).
 
 How to use it: read sections 1 and 2 until you can say them without looking. Then do the drills in section 6.
 Read section 5 last and often. It keeps you honest, and honesty is what a good interviewer rewards.
@@ -15,6 +22,8 @@ Read section 5 last and often. It keeps you honest, and honesty is what a good i
 5. [Traps and honest limits](#5-traps-and-honest-limits)
 6. [Drills](#6-drill-list)
 7. [Numbers to know](#7-numbers-to-know)
+8. [Explaining the AI architecture](#8-explaining-the-ai-architecture)
+9. [Explaining albums and uploads](#9-explaining-albums-and-uploads)
 
 ---
 
@@ -23,8 +32,9 @@ Read section 5 last and often. It keeps you honest, and honesty is what a good i
 ### The 2-minute version (spoken, about 250 words)
 
 > Flick is a WhatsApp-style chat app I built end to end. It has one-to-one chats and groups, delivery and read
-> ticks, offline sync, presence and typing, media, voice notes, search, calls, push notifications, and an AI bot
-> you call with @flick.
+> ticks, offline sync, presence and typing, media (any file up to a gigabyte, albums), voice notes, search, calls,
+> push notifications, and an AI layer: writing help, translation, voice transcription, explaining images and files,
+> and an assistant called Flick that you can also summon with @flick in a chat.
 >
 > The hard part of a chat app is not sending a message. It is never losing one, never showing one twice, and
 > showing them in the same order everywhere. So I designed around that.
@@ -43,6 +53,10 @@ Read section 5 last and often. It keeps you honest, and honesty is what a good i
 >
 > Login is Clerk. Redis only holds disposable things: presence, rate limits, caches. Background jobs such as
 > offline push notifications run on pg-boss, so a job is queued in the same transaction as the data.
+>
+> The AI is used in many places but it is never in the delivery path and it only runs when the user asks. Requests go
+> through a provider chain with cooldowns, a per-user daily quota and a per-chat privacy switch; things like scam
+> warnings run locally with plain rules.
 >
 > I kept it simple on purpose. There is no Kafka, because nothing needs it yet, and I can say exactly what would
 > make me add it.
@@ -622,11 +636,11 @@ switch. Keep the tone humble. The goal is to show you chose, not copied.
 
 - Behaviour with two API replicas under load.
 - A Redis outage during traffic.
-- Real Clerk, real Web Push, real GIPHY, real AI keys.
+- Real Clerk, real Web Push, real GIPHY, and the full AI chain against every real provider at once.
 - Dashboards and alerts against a running Prometheus and Grafana.
-- `media.int.test.ts` and `app.int.test.ts` need MinIO and were not run in the last gate.
-- Some contract endpoints are not served yet (user profile, privacy, contacts, `GET /gifs`).
-- Pin, star and unpin send no live event. The chat lock hash is never checked by the server (UI convenience only).
+- Load behaviour: there are no load tests, only database benchmarks.
+- Chat is not end-to-end encrypted, and uploaded files are not virus scanned (served safely instead, ADR-0018).
+- Star and unpin-by-others send no seq. The chat lock hash is never checked by the server (UI convenience only).
 - A connected socket is not re-verified after the Clerk token expires.
 
 ### How to say "I did not build that, but here is how I would"
@@ -700,7 +714,7 @@ Do each on paper, out loud, in under 3 minutes. The key points are what a good a
    inserts the same id, so nothing. Worker re-checks deleted, muted, online before sending. 404 or 410 from the
    push service disables that subscription.
 10. **Add "edit message" and keep every device consistent.**
-    Check sender and the 15 minute window. Take the next seq. Write a `message_events` row and an outbox row in
+    Check the sender (there is no time limit). Take the next seq. Write a `message_events` row and an outbox row in
     one transaction. Dispatcher emits `message_edited` to all members. Sync replays it as an event. If the message
     was deleted later, sync replays a delete at that seq instead of the stale edit.
 
@@ -714,9 +728,9 @@ All values are read from the repo, not from memory. They are **design defaults, 
 
 | Item                         | Value                          |
 | ---------------------------- | ------------------------------ |
-| Max Socket.IO message        | 256 KiB                        |
-| Max text length / caption    | 16,000 / 4,000 characters      |
-| Max content of one message   | 64 KiB of JSON (`send.ts`)     |
+| Max Socket.IO message        | 1 MiB                          |
+| Max text length / caption    | 65,000 / 16,000 characters     |
+| Max content of one message   | 400 KiB of JSON (`send.ts`)    |
 | Delivery acks per frame      | 200                            |
 | Max sync cursors per request | 1,000 conversations            |
 | Sync page: default / max     | 200 / 500                      |
@@ -725,7 +739,8 @@ All values are read from the repo, not from memory. They are **design defaults, 
 | Max group members            | 1,024                          |
 | Inline fan-out threshold     | 256 members                    |
 | Fan-out batch size           | 500                            |
-| Max upload / avatar          | 100 MiB / 5 MiB                |
+| Max upload / avatar          | 1 GiB / 5 MiB                  |
+| Album                        | 20 items, 2 GiB total, 3 uploads at once |
 | Typing: throttle / TTL       | 3 s / 6 s                      |
 | Disappearing timers          | off, 24 hours, 7 days, 90 days |
 
@@ -733,11 +748,12 @@ All values are read from the repo, not from memory. They are **design defaults, 
 
 | Item           | Value                                       | Where                           |
 | -------------- | ------------------------------------------- | ------------------------------- |
-| Edit window    | 15 minutes                                  | `messages/repo/access.ts`       |
+| Edit window    | none (edit any time)                        | `messages/repo/access.ts`       |
 | Pinned chats   | 3                                           | `conversations/domain/roles.ts` |
-| @flick limits  | 5 per user and 10 per chat per minute       | `ai/bot.ts`                     |
+| @flick limits  | Group: 5 per user, 10 per chat per minute. Direct chat with Flick: 20 and 20 | `ai/bot.ts` |
+| AI daily quota | 200 requests per user per UTC day (`AI_DAILY_LIMIT`); 20 per minute per user | `ai/quota.ts`, `ai/routes.ts` |
 | @flick context | last 20 messages, 6,000 characters in total | `ai/bot.ts`                     |
-| @flick reply   | at most 1,000 characters                    | `ai/bot.ts`                     |
+| @flick reply   | at most 1,000 characters in a group, 3,000 in a direct chat | `ai/bot.ts`    |
 
 ### Timing and retries
 
@@ -759,14 +775,17 @@ All values are read from the repo, not from memory. They are **design defaults, 
 | Outbox retention             | published rows kept 7 days                              | `queries/outbox.ts`         |
 | Upload URL / download URL    | 10 min / 5 min                                          | `media/domain/uploads.ts`   |
 | Link preview                 | 512 KiB body, 3 redirects, cached 24 h (1 h on failure) | `packages/link-preview/src` |
+| AI attempt / whole chain     | 25 s / 90 s                                             | `packages/ai/src/config.ts` |
+| AI cooldowns                 | 60 s rate limit, 1 h for quota, auth or credit errors   | `packages/ai/README.md`     |
 | GIF proxy cache              | 5 minutes                                               | `extras/http/gifs.ts`       |
 | Call: signalling gone        | 10 s disconnected ends the call                         | architecture/overview.md    |
 
-### Tests (from `docs/status.md`, last verified 2026-10-24)
+### Tests (rounded, see `docs/testing.md`)
 
-- Database package: 41 tests. Worker: 6 integration tests.
-- API integration: 9 files, 96 tests, run one file after another because they share one Redis.
+- Web about 2,170, API unit about 180, API integration about 1,800, contracts about 45, database 56 (one known failing chat-list query-plan
+  test), AI about 38.
 - Six delivery "gates" in `apps/api/test/integration/gate.int.test.ts`.
+- A conformance test calls every one of the 189 REST endpoints and fails if one has no scenario.
 
 ### Benchmarks
 
@@ -774,3 +793,94 @@ There are no benchmark numbers in this guide on purpose. The database measuremen
 latency, search fix) are in `docs/performance/database.md`; quote them with the date and the machine. No end-to-end
 figures (send latency p50/p95/p99, connections per replica) exist yet. If asked "how many users can it handle", the
 honest answer is: "I have not measured that yet. Here is how I would".
+
+---
+
+## 8. Explaining the AI architecture
+
+**Say it in 60 seconds.** "AI in Flick is a feature layer, not part of delivery. Every AI call is on request: the user
+presses a button, talks to Flick, or mentions @flick. The API route first checks two things: a per-chat privacy switch
+and a per-user daily quota kept in Redis. Then it builds a prompt where the chat text is fenced as untrusted data and
+hands it to a provider chain: Anthropic first, then two Groq accounts, then two Gemini accounts. If a provider is rate
+limited or down it goes on a cooldown in Redis and the next one is tried. Requests with images or PDFs skip providers
+that cannot read them. Cheap things that run all the time, like scam warnings and mood hints, are plain rules in the
+browser and cost nothing."
+
+```mermaid
+flowchart LR
+  B[Button / typing / @flick] --> R[API route]
+  R --> G{AI allowed for this chat?<br/>under daily quota?}
+  G -- no --> X[403 / 429, nothing sent]
+  G -- yes --> P[Build fenced prompt]
+  P --> C[Chain: Anthropic, Groq 1, Groq 2, Gemini 1, Gemini 2]
+  C -->|429, 5xx, timeout| C
+  C --> O[Text answer, rendered as safe Markdown]
+```
+
+**Likely questions**
+
+- **Why a fallback chain?** Free tiers have tight limits and outages; one provider would make the feature flaky. Each
+  failure type has its own action (retry once for a tiny `retry-after`, cool down 60 s for a rate limit, 1 hour for quota
+  or bad key, skip on 5xx). Bad requests are not retried down the chain. ADR-0014.
+- **How do you stop one user using everything?** A Redis counter per user per UTC day (default 200), plus 20 a minute,
+  and the provider cooldowns. It fails open if Redis is down. ADR-0016.
+- **How do you handle prompt injection?** Chat text, file contents and web pages go in fenced tags with an instruction
+  not to follow anything inside; the model only returns text; any action needs a user click; output is rendered as safe
+  Markdown with no raw HTML. It reduces the risk; it cannot remove it. Say so.
+- **Why not call the model for everything?** Cost, latency, privacy and offline: ADR-0023 (heuristics first).
+- **How does image or PDF understanding work?** The API checks the asker may open the attachment, shrinks images
+  (1,568 px), extracts text from DOCX/XLSX, and sends parts to a provider that reports vision or PDF capability;
+  others are skipped. ADR-0017.
+- **Where is user data kept?** Memories, topics, style profile, transcripts in Postgres (deletable via `DELETE /ai/data`);
+  quota and cooldowns in Redis; prompts and answers are never logged.
+- **What would you change?** Stream more tasks, add per-task speed preference, measure answer quality per provider.
+
+---
+
+## 9. Explaining albums and uploads
+
+**Uploads in 45 seconds.** "Files never go through my API. The client asks for a presigned POST, uploads straight to S3,
+then calls `complete`; the server checks the stored size and, for types it can verify, sniffs the real type. Any type up
+to 1 GB is allowed. Safety comes from serving, not from an allowlist: only images (not SVG), audio and video are served
+inline, a PDF only through a preview link, and everything else is forced to download as an opaque binary, so an upload
+can never run as a page. Download links are signed and expire in 5 minutes after a membership check. Abandoned uploads
+are swept by a job after 24 hours." (ADR-0018)
+
+**Albums in 45 seconds.** "An album is not a new message type. It is N normal messages, one per photo or video, tied
+together by a small `album` object (`id`, `index`, `count`, and `videos` for "3 photos and 2 videos") in the message content. The client groups neighbours with the
+same id into a grid. So every guarantee I already have (idempotent send, ordering, receipts, deletion per item) holds
+for each photo with no new code on the server or schema. The client sends them in order with at most three uploads in
+flight, so a failure of one file does not block the rest. Limits are 20 items and 2 GiB per send, and the caption goes on the first item. The notification code lets only the first item of an album make a sound." (ADR-0019)
+
+**Album pipeline, step by step.** (1) The picker builds a draft; `albumPlan.ts` orders photos and videos first (they form the album) and files after, and checks the limits. (2) Each item gets its own `client_message_id` and a shared `album.id`. (3) Uploads run three at a time: presign, POST to S3, complete. (4) Each item is sent as an ordinary message once its upload is done. (5) The thread groups neighbouring messages with the same `album.id` into one grid. (6) Receipts, delete and reply work per item. A confirm stops the person from leaving the page while an upload is still running.
+
+**Likely questions**
+
+- **Why not one message with a list of attachments?** One failure would block all, and every per-message feature
+  (reply, react, delete, receipts) would need an "which item" parameter.
+- **What if another message arrives between two photos?** The grid splits at that point; items are sent back to back so
+  it is rare. It is a display trade-off, not a data problem.
+- **What stops a 1 GB upload from hurting the API?** The bytes bypass it; the presigned POST carries the size limit and an
+  expiry; the API only signs and verifies.
+- **Are uploads resumable?** No (known gap). A virus scan is also not built.
+
+---
+
+## 10. Explaining phone Back navigation
+
+**In 45 seconds.** "On a phone the Back button should close the thing on top, not leave the chat. I built a small back
+stack (`backStack.ts`). Every overlay (viewer, sheet, dialog, menu) calls one hook, `useBackClose(open, onClose)`. Opening
+pushes exactly one `history.pushState` entry marked in `history.state`; a `popstate` while overlays are open closes the
+topmost one. If an overlay closes by other means (X, Esc, tap outside) its entry is removed again with `history.back()`,
+but only if it is still the current entry. The module takes the browser pieces as arguments, so I test it with a fake
+history. On top of that there is an edge swipe from the left 24 px that follows the finger, and in the installed app at the
+root a sentinel entry gives 'press back again to exit' within 2 seconds. On iOS Safari in a browser tab I skip my swipe,
+because Safari already has one." (ADR-0024)
+
+**Likely questions**
+
+- **Why one history entry per overlay?** Then the browser's own history order matches the visual order, and nested
+  overlays close one by one.
+- **What can go wrong?** A fast open and close can leave a dead entry. The stack skips entries of overlays that are
+  already closed. React StrictMode re-runs effects, so release is deferred by one microtask.
+- **What is not covered?** Call overlays and the guide tour are not wired to Back yet, and iOS keyboard handling is not done.

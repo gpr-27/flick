@@ -1,3 +1,4 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useEffect, useState } from 'react';
 import { Bookmark, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -94,7 +95,7 @@ const BookmarksPage = () => {
                   navigate(`/?c=${i.conversation_id}`);
                 }}
               >
-                <p className="line-clamp-3 text-sm">{i.text}</p>
+                <p className="line-clamp-3 text-sm">{stripMarkdown(i.text)}</p>
                 <p className="mt-1 text-xs text-base-content/60">
                   {collections.find((c) => c.id === i.collection_id)?.name} ·{' '}
                   {new Date(i.created_at).toLocaleDateString()}

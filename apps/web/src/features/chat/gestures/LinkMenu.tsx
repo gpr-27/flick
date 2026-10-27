@@ -27,6 +27,7 @@ export const LinkMenu = ({ href, onClose }: { href: string; onClose: () => void 
     <Modal
       open
       onClose={onClose}
+      swipeToDismiss={false}
       label="Link actions"
       overlayClassName="max-sm:items-end sm:p-4"
       className="w-full sm:w-80"

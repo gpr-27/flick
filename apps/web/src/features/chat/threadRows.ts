@@ -9,6 +9,21 @@ export interface ThreadRow {
   message: MessageRecord;
   /** Set while the message is still in the outbox. */
   local: OutboxItem | null;
+  /** Set on the first row of an album: all its photos and videos, drawn as one grid. */
+  album?: AlbumGroup;
+}
+
+/** The photos and videos sent together, from one sender, as one bubble. */
+export interface AlbumGroup {
+  id: string;
+  /** How many items the sender put in the album. */
+  count: number;
+  /** The items that exist, in album order. */
+  items: ThreadRow[];
+  /** One entry per album position; null where the item is missing (failed, deleted, not loaded). */
+  slots: (ThreadRow | null)[];
+  /** The caption (the first item that has one). */
+  caption: string | undefined;
 }
 
 export type RowStatus = 'pending' | 'failed' | 'sent' | 'delivered' | 'read';
@@ -115,3 +130,87 @@ export function groupPosition(
     endsGroup: !same(rows[index], rows[index + 1]),
   };
 }
+
+type Media = Extract<NonNullable<MessageRecord['content']>, { type: 'image' | 'video' }>;
+
+const albumContent = (row: ThreadRow | undefined): Media | null => {
+  const c = row?.message.content;
+  if (!c || (c.type !== 'image' && c.type !== 'video') || !c.album) return null;
+  return c;
+};
+
+/**
+ * Folds consecutive rows from one sender that share an album id into ONE row (the first of them,
+ * so its key stays the same while the rest arrive). A deleted item in the middle of an album
+ * (its content is gone, so its album id too) is absorbed into the album instead of splitting it.
+ */
+export function groupAlbums(rows: readonly ThreadRow[]): ThreadRow[] {
+  const out: ThreadRow[] = [];
+  let i = 0;
+  while (i < rows.length) {
+    const row = rows[i];
+    const head = row ? albumContent(row) : null;
+    if (!row || !head?.album) {
+      if (row) out.push(row);
+      i += 1;
+      continue;
+    }
+    const albumId = head.album.id;
+    const sender = row.message.sender_user_id;
+    const members: ThreadRow[] = [row];
+    let j = i + 1;
+    while (j < rows.length) {
+      const next = rows[j];
+      if (!next || next.message.sender_user_id !== sender) break;
+      if (albumContent(next)?.album?.id === albumId) {
+        members.push(next);
+        j += 1;
+        continue;
+      }
+      if (next.message.content !== null) break;
+      // Deleted rows: part of the album only if another item of it follows.
+      let k = j;
+      while (
+        rows[k] &&
+        rows[k]?.message.content === null &&
+        rows[k]?.message.sender_user_id === sender
+      )
+        k += 1;
+      if (
+        albumContent(rows[k])?.album?.id === albumId &&
+        rows[k]?.message.sender_user_id === sender
+      ) {
+        j = k;
+      } else break;
+    }
+    const count = Math.max(
+      ...members.map((m) => albumContent(m)?.album?.count ?? 1),
+      members.length,
+    );
+    const slots: (ThreadRow | null)[] = Array.from({ length: count }, () => null);
+    for (const m of members) {
+      const at = albumContent(m)?.album?.index ?? 0;
+      if (slots[at] === null) slots[at] = m;
+    }
+    const items = slots.filter((s): s is ThreadRow => s !== null);
+    const caption = items.map((m) => albumContent(m)?.caption).find((c) => Boolean(c));
+    out.push({ ...row, album: { id: albumId, count, items, slots, caption } });
+    i = j;
+  }
+  return out;
+}
+
+const STATUS_RANK: Record<RowStatus, number> = {
+  failed: 0,
+  pending: 1,
+  sent: 2,
+  delivered: 3,
+  read: 4,
+};
+
+/** The ticks of a whole album: as far along as its slowest item. */
+export const albumStatus = (statuses: readonly RowStatus[]): RowStatus =>
+  statuses.reduce<RowStatus>(
+    (worst, s) => (STATUS_RANK[s] < STATUS_RANK[worst] ? s : worst),
+    'read',
+  );

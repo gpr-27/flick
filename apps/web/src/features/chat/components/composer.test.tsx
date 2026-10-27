@@ -656,3 +656,59 @@ describe('composer accessibility', () => {
     await expectNoA11yViolations(container);
   });
 });
+
+describe('sending several photos and videos at once', () => {
+  const file = (name: string, type: string) => new File([new Uint8Array(4)], name, { type });
+  const pickMany = (files: File[]) => {
+    const input = document.querySelector<HTMLInputElement>('input[type="file"][accept*="image"]');
+    expect(input).toHaveAttribute('multiple');
+    fireEvent.change(input!, { target: { files } });
+  };
+
+  it('both file inputs accept several files', () => {
+    mount();
+    for (const input of document.querySelectorAll<HTMLInputElement>('input[type="file"]')) {
+      expect(input).toHaveAttribute('multiple');
+    }
+  });
+
+  it('two or more files open the tray, and Send queues one linked message per item in order', async () => {
+    const user = userEvent.setup();
+    mount();
+    pickMany([file('a.jpg', 'image/jpeg'), file('b.mp4', 'video/mp4'), file('c.png', 'image/png')]);
+    const tray = await screen.findByRole('group', { name: /Photos and videos to send, 3 of 20/ });
+    expect(tray).toBeInTheDocument();
+    // The single-file preview is not used.
+    expect(screen.queryByRole('button', { name: 'Remove attachment' })).toBeNull();
+    await user.type(screen.getByRole('textbox', { name: 'Caption' }), 'Trip');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Send 3 items' })).toBeEnabled();
+    });
+    await waitFor(() => {
+      expect(upload.uploadAttachment).toHaveBeenCalledTimes(3);
+    });
+    await user.click(screen.getByRole('button', { name: 'Send 3 items' }));
+    await waitFor(() => {
+      expect(queued()).toHaveLength(3);
+    });
+    const contents = queued().map((i) => i.content);
+    expect(contents.map((c) => c.type)).toEqual(['image', 'video', 'image']);
+    const ids = new Set(contents.map((c) => (c as { album?: { id: string } }).album?.id));
+    expect(ids.size).toBe(1);
+    expect(contents.map((c) => (c as { album?: { index: number } }).album?.index)).toEqual([
+      0, 1, 2,
+    ]);
+    expect(contents[0]).toMatchObject({ caption: 'Trip', album: { count: 3, videos: 1 } });
+    await waitFor(() => {
+      expect(screen.queryByRole('group', { name: /Photos and videos/ })).toBeNull();
+    });
+    expect(box()).toHaveValue('');
+  });
+
+  it('one file keeps the single-file flow', async () => {
+    mount();
+    pickMany([file('a.mp4', 'video/mp4')]);
+    expect(await screen.findByRole('button', { name: 'Remove attachment' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /Photos and videos/ })).toBeNull();
+  });
+});

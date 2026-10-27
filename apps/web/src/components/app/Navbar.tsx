@@ -1,6 +1,15 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
-import { CircleHelp, MessageSquare, MoreVertical, Moon, Settings, Sun, User } from 'lucide-react';
+import {
+  CalendarDays,
+  CircleHelp,
+  MessageSquare,
+  MoreVertical,
+  Moon,
+  Settings,
+  Sun,
+  User,
+} from 'lucide-react';
 import { startWelcome } from '@/features/guide/welcomeRules';
 import { PopoverMenu, cn, type PopoverMenuItem } from '@/components/ui';
 import { useSessionStore } from '@/features/auth/useSessionStore';
@@ -104,6 +113,9 @@ export const Navbar = () => {
           </NavLink>
           <NavLink to="/people" className={linkClass}>
             People
+          </NavLink>
+          <NavLink to="/calendar" aria-label="Calendar" title="Calendar" className={linkClass}>
+            <CalendarDays className="size-[18px]" aria-hidden="true" />
           </NavLink>
         </nav>
 

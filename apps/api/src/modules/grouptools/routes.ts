@@ -7,6 +7,7 @@ import { createAiService } from '../ai/service.js';
 import { getMembership, loadLines, transcript } from '../ai/context.js';
 import { ApiError, handle, parse } from '../users/errors.js';
 import { flagReasons } from './flagging.js';
+import { applyTicTacToeMove, MoveError } from './tictactoe.js';
 
 const { groupTools } = ENDPOINTS;
 
@@ -17,6 +18,7 @@ interface CardState {
   turn?: 'x' | 'o';
   x?: string;
   o?: string;
+  solo?: boolean;
 }
 interface Card {
   items?: { done: boolean }[];
@@ -206,16 +208,22 @@ export function groupToolsRoutes(app: FastifyInstance, deps: AppDeps): void {
         } else if (card.type === 'game' && c.game === 'wyr' && act.op === 'vote') {
           c.state = { ...c.state, votes: { ...(c.state?.votes ?? {}), [me]: act.choice } };
         } else if (card.type === 'game' && c.game === 'tictactoe' && act.op === 'move') {
-          const s = c.state ?? {};
-          const board: string[] = s.board ?? Array.from({ length: 9 }, () => '');
-          const turn: 'x' | 'o' = s.turn ?? 'x';
-          // The first person to move is X; the next different person to move is O.
-          const players = { x: s.x, o: s.o };
-          if (!players[turn] && players.x !== me && players.o !== me) players[turn] = me;
-          if (players[turn] !== me) throw new ApiError('CONFLICT', "It's not your turn.");
-          if (board[act.cell]) throw new ApiError('CONFLICT', 'That square is taken.');
-          board[act.cell] = turn;
-          c.state = { ...s, ...players, board, turn: turn === 'x' ? 'o' : 'x' };
+          // A chat with a single member (Saved messages) has no opponent: that person plays both sides.
+          const members = await sql<{ n: number }>`
+            SELECT count(*)::int AS n FROM conversation_members
+            WHERE conversation_id = ${p.conversation_id} AND left_at IS NULL`.execute(trx);
+          const soloChat = (members.rows[0]?.n ?? 0) <= 1;
+          try {
+            c.state = applyTicTacToeMove(c.state ?? {}, me, act.cell, soloChat);
+          } catch (error) {
+            if (error instanceof MoveError) {
+              throw new ApiError(
+                error.code === 'OUT_OF_RANGE' ? 'VALIDATION_FAILED' : 'CONFLICT',
+                error.message,
+              );
+            }
+            throw error;
+          }
         } else {
           throw new ApiError('VALIDATION_FAILED', 'This action does not fit this message.');
         }

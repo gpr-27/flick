@@ -17,12 +17,10 @@ export function useJoinRequestCount(
         params: { conversation_id: conversationId },
         query: {},
       })
-      .then(
-        (page) => {
-          if (alive) setCount(page.items.length);
-        },
-        () => undefined, // no badge is better than an error on the header
-      );
+      .then((page) => {
+        if (alive) setCount(page.items.length);
+      })
+      .catch(() => undefined); // no badge is better than an error on the header
     return () => {
       alive = false;
     };

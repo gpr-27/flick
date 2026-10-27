@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useState } from 'react';
 import { StickyNote, X } from 'lucide-react';
 import { ENDPOINTS, type EditHistory } from '@chat/contracts';
@@ -180,7 +181,7 @@ export const EditHistoryDialog = ({
       <ul className="flex max-h-80 flex-col gap-2 overflow-y-auto">
         {history?.map((e, i) => (
           <li key={i} className="rounded-xl bg-base-content/5 px-3 py-2 text-sm">
-            <p className="whitespace-pre-wrap break-words">{e.body_text ?? '(no text)'}</p>
+            <Markdown text={e.body_text ?? '(no text)'} />
             <p className="mt-1 text-xs text-base-content/60">
               Replaced at {formatMessageTime(e.edited_at)}
             </p>

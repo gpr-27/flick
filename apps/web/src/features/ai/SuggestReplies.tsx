@@ -1,3 +1,4 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { Spinner } from '@/components/ui';
@@ -94,7 +95,7 @@ export const SuggestReplies = ({
               }}
               className="chip h-8 min-w-0 max-w-[18rem] shrink-0 cursor-pointer whitespace-nowrap border border-base-content/10 px-3 text-sm font-medium hover:bg-[var(--bg-active)] max-sm:min-h-[44px]"
             >
-              <span className="truncate">{reply}</span>
+              <span className="truncate">{stripMarkdown(reply)}</span>
             </button>
           ))}
       </div>

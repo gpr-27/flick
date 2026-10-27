@@ -1,23 +1,32 @@
 # Architecture overview
 
-Flick is a real-time chat app. The repo is an npm workspaces monorepo (TypeScript, ESM, Node 22).
+Flick is a real-time chat app with an AI layer. One npm workspaces monorepo (TypeScript, ESM, Node 22) holds a React
+web app, a Fastify + Socket.IO API, a pg-boss worker and six shared packages. Messages are stored in PostgreSQL in one
+transaction together with an outbox row; a dispatcher inside the API turns outbox rows into live events, and clients
+repair any gap by syncing from Postgres. Around that core sit calls, notifications, productivity tools, group tools and
+AI features that run only when the user asks, through a provider fallback chain.
+
+Related: [`system-design.md`](system-design.md), [`delivery-guarantees.md`](delivery-guarantees.md),
+[`protocol.md`](protocol.md), [`database-schema.md`](database-schema.md), [`../ai/README.md`](../ai/README.md),
+[`../ai/architecture.md`](../ai/architecture.md), [`../features/README.md`](../features/README.md),
+[`../operations/deployment.md`](../operations/deployment.md).
 
 ## Folders
 
-| Path                    | Package              | What it does                                                          |
-| ----------------------- | -------------------- | --------------------------------------------------------------------- |
-| `apps/api`              | `@chat/api`          | Fastify HTTP API, Socket.IO gateway and the outbox dispatcher         |
-| `apps/worker`           | `@chat/worker`       | pg-boss jobs only (offline notifications, expiring messages, cleanup) |
-| `apps/web`              | `@chat/web`          | React single page app (Vite)                                          |
-| `packages/contracts`    | `@chat/contracts`    | zod schemas for REST, Socket.IO events and outbox events              |
-| `packages/shared`       | `@chat/shared`       | Small helpers used by api and worker (health checks, etc.)            |
-| `packages/ai`           | `@chat/ai`           | LLM provider fallback chain, assistant routes and the @flick bot      |
-| `packages/uploads`      | `@chat/uploads`      | Abandoned-upload sweep, used by the worker (the API re-exports it)    |
-| `packages/link-preview` | `@chat/link-preview` | Safe link preview fetcher (blocks private addresses)                  |
-| `database`              | `@chat/db`           | Postgres schema, migrations, seed data, typed query helpers           |
-| `infra`                 | -                    | Docker compose files, Prometheus, Grafana, nginx, MinIO setup         |
-| `e2e`                   | -                    | Playwright browser tests                                              |
-| `docs`                  | -                    | These documents; start at [`../README.md`](../README.md)              |
+| Path                    | Package              | What it does                                                                     |
+| ----------------------- | -------------------- | -------------------------------------------------------------------------------- |
+| `apps/api`              | `@chat/api`          | Fastify HTTP API, Socket.IO gateway and the outbox dispatcher                    |
+| `apps/worker`           | `@chat/worker`       | pg-boss jobs only (push, reminders, scheduled messages, digest, expiry, cleanup) |
+| `apps/web`              | `@chat/web`          | React single page app (Vite)                                                     |
+| `packages/contracts`    | `@chat/contracts`    | zod schemas for REST, Socket.IO events and outbox events                         |
+| `packages/shared`       | `@chat/shared`       | Small helpers used by api and worker (health checks, etc.)                       |
+| `packages/ai`           | `@chat/ai`           | LLM provider chain with cooldowns, multimodal routing, task prompts, SSE routes  |
+| `packages/uploads`      | `@chat/uploads`      | Abandoned-upload sweep, used by the worker (the API re-exports it)               |
+| `packages/link-preview` | `@chat/link-preview` | Safe link preview fetcher (blocks private addresses)                             |
+| `packages/database`     | `@chat/db`           | Postgres schema, 34 migrations, seed data, typed query helpers                   |
+| `infra`                 | -                    | Docker compose files, Prometheus, Grafana, nginx, MinIO setup                    |
+| `tests/e2e`             | -                    | Playwright browser tests (26 spec files)                                         |
+| `docs`                  | -                    | These documents; start at [`../README.md`](../README.md)                         |
 
 ```
 web --REST + Socket.IO--> api --one transaction--> Postgres (message + outbox)
@@ -30,6 +39,52 @@ Redis: Socket.IO adapter, presence, rate limits, small caches (never durable)
 Login is Clerk. Media is S3-compatible storage (MinIO locally, AWS S3 when deployed). Metrics go to Prometheus and
 Grafana. Kafka/Redpanda is **deferred**: the delivery path is the dispatcher inside the API
 ([ADR-0004](../decisions/0004-inapi-dispatcher-redpanda-deferred.md)).
+
+## API modules
+
+`apps/api/src/modules` has one folder per area. Each has routes (generated from `@chat/contracts`), domain code and
+queries.
+
+| Module                                      | Area                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `auth`                                      | Clerk token check, local user provisioning, device registration, login alert                |
+| `users`                                     | Profile, settings, privacy, export, delete account, blocks, reports                         |
+| `devices`                                   | List and revoke devices                                                                     |
+| `conversations`                             | Direct and group chats, members, invites, join requests, per-person prefs, folders and tags |
+| `messages`                                  | Send, history, sync, edit, delete, reactions, pins, stars, polls, search, receipts          |
+| `gateway`                                   | Socket.IO: handshake, event handlers, presence, 1:1 call signalling                         |
+| `dispatcher`                                | The outbox loop that emits events and queues offline `notify` jobs                          |
+| `media`                                     | Presigned uploads, verification, signed downloads, GIF proxy, link previews, avatars        |
+| `calls`                                     | TURN credentials, LiveKit tokens, call links, call log                                      |
+| `push`, `notifications`                     | Web Push subscriptions and the notification centre                                          |
+| `scheduled`, `reminders`, `drafts`, `notes` | Scheduled messages, reminders, cross-device drafts, private notes and edit history          |
+| `grouptools`                                | Slow mode, welcome text, flagged list, analytics, cards (checklist, expense, game, event)   |
+| `productivity`                              | Bookmarks, tags, digest settings, events and RSVPs, nudges                                  |
+| `platform`                                  | Incoming webhooks, email-to-chat, storage usage, weekly stats, login alert switch           |
+| `ai`                                        | All `/ai/*` and `/flick/*` routes, the @flick bot, quota, privacy switch, file reading      |
+| `extras`, `health`                          | Small extras; `/health/live`, `/health/ready`                                               |
+
+## Where AI fits
+
+AI is used in many places (writing help, translation, voice transcription, image and file explanation, conversation
+understanding, the Flick assistant chat, group helpers, productivity helpers), but it is never in the delivery path and
+never runs on its own. Every call is made on request by the user, goes through `apps/api/src/modules/ai`, which checks
+the per-chat privacy switch and the per-user daily quota, and then asks `packages/ai`, which tries providers in order
+(Anthropic, Groq x2, Gemini x2) and skips any that are cooling down. Safety, mood and scam checks and chat auto-sorting
+run locally in the browser with plain rules ([ADR-0023](../decisions/0023-heuristics-first-ai-optional.md)).
+
+```mermaid
+flowchart LR
+  U[User action] --> W[Web app]
+  W -->|REST /ai/*| A[API ai module]
+  A -->|privacy switch, daily quota, fenced prompt| C[packages/ai chain]
+  C --> P1[Anthropic] --> P2[Groq 1, 2] --> P3[Gemini 1, 2]
+  A --> R[(Redis: quota, cooldowns)]
+  A --> D[(Postgres: memories, transcripts, style)]
+```
+
+The full AI documentation starts at [`../ai/README.md`](../ai/README.md); the feature-by-feature table is
+[`../ai/feature-map.md`](../ai/feature-map.md).
 
 ## How packages connect
 
@@ -126,11 +181,16 @@ emit), `messages_delivered_total` (recipients with a connected socket at emit ti
 The worker runs **scheduled and queued jobs only**. It does not deliver messages; live delivery is the API's
 dispatcher.
 
-| Job               | Runs                                | What it does                                                                                                                                                                                                                     |
-| ----------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `notify`          | queued, one job per offline user    | Payload `{ user_id, conversation_id, message_id, seq }`. Loads the message and decides again: skip if it is deleted, the user left or muted the chat, or the user is online now. Otherwise sends a small push (sender, excerpt). |
-| `expire-messages` | every 5 minutes                     | Disappearing messages become **tombstones** (content and attachment erased, row and `seq` kept) so sync never sees a gap. Also purges old `outbox` and `processed_events` rows.                                                  |
-| `sweep-uploads`   | hourly (only when S3 is configured) | Deletes attachments still `pending` after 24 hours: the object first, then the row.                                                                                                                                              |
+| Job (queue)           | Runs                                | What it does                                                                                                                                                                                                                                        |
+| --------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notify`              | queued, one job per offline user    | Payload `{ user_id, conversation_id, message_id, seq }`. Loads the message and decides again: skip if it is deleted, the user left or muted the chat, is in quiet hours, or is online now. Otherwise sends a small push and records a notification. |
+| `call-push`           | queued                              | Pushes an incoming call to a user whose app is closed (with a one-time token so the call can be declined from the notification).                                                                                                                    |
+| `expire-messages`     | every 5 minutes                     | Disappearing messages become **tombstones** (content and attachment erased, row and `seq` kept) so sync never sees a gap. Also purges old `outbox` and `processed_events` rows.                                                                     |
+| `send-scheduled`      | every minute                        | Sends due scheduled messages once (`pending` to `sent` or `failed`).                                                                                                                                                                                |
+| `send-reminders`      | every minute                        | Posts due reminders in the Flick chat and pushes them (`reminder-push`).                                                                                                                                                                            |
+| `send-digest`         | hourly (picks each person's 8 am)   | Posts the daily or weekly briefing to people who turned it on.                                                                                                                                                                                      |
+| `purge-notifications` | hourly                              | Deletes notification-centre rows older than 30 days.                                                                                                                                                                                                |
+| `sweep-uploads`       | hourly (only when S3 is configured) | Deletes attachments still `pending` after 24 hours: the object first, then the row.                                                                                                                                                                 |
 
 - Web Push uses the `web-push` library with the `VAPID_*` keys. Without keys the worker logs a "SIMULATED
   notification" and sends nothing. A push service answering 404 or 410 means the browser is gone, so that
@@ -156,7 +216,7 @@ Run everything from the repo root.
 npm install                    # installs all workspaces
 cp .env.example .env           # then adjust values
 
-npm run migrate                # apply database migrations (needs DATABASE_URL)
+npm run migrate                # apply database migrations (needs DATABASE_URL); production uses `npm run migrate:prod -w @chat/db`
 npm run seed                   # fill the database with demo data
 npm run db:reset               # revert all migrations, re-apply, re-seed
 npm run dev                    # api + worker + web together

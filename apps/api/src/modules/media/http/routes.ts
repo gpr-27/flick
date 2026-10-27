@@ -1,4 +1,4 @@
-import { AttachmentParams, PresignUploadRequest } from '@chat/contracts';
+import { AttachmentParams, DownloadUrlQuery, PresignUploadRequest } from '@chat/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { z } from 'zod';
 import type { AppDeps } from '../../../app.js';
@@ -55,7 +55,10 @@ export function mediaRoutes(app: FastifyInstance, deps: AppDeps): void {
 
     scope.get('/media/:attachment_id/url', async (req) => {
       const { attachment_id } = parse(AttachmentParams, req.params);
-      return downloadUrl(deps.db, storage!, req.auth!.userId, attachment_id);
+      const { preview } = parse(DownloadUrlQuery, req.query);
+      return downloadUrl(deps.db, storage!, req.auth!.userId, attachment_id, {
+        preview: preview === '1',
+      });
     });
     done();
   });

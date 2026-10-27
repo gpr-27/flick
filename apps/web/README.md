@@ -1,13 +1,28 @@
 # Flick web client (`@chat/web`)
 
-React 18 + TypeScript (strict) + Vite, styled with Tailwind and DaisyUI.
+The Flick web app: a React 18 + TypeScript (strict) single page app built with Vite, styled with Tailwind and daisyUI
+tokens, installable as a PWA. It holds all client state in Zustand stores, talks to the API through the typed contracts in
+`@chat/contracts` (REST) and Socket.IO (real time), keeps an offline outbox in IndexedDB, and runs local safety checks.
+This page explains the folders, state, delivery behaviour, routes, environment, scripts and test setup of the client.
+
+Related: [`../../docs/README.md`](../../docs/README.md), [`../../docs/design/design-system.md`](../../docs/design/design-system.md),
+[`../../docs/features/README.md`](../../docs/features/README.md), [`../../docs/ai/README.md`](../../docs/ai/README.md),
+[`../../docs/testing.md`](../../docs/testing.md), [`../../docs/features/pwa-and-push.md`](../../docs/features/pwa-and-push.md).
+
+**Stack.** React 18, React Router 6, Zustand 5, TanStack Virtual, Clerk (`@clerk/clerk-react`), Socket.IO client, LiveKit
+client, Tailwind 3 + daisyUI 4, `vite-plugin-pwa`, Vitest + Testing Library (about 2,170 tests).
+
+**Routes** (`src/app/App.tsx`): `/` chats, `/profile`, `/people`, `/u/:username`, `/calls`, `/notifications`,
+`/bookmarks`, `/memory` (what Flick remembers), `/calendar`, `/settings`, `/share` (share target), `/join/:code`
+(invite), `/call/:token` (call link), `/sign-in/*` and `/sign-up/*` (Clerk, inside Flick).
 
 ```bash
 npm run dev        # Vite dev server (reads VITE_* from the repo-root .env)
 npm run typecheck
 npm run lint
-npm test           # Vitest + React Testing Library
-npm run build
+npm test           # Vitest + React Testing Library (about 2,170 tests)
+npm run build      # typecheck, then vite build (also builds the service worker)
+npm run preview    # serve the build, to try the PWA
 ```
 
 ## How the code is organised
@@ -25,6 +40,10 @@ npm run build
 | `src/features/chat/content`                       | Content-renderer registry keyed by content type. A new message type is one new entry.                                                              |
 | `src/features/organise` | Chat organisation: pin/archive/mute/favourite, filter tabs, wallpapers, chat lock, pinned and starred messages, forward, @mentions, drafts. |
 | `src/features/search` | Message search (`GET /search`) and the safe snippet renderer. |
+| `src/features/{ai,understand,translation}` | AI in the UI: Flick panel and assistant chat, writing help, translation, transcripts, "explain", conversation understanding. Every call is on request and respects the per-chat AI switch. |
+| `src/features/safety` | Local scam, link and impersonation checks (no network, no AI). |
+| `src/features/{productivity,reminders,scheduled,calendar,lists,notes}` | Bookmarks, digest, nudges, reminders, scheduled messages, events and calendar, folders and tags, private notes. |
+| `src/features/{grouptools,platform}` | Slow mode, cards (checklist, expense, game, event), webhooks, passkeys, storage per chat, captions. |
 | `src/features/content` | Rich messages: voice notes with waveform, GIF/sticker picker, polls, view-once, disappearing timer, link previews, video. Each one is an entry in the registry above plus a composer button. |
 
 **State.** Everything is in Zustand: `useChatStore` (conversations, messages sorted by seq, receipts, typing, presence), `useOutboxStore` (unsent messages), `useSessionStore`, `useCallStore`. Server events reach the chat store through the sync engine, which decides what to apply and in what order.
@@ -43,7 +62,26 @@ npm run build
 
 **Chat lock is a convenience lock, not security.** The browser hashes the passcode (PBKDF2-SHA-256, the conversation id as salt) and sends only the hash as `lock_hash`. The server stores it and does not enforce it; the messages stay readable through the API. A locked chat is hidden (no messages, no preview in the list or search) until the passcode is typed in this tab (kept in `sessionStorage`).
 
-**Config.** `VITE_CLERK_PUBLISHABLE_KEY` (required), `VITE_API_URL` (REST base, e.g. `http://localhost:5001/api`). Socket.IO connects to the origin of `VITE_API_URL`; there is no separate WebSocket URL.
+**Config.** `VITE_CLERK_PUBLISHABLE_KEY` (required), `VITE_API_URL` (API origin, no trailing slash and no `/api`, e.g.
+`http://localhost:4000`), `VITE_APP_ENV`, and optional call settings `VITE_STUN_URLS`, `VITE_TURN_URL`,
+`VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL`. Socket.IO connects to the origin of `VITE_API_URL`; there is no separate
+WebSocket URL. Values are baked in at build time.
+
+**Sign-in.** `ClerkProvider` is given `signInUrl="/sign-in"`, `signUpUrl="/sign-up"` and `afterSignOutUrl="/"` (the same paths are set in the Clerk dashboard), so every
+step stays inside Flick ([ADR-0020](../../docs/decisions/0020-clerk-own-sign-in-paths-and-flick-only-profile.md)).
+
+**Markdown and safety.** All message and AI text goes through one safe renderer (`features/content/richText`): no raw HTML,
+only `http`, `https` and `mailto` links ([ADR-0021](../../docs/decisions/0021-markdown-rendering-everywhere.md)).
+
+**Look and feel.** Tokens in `src/index.css`, themes in `tailwind.config.ts`, serif default font, hover styles only with a
+pointer, a bottom tab bar on phones: see [`docs/design/design-system.md`](../../docs/design/design-system.md).
+
+**Uploads and albums.** Files go straight to S3 with a presigned POST (`features/chat/upload.ts`). A multi-select send is
+an album: several ordinary messages linked by `content.album` ([ADR-0019](../../docs/decisions/0019-albums-as-linked-messages.md)). The plan lives in `features/chat/album` (20 items, 2 GiB, 3 uploads at a time, caption on the first item). Photos and videos open in the full-screen viewer in `features/gallery`; a PDF opens through `GET /media/:id/url?preview=1`.
+
+**Back button and gestures.** `src/lib/backStack.ts` keeps one history entry per open overlay; overlays opt in with `useBackClose(open, onClose)` (`src/lib/useBackClose.ts`). `src/lib/gestures` holds the edge-swipe maths and the iOS Safari exception, and `src/app/EdgeSwipeBack.tsx` mounts the swipe. In the installed app at the root, a second Back within 2 seconds exits ([ADR-0024](../../docs/decisions/0024-phone-back-navigation-and-gestures.md)). Call overlays and the guide tour are not wired yet.
+
+**Wallpapers.** A chat's own wallpaper wins over the global one, which wins over the default (`features/organise/wallpaperPrecedence.ts`). The global one and uploaded pictures stay on this device ([ADR-0026](../../docs/decisions/0026-global-and-per-chat-wallpaper-precedence.md)).
 
 ## Fake login for browser tests (test only)
 
@@ -56,7 +94,7 @@ The real login (Clerk) needs a person, so the Playwright suite in `tests/e2e/` s
 
 ## Notifications, installable app and settings
 
-Details in `docs/pwa-and-push.md`.
+Details in [`docs/features/pwa-and-push.md`](../../docs/features/pwa-and-push.md).
 
 | Folder                         | What lives there                                                                                                                              |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -73,7 +111,7 @@ Details in `docs/pwa-and-push.md`.
 
 ```bash
 docker build -t flick-web \
-  --build-arg VITE_API_URL=https://api.example.com/api \
+  --build-arg VITE_API_URL=https://api.example.com \
   apps/web
 docker run -p 8080:8080 flick-web   # nginx with SPA fallback; /healthz for probes
 ```

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Crop, RotateCw } from 'lucide-react';
 import { useFocusTrap } from '@/components/ui/useFocusTrap';
+import { useBackClose } from '@/lib/useBackClose';
 import { cropRect, editedFiles, renderEdit, sendAsFile, type CropMode } from './editPhoto';
 
 const MODES: CropMode[] = ['free', '1:1', '4:3'];
@@ -22,6 +23,7 @@ export const PhotoEditor = ({
   const dialogRef = useRef<HTMLDivElement>(null);
   // Keyboard users: focus stays inside, Escape cancels, focus returns to the composer.
   useFocusTrap(dialogRef, true, { onEscape: onCancel });
+  useBackClose(true, onCancel);
   const url = useMemo(() => URL.createObjectURL(file), [file]);
   const [turns, setTurns] = useState(0);
   const [mode, setMode] = useState<CropMode>('free');

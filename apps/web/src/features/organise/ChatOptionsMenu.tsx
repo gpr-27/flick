@@ -16,6 +16,8 @@ import { SnoozeDialog } from '../understand/SnoozeDialog';
 import { useLockStore } from './lock';
 import { MUTE_OPTIONS, isMuted, mutedUntilFor, updatePrefs } from './prefs';
 import { WallpaperPicker } from './WallpaperPicker';
+import { WallpaperStatus } from './WallpaperStatus';
+import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { ChatLookDialog } from './ChatLookDialog';
 import { ExportChatDialog } from '@/features/exporting/ExportChatDialog';
 import { NoAiItem } from '@/features/ai/NoAiItem';
@@ -87,23 +89,29 @@ const WallpaperModal = ({
   conversation: ConversationSummary;
   open: boolean;
   onClose: () => void;
-}) => (
-  <Modal
-    open={open}
-    onClose={onClose}
-    labelledBy="wallpaper-title"
-    className="glass-card mx-4 w-full max-w-lg rounded-3xl p-5 animate-scale-in"
-  >
-    <DialogHeader id="wallpaper-title" title="Chat wallpaper" onClose={onClose} />
-    <WallpaperPicker
-      value={conversation.prefs.wallpaper}
-      onCancel={onClose}
-      onApply={(id) => {
-        void updatePrefs(conversation.id, { wallpaper: id }).then((ok) => ok && onClose());
-      }}
-    />
-  </Modal>
-);
+}) => {
+  const defaultWallpaper = useSettingsStore((s) => s.defaultWallpaper);
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      labelledBy="wallpaper-title"
+      className="glass-card mx-4 w-full max-w-lg rounded-3xl p-5 animate-scale-in"
+    >
+      <DialogHeader id="wallpaper-title" title="Chat wallpaper" onClose={onClose} />
+      <WallpaperStatus own={conversation.prefs.wallpaper} />
+      <WallpaperPicker
+        value={conversation.prefs.wallpaper}
+        noneLabel="Same as all chats"
+        fallbackId={defaultWallpaper}
+        onCancel={onClose}
+        onApply={(id) => {
+          void updatePrefs(conversation.id, { wallpaper: id }).then((ok) => ok && onClose());
+        }}
+      />
+    </Modal>
+  );
+};
 
 type Dialog =
   | 'look'

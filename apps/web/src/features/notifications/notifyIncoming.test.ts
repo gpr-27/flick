@@ -63,4 +63,23 @@ describe('notifyIncoming', () => {
     FakeNotification.instances[0]?.onclick?.();
     expect(click).toHaveBeenCalledOnce();
   });
+
+  it('alerts once per album: the first item speaks for it, the rest are silent', () => {
+    const { FakeNotification } = installFakePush({ permission: 'granted' });
+    hide(true);
+    const item = (index: number) =>
+      live({
+        content: {
+          type: 'image',
+          attachment_id: 'a'.repeat(8),
+          width: 1,
+          height: 1,
+          album: { id: 'alb', index, count: 4 },
+        } as never,
+      });
+    for (let i = 0; i < 4; i++)
+      notifyIncoming(item(i), { summary: summary(), myId: ME, senderName: 'Bob', open });
+    expect(FakeNotification.created).toHaveLength(1);
+    expect(FakeNotification.created[0]?.options?.body).toBe('4 photos');
+  });
 });

@@ -35,3 +35,6 @@ export const Attachment = z.object({
 });
 
 export const DownloadUrl = z.object({ url: HttpUrl, expires_at: IsoDateTime });
+
+/** `preview=1` asks for a link that shows the file in the browser. Only PDFs are ever served this way. */
+export const DownloadUrlQuery = z.object({ preview: z.literal('1').optional() });

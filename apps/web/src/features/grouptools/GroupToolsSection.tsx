@@ -1,5 +1,6 @@
 // Group info extras: welcome text, slow mode, expense balances, and the admin tools
 // (flagged messages, activity numbers, mood summary) plus the icebreaker for a quiet group.
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ENDPOINTS,
@@ -148,9 +149,10 @@ export const GroupToolsSection = ({ conversation }: { conversation: Conversation
       {settings?.welcome_text && !isAdmin && (
         <>
           <Heading>Welcome and rules</Heading>
-          <p className="whitespace-pre-wrap rounded-xl bg-base-content/5 p-3 text-sm">
-            {settings.welcome_text}
-          </p>
+          <Markdown
+            text={settings.welcome_text}
+            className="rounded-xl bg-base-content/5 p-3 text-sm"
+          />
         </>
       )}
 
@@ -184,7 +186,7 @@ export const GroupToolsSection = ({ conversation }: { conversation: Conversation
             </Button>
           ) : (
             <div className="rounded-xl bg-primary/10 p-3 text-sm">
-              <p className="mb-2 whitespace-pre-wrap">{icebreaker.text}</p>
+              <Markdown text={icebreaker.text} className="mb-2" />
               <Button
                 variant="gradient"
                 size="sm"
@@ -336,9 +338,7 @@ export const GroupToolsSection = ({ conversation }: { conversation: Conversation
                   Summarise the mood
                 </Button>
               ) : (
-                <p className="whitespace-pre-wrap rounded-xl bg-primary/10 p-3 text-sm">
-                  {mood.text}
-                </p>
+                <Markdown text={mood.text} className="rounded-xl bg-primary/10 p-3 text-sm" />
               )}
             </>
           )}

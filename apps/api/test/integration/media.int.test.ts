@@ -327,6 +327,53 @@ describe('download and attach', () => {
       .execute();
   });
 
+  it('shows a PDF in the browser only for a preview link, and never shows HTML', async () => {
+    const pdf = Buffer.from(
+      '%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n',
+    );
+    const p = (
+      await presign(alice, {
+        purpose: 'message',
+        mime: 'application/pdf',
+        size: pdf.length,
+        file_name: 'report.pdf',
+      })
+    ).json<Presigned>();
+    await upload(p, pdf);
+    expect((await complete(alice, p.attachment_id)).statusCode).toBe(200);
+
+    const link = async (query: string) => {
+      const res = await app.inject({
+        url: `/media/${p.attachment_id}/url${query}`,
+        headers: as(alice),
+      });
+      expect(res.statusCode).toBe(200);
+      return fetch(res.json<{ url: string }>().url);
+    };
+
+    const download = await link('');
+    expect(download.headers.get('content-disposition')).toMatch(/^attachment/);
+    expect(download.headers.get('content-type')).toBe('application/octet-stream');
+
+    const preview = await link('?preview=1');
+    expect(preview.headers.get('content-disposition')).toMatch(/^inline/);
+    expect(preview.headers.get('content-type')).toBe('application/pdf');
+
+    const html = Buffer.from('<html><script>alert(1)</script></html>');
+    const h = (
+      await presign(alice, { purpose: 'message', mime: 'text/html', size: html.length })
+    ).json<Presigned>();
+    await upload(h, html);
+    await complete(alice, h.attachment_id);
+    const htmlRes = await app.inject({
+      url: `/media/${h.attachment_id}/url?preview=1`,
+      headers: as(alice),
+    });
+    const served = await fetch(htmlRes.json<{ url: string }>().url);
+    expect(served.headers.get('content-disposition')).toMatch(/^attachment/);
+    expect(served.headers.get('content-type')).toBe('application/octet-stream');
+  });
+
   it('lets only the owner attach a finished upload, once', async () => {
     const bytes = await png();
     const p = (

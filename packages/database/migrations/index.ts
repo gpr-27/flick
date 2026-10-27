@@ -28,6 +28,8 @@ import * as m0028 from './0028_writing.js';
 import * as m0029 from './0029_transcripts.js';
 import * as m0031 from './0031_platform.js';
 import * as m0032 from './0032_events.js';
+import * as m0033 from './0033_topic_resume.js';
+import * as m0034 from './0034_transcript_author.js';
 
 // Listed explicitly (instead of scanning the folder) so the same code works under tsx, vitest
 // and compiled dist/. Kysely applies them in name order.
@@ -60,4 +62,6 @@ export const migrations: Record<string, Migration> = {
   '0029_transcripts': m0029,
   '0031_platform': m0031,
   '0032_events': m0032,
+  '0033_topic_resume': m0033,
+  '0034_transcript_author': m0034,
 };

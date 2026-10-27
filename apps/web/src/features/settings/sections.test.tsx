@@ -60,10 +60,9 @@ describe('Appearance', () => {
     expect(state()).toMatchObject({ density: 'compact', corners: 'sharp', fontFamily: 'serif' });
     await user.click(screen.getByRole('switch', { name: 'Reduce motion' }));
     expect(state().reduceMotion).toBe(true);
-    await user.selectOptions(screen.getByRole('combobox', { name: /wallpaper/ }), 'mint');
+    await user.click(screen.getByRole('button', { name: 'Mint' }));
+    await user.click(screen.getByRole('button', { name: 'Use for chats without their own' }));
     expect(state().defaultWallpaper).toBe('mint');
-    await user.selectOptions(screen.getByRole('combobox', { name: /wallpaper/ }), '');
-    expect(state().defaultWallpaper).toBeNull();
   });
 
   it('shows the chosen accent as checked and offers six', () => {
@@ -409,18 +408,19 @@ describe('SettingsPage', () => {
     installFakeServices(undefined, api);
   });
 
-  it('on a phone the sections are an accordion', async () => {
+  it('on a phone a section opens as its own page with a back arrow', async () => {
     const user = userEvent.setup();
     render(page());
     const chats = screen.getByRole('button', { name: 'Chats' });
     expect(chats).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('switch', { name: 'Enter sends' })).not.toBeInTheDocument();
     await user.click(chats);
-    expect(chats).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('switch', { name: 'Enter sends' })).toBeInTheDocument();
-    await user.click(chats);
+    // The list is replaced by the section; the header leads back.
+    expect(screen.queryByRole('button', { name: 'Calls' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     expect(screen.queryByRole('switch', { name: 'Enter sends' })).not.toBeInTheDocument();
-    // all ten sections are there
+    // all ten sections are there again
     expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(10);
   });
 

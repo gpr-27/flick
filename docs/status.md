@@ -1,92 +1,109 @@
 # Status
 
-What exists and what has been checked. An item is **verified** only when a test or command was run for it; the date and
-what ran are in the notes. **Built** means merged with tests written by its author, but not re-run for this page.
+This page is an honest, current picture of Flick: what is built, what is partly built, what is not built, what is known to
+be wrong, and what needs setup outside the repo before it works. It is written from the code in the repository at the
+time of the second documentation pass (2026-10-27). A statement here that says "verified" means a test or command was run for
+it and the source of that is named; otherwise it is "built" (code and tests exist) or "not verified".
 
-## Core pipeline
+Related: [`testing.md`](testing.md), [`audit/missing-features.md`](audit/missing-features.md), [`platform-setup.md`](platform-setup.md),
+[`changelog.md`](changelog.md), [`ai/README.md`](ai/README.md), [`features/README.md`](features/README.md).
 
-The gate run on 2026-10-24 used throwaway Postgres 17, Redis 7 and MinIO containers. The API integration files run one
-after another (`fileParallelism: false`) because they share one Redis, and Socket.IO servers on one Redis form one
-cluster.
+## Summary
 
-| Item                                                                        | Status   | Notes                                                                                                                                        |
-| --------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Postgres schema, migrations 0001-0007, typed helpers (`packages/database/`) | verified | 2026-10-24: migrations applied to a fresh database; `database` tests pass (41)                                                               |
-| Migrations 0008-0010 (calls, privacy, search index)                         | built    | 0010 was applied and measured in the database benchmark run ([`performance/database.md`](performance/database.md))                           |
-| Contracts (`packages/contracts`)                                            | verified | 2026-10-24: unit tests pass; `apps/api/test/routes.test.ts` checks every contract endpoint is a real route                                   |
-| Messages module: send, history, sync, edits, reactions, receipts, search    | verified | 2026-10-24: `messages.int.test.ts` and the gate tests pass against real Postgres. Search has its own integration tests, not part of the gate |
-| Conversations module: direct, group, roles, invites, prefs                  | verified | 2026-10-24: `conversations.int.test.ts` passes; the gate removes a member through the REST endpoint                                          |
-| Media module: uploads, GIF proxy, link previews                             | verified | 2026-10-24: `media.int.test.ts` passes against real MinIO. The GIF proxy and link previews were not exercised against the real services      |
-| Clerk login                                                                 | verified | 2026-10-24: `auth.int.test.ts` passes with a fake Clerk client. Never run against real Clerk                                                 |
-| Socket.IO gateway and in-API dispatcher                                     | verified | 2026-10-24: `realtime.int.test.ts` and the gate tests pass with real Redis                                                                   |
-| Worker (pg-boss jobs only)                                                  | verified | 2026-10-24: `apps/worker` integration tests pass (6). Web Push to a real push service is not tested                                          |
-| Offline notification: dispatcher queues one `notify` job                    | verified | 2026-10-24: gate test 7 (one job for the offline member, none for muted or online members, none on re-dispatch)                              |
-| Prometheus metric names used by alerts and Grafana                          | verified | 2026-10-24: names checked against the code. Values were not checked in a running Prometheus                                                  |
-| Infra: compose, Prometheus, Grafana, nginx                                  | built    | Env names and nginx routes were checked against the code. The full stack was not started in the gate run                                     |
+| Area              | State                                                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delivery pipeline | Built and tested: gate tests (duplicates, order, restart, offline recovery, removed members, monotonic receipts)                                                            |
+| Chat features     | Built: see [`features/README.md`](features/README.md) (groups, rich messages, albums, any file to 1 GB, calls, push, PWA, productivity, group tools, phone Back navigation) |
+| AI                | Built, used in many places, always on request: see [`ai/README.md`](ai/README.md) and [`ai/feature-map.md`](ai/feature-map.md). Needs provider keys                         |
+| Web app           | Built; redesigned (solid surfaces, serif default, mobile tab bar); about 2,170 unit tests                                                                                   |
+| Database          | 34 migration files (0001 to 0034, gaps at 0014, 0021, 0026, 0030), about 50 tables                                                                                          |
+| REST contract     | 189 endpoints, one conformance scenario each                                                                                                                                |
+| Deployment        | Vercel (`flick-app`) and Render (`flick-server`, auto-deploys `main`, runs `migrate:prod` on start); free plans                                                             |
 
-## The delivery gate
+## Tests (rounded; details in testing.md)
 
-All run in `apps/api/test/integration/gate.int.test.ts` on 2026-10-24.
+| Suite            | Count         | Result                                                                                          |
+| ---------------- | ------------- | ----------------------------------------------------------------------------------------------- |
+| Web              | about 2,170   | passing                                                                                         |
+| API unit         | about 180     | passing                                                                                         |
+| API integration  | about 1,800   | passing                                                                                         |
+| Contracts        | about 45      | passing                                                                                         |
+| Database         | 56            | one known failure: chat-list `EXPLAIN` plan test in `packages/database/test/pagination.test.ts` |
+| AI               | about 38      | passing                                                                                         |
+| Browser journeys | 27 spec files | not re-run for this page                                                                        |
 
-| Gate                                                           | Status   | What the test does                                                                                     |
-| -------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
-| 1. Duplicate sends make one message                            | verified | 2 tests: sequential, and concurrent over 2 sockets and REST                                            |
-| 2. Concurrent sends get unique, ordered seqs                   | verified | 8 senders x 10 messages, seq 1..80, recipients in order                                                |
-| 3. A restart after commit, before live delivery, loses nothing | verified | 2 tests: a new API process delivers; an emitted-but-not-marked row is emitted again and deduplicated   |
-| 4. An offline client recovers everything                       | verified | 31 events in pages of 7, including edit, delete, reaction and a live message during the sync           |
-| 5. Removed members get nothing                                 | verified | No live event; history 403, sync empty plus `removed_conversation_ids`, send refused (socket and REST) |
-| 6. Receipts are monotonic and separate                         | verified | Delivered vs read cursors, old acks ignored, an emit alone is not a receipt                            |
+## Built
 
-## Features
+- **Core delivery:** transactional outbox, per-conversation `seq`, idempotent sends, in-API dispatcher, receipts as
+  cursors, sync, presence, typing. Gate run on 2026-10-24 against throwaway Postgres 17, Redis 7 and MinIO; failure
+  injection (Redis outage, killed Postgres connection, two dispatchers) is described in [`testing.md`](testing.md).
+- **Messaging:** direct chats, groups with roles, invite links and join requests, edit with history, delete, reactions,
+  replies, forward, mentions, pins, stars, private notes, drafts across devices, scheduled messages, reminders, polls,
+  disappearing and view-once messages, Saved messages, folders and tags, message search including voice transcripts.
+- **Content:** images, video, albums (up to 20 items, 2 GiB per send, one alert for the whole album), a full-screen media viewer, PDF preview, any file up to 1 GB with safe serving, voice notes with waveform,
+  GIFs and stickers, link previews, Markdown everywhere, checklists, expense splits, small games, shared Events with RSVP.
+- **Calls:** 1:1 WebRTC calls with TURN, group calls and call links through LiveKit, ringing for offline users, call log.
+- **Notifications:** Web Push, notification centre, quiet hours, digest, installable PWA with an offline outbox.
+- **AI:** writing help and tone, translation and auto-translate, voice transcription, image/PDF/document explanation,
+  conversation understanding, the Flick assistant chat with memories and topics, group and productivity helpers, daily
+  quota and a per-chat privacy switch that is enforced on every AI path, including background jobs. A finished Flick topic can be resumed. Safety, scam and mood checks run locally.
+- **Phone behaviour:** Back button and back swipe close overlays one by one, edge swipe back, double Back to exit in the installed app ([ADR-0024](decisions/0024-phone-back-navigation-and-gestures.md)).
+- **Look:** serif default, solid surfaces, global and per-chat wallpapers, uploaded wallpapers kept on the device, Markdown everywhere.
+- **Account and safety:** Clerk sign-in inside Flick (dashboard paths set, username optional), devices list and revoke, new-device alerts, passkeys (enabled),
+  privacy settings, block and report, data export, account delete, incoming webhooks and email-to-chat (the address is shown in Settings, Account when the operator sets it up).
+- **Operations:** Docker compose stacks, Prometheus and Grafana, health endpoints, Render and Vercel configuration.
 
-The calls, rich content, chat organisation, notifications/PWA and AI branches were merged on 2026-10-24 and checked by
-running the commands in the last column.
+## Partly built
 
-| Item                                                                                  | Status   | How it was checked                                                                                                         |
-| ------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Typecheck, lint, format and unit tests after the merge                                | verified | `npm run typecheck`, `lint`, `format:check`, `npm test`                                                                    |
-| Web build (`livekit-client` stays a separate chunk)                                   | verified | `npm run build -w @chat/web`                                                                                               |
-| 1:1 calls are logged once per call from the gateway                                   | verified | `realtime.int.test.ts` (answered and rejected call)                                                                        |
-| Dispatcher hands each new message to the @flick bot hook without waiting              | verified | `realtime.int.test.ts`. The live AI reply was not run (no keys)                                                            |
-| API integration tests: messages, conversations, calls, ai, realtime, push, auth, gate | verified | Postgres 17 and Redis 7 containers, 9 files, 96 tests passing, one file after another                                      |
-| Web client (React, Socket.IO, offline outbox, PWA)                                    | built    | Unit tests next to the code in `apps/web/src`                                                                              |
-| Browser journeys (Playwright, `tests/e2e/tests`, 7 files)                             | built    | Has a CI workflow (`.github/workflows/e2e.yml`); not re-run for this page                                                  |
-| Database benchmarks and query plans                                                   | verified | 2026-10-24, with method and results in [`performance/database.md`](performance/database.md)                                |
-| Load tests (k6)                                                                       | planned  | `npm run load` expects scenarios in `tests/load/scenarios`; none exist yet                                                 |
-| Deployment (Vercel, Render, Supabase, S3)                                             | built    | Configuration is in the repo and described in [`operations/deployment.md`](operations/deployment.md). No run recorded here |
+| Item                   | What works                                                           | What is missing                                                                     |
+| ---------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Notification Reply box | Opens the chat with the typed text as a draft                        | A real send from the notification                                                   |
+| Voice notes            | Record, waveform, transcribe                                         | Hands-free lock                                                                     |
+| Group slow mode        | Enforced by the server                                               | A countdown in the composer                                                         |
+| Group flagged list     | Admins see flagged messages                                          | One-step mute for the sender                                                        |
+| AI streaming           | Header Ask Flick and Summarize stream                                | Bot replies and most other tasks return the whole answer at once                    |
+| Back navigation        | 18 overlay components, edge swipe, double Back to exit               | Call overlays and the guide tour are not wired to Back; iOS keyboard handling       |
+| Wallpapers             | Per-chat and global, uploads from the gallery                        | The global wallpaper and uploaded images are not synced across devices              |
+| Audio transcripts      | Voice notes have a transcript button; the server accepts audio files | No transcript button found on audio sent as a plain file (not checked in a browser) |
+| Keyword alerts         | Break through mute while Flick is open                               | Nothing when the app is closed                                                      |
+| AI data export         | Memories, topics, ratings, styles, transcripts you caused, settings  | The server-side translation cache is not in the export                              |
+| Albums                 | Photos and videos group into one grid                                | "Send as files" sends separate messages that are not grouped                        |
+| Avatars                | Clerk picture; uploads                                               | With a private bucket and no `S3_PUBLIC_URL` only the Clerk picture is shown        |
 
-Not run in the gate or the merge check: `app.int.test.ts`, behaviour with two API replicas under load, real Clerk, real Web Push, the live AI chain, real GIPHY and link-preview fetches, and the Grafana
-dashboards in a running Grafana.
+## Not built
 
-## Backend tests added 2026-10-25
+See [`audit/missing-features.md`](audit/missing-features.md) for the list with notes: hands-free voice lock, background
+blur in calls, streaming of bot replies, birthdays, mute for flagged senders, composer slow-mode countdown, share target
+for files, real reply from a push notification, AI analysis of video (and transcription of video, see
+[ADR-0025](decisions/0025-videos-are-not-transcribed.md)), a per-task AI speed preference for the older `packages/ai`
+tasks, a global wallpaper that follows you to another device, Back for call overlays and the guide tour, iOS keyboard
+handling. Also not built by design: end-to-end encryption, Kafka/Redpanda, sharding and multi-region, load tests (k6),
+tracing.
 
-The content-type matrix, contract conformance, authorization, validation, delivery contract, failure injection (Redis
-outage, Postgres connection kill, two dispatchers), directory paging and security suites are described, with their
-coverage numbers, in [`testing.md`](testing.md).
+## Known issues
 
-## Known gaps
-
-- `publishOutboxBatch` and `markEventProcessed` (database package) are not used by the apps; they are kept for the
-  day a broker is added.
+- **Failing test:** the chat-list `EXPLAIN` test in `packages/database/test/pagination.test.ts` fails (known, existed
+  before the latest work; cause not investigated here).
+- `publishOutboxBatch` and `markEventProcessed` in `@chat/db` are not used by the apps; they are kept for the day a
+  broker is added.
 - The `audit_log` table exists and nothing writes it. `users.is_demo` exists and nothing sets it.
-- Avatars come from two places: `users.avatar_url` (the Clerk picture) and `avatar_object_key` (an upload). With a
-  private bucket and no `S3_PUBLIC_URL` only the Clerk picture is shown.
-- A message counts as "delivered" in `messages_delivered_total` when the recipient had a socket at emit time, not when
-  the client acked.
-- Messages are plaintext on the server ([ADR-0011](decisions/0011-e2e-encryption-deferred.md)). Kafka/Redpanda and
-  sharding are deferred ([ADR-0004](decisions/0004-inapi-dispatcher-redpanda-deferred.md),
-  [`architecture/sharding-multi-region.md`](architecture/sharding-multi-region.md)).
+- `messages_delivered_total` counts a message as delivered when the recipient had a socket at emit time, not when the
+  client acked.
+- Free-plan hosting: the Render service sleeps after 15 minutes without traffic (sockets drop, next request takes about a
+  minute); Supabase free projects pause after a week of inactivity; Clerk development keys show a banner.
+- The AI daily quota fails open if Redis is unreachable.
+- Messages are plaintext on the server ([ADR-0011](decisions/0011-e2e-encryption-deferred.md)).
+- Chat lock is a convenience in the browser, not security.
 
-## Fixed in the gate run (2026-10-24)
+## Needs external setup
 
-- `app.close()` hung while any Socket.IO client was connected; sockets are now disconnected in a `preClose` hook.
-- A second dispatch of the same outbox row queued a second `notify` job; the job id is now a fixed hash of (event,
-  user).
-- Contract paths for upload and download did not match the server (`/media/presign`, `/media/:id/url`).
-- compose set `PORT` and `DB_POOL_MAX`; the apps read `API_PORT`, `WORKER_METRICS_PORT` and `DATABASE_POOL_MAX`.
-- nginx proxied `/ws` instead of `/socket.io/`, and did not strip the `/api` prefix.
-- No `error` listener on the pg pools or on the API's pg-boss: a Postgres restart would have crashed the process.
-- The adapter's Redis subscriber connection was never closed, and Redis was closed while sockets were still cleaning up.
-- Prometheus alerts and dashboards used metrics that did not exist.
-- Building `@chat/api` from stale `dist` folders gave type errors: `tsc -p tsconfig.build.json` reads dependencies from
-  their `dist`, so build the packages first (shared, contracts, uploads, link-preview, ai, db), then api and worker.
+Clerk (keys, paths, passkeys), AI provider keys, Groq key for transcription, S3 bucket and CORS, VAPID keys for push,
+LiveKit and TURN for calls, GIPHY key, an inbound email provider for email-to-chat. Steps and variables:
+[`platform-setup.md`](platform-setup.md) and [`operations/deployment.md`](operations/deployment.md).
+
+## Not verified
+
+Two API replicas under sustained load; a Redis outage during heavy traffic; real Clerk in automated tests (a fake client
+is used); real Web Push delivery to a push service; the live AI chain against all providers at once; real GIPHY and
+link-preview fetches; Grafana dashboards in a running Grafana; the full Docker production stack. These were not run for
+this documentation pass.

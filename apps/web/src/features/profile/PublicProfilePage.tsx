@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ENDPOINTS, type UserProfile } from '@chat/contracts';
@@ -65,7 +66,7 @@ const ProfileView = ({ username }: { username: string }) => {
             <Avatar src={profile.avatar_url} name={profile.display_name} size="xl" />
             <h1 className="text-2xl font-semibold">{profile.display_name}</h1>
             <p className="text-sm text-base-content/60">@{profile.username}</p>
-            {profile.about && <p className="text-sm">{profile.about}</p>}
+            {profile.about && <Markdown text={profile.about} className="text-sm" />}
             {profile.id !== myId && (
               <button
                 type="button"

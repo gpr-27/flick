@@ -30,6 +30,8 @@ export const UpdateTranslationSettings = TranslationSettings.partial();
 
 /** POST /ai/translate-batch: translate several texts at once (visible messages, or one draft). */
 export const TranslateBatchRequest = z.object({
+  /** The chat the texts belong to: its "Allow Flick to read this chat" switch applies. */
+  conversation_id: Id,
   target_language: Language,
   items: z
     .array(z.object({ id: z.string().min(1).max(80), text: z.string().min(1).max(4_000) }))

@@ -17,6 +17,7 @@ import {
 import type { z } from 'zod';
 import type { Member as MemberSchema, UpdateConversationRequest } from '@chat/contracts';
 import { notify } from '@/components/ui/notify';
+import { confirmLeaveChat } from './album/uploadGuard';
 import { getErrorMessage } from '@/lib/api';
 import {
   cacheChat,
@@ -354,6 +355,8 @@ export const useChatStore = create<ChatState>()((set, get) => {
     },
 
     select: (id) => {
+      // Leaving a chat cancels album uploads that were never sent: ask first.
+      if (id !== get().selectedId && !confirmLeaveChat()) return;
       set({ selectedId: id, replyingTo: null, editing: null });
       if (id && !get().threads[id]) {
         set((s) => ({

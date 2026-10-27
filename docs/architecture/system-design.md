@@ -1,7 +1,11 @@
 # System design: Flick
 
-This is the design of Flick, a single-region, modular chat app. It is small on purpose. Each choice is explained in
-[`../decisions/`](../decisions/README.md). What has been verified is listed in [`../status.md`](../status.md).
+This page is the design of Flick, a single-region, modular chat app: the requirements, the components, the main
+sequences (send, recover, restart, large groups), where it can fail and how far it scales. It is small on purpose and
+each choice is explained in [`../decisions/`](../decisions/README.md).
+
+Related: [`overview.md`](overview.md), [`delivery-guarantees.md`](delivery-guarantees.md),
+[`database-schema.md`](database-schema.md), [`../status.md`](../status.md), [`../ai/architecture.md`](../ai/architecture.md).
 
 **Goal.** Every accepted message is stored safely, appears live when a recipient is connected, and can be recovered
 after a disconnect or restart.
@@ -11,7 +15,10 @@ after a disconnect or restart.
 **Functional.** Direct and group chat; delivered and read receipts; offline sync; presence and typing; images and
 files; edit, delete, reactions, reply, forward; pin and star; search; mentions; chat organisation; polls;
 disappearing messages; view-once; GIFs and stickers; link previews; voice notes with waveform; wallpapers; chat lock; the installable app; 1:1 and
-group calls; Web Push; the AI assistant and @flick.
+group calls; Web Push; any file up to 1 GB; albums; Markdown messages; scheduled messages, reminders, drafts, folders and
+tags; group tools (slow mode, cards, webhooks); Saved messages and email-to-chat; and AI that is used in many places
+(writing, translation, transcription, file and image explanation, conversation understanding, the Flick assistant and
+@flick). See [`../features/README.md`](../features/README.md) and [`../ai/feature-map.md`](../ai/feature-map.md).
 
 **Non-functional.**
 
@@ -50,7 +57,9 @@ flowchart LR
 ```
 
 - **API** serves REST, runs the Socket.IO gateway and the dispatcher.
-- **Worker** runs jobs only: Web Push for offline users, expiring messages, upload and outbox clean-up.
+- **Worker** runs jobs only: Web Push for offline users, scheduled messages, reminders, the daily digest, expiring messages, upload and outbox clean-up.
+- **AI** is called from API routes only, on request, never from the delivery path. See [`../ai/architecture.md`](../ai/architecture.md).
+- **Files** go from the browser straight to S3 with presigned POST forms (up to 1 GB each); the API only signs, verifies and signs downloads.
 - **Redis** is never durable. Losing it never loses a message.
 - **Calls:** 1:1 calls are peer-to-peer WebRTC with coturn for relay. Group calls and call links use LiveKit.
   Signalling for 1:1 goes through Socket.IO.

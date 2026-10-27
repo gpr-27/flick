@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useState, type FormEvent } from 'react';
 import { Send, Sparkles, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
@@ -35,7 +36,7 @@ const TaskResult = ({ state, label }: { state: AiTaskState; label: string }) => 
           <Spinner size="sm" label="Flick is thinking" /> Thinking…
         </span>
       )}
-      <p className="whitespace-pre-wrap break-words">{state.text}</p>
+      <Markdown text={state.text} />
       <ModelTag label={state.model} className="mt-1" />
     </div>
   );
@@ -141,7 +142,11 @@ export const FlickPanel = ({
                   turn.role === 'user' ? 'ml-8 bg-primary/10' : 'mr-8 bg-base-content/5',
                 )}
               >
-                <p className="whitespace-pre-wrap break-words">{turn.content}</p>
+                {turn.role === 'assistant' ? (
+                  <Markdown text={turn.content} />
+                ) : (
+                  <p className="whitespace-pre-wrap break-words">{turn.content}</p>
+                )}
                 {turn.role === 'assistant' && (
                   <ModelTag label={turn.model ?? null} className="mt-1" />
                 )}

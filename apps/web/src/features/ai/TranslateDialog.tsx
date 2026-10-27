@@ -9,10 +9,12 @@ import { useAiTask } from './useAiTask';
 /** "Translate" for one message: pick a language, read the result. Opened from the message menu. */
 export const TranslateDialog = ({
   text,
+  conversationId,
   open,
   onClose,
 }: {
   text: string;
+  conversationId?: string;
   open: boolean;
   onClose: () => void;
 }) => {
@@ -22,7 +24,7 @@ export const TranslateDialog = ({
   const translate = (language: string): void => {
     if (!language) return;
     void task.run(async ({ onModel }) => {
-      const answer = await translateText(text, language);
+      const answer = await translateText(text, language, undefined, conversationId);
       onModel(answer.model);
       return answer.text;
     });

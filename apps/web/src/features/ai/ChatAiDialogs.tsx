@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Modal, Spinner } from '@/components/ui';
 import { askFlick, summarizeUnread } from './aiApi';
@@ -37,9 +38,11 @@ const Answer = ({ task }: { task: ReturnType<typeof useAiTask> }) => (
       <Spinner size="sm" label="Flick is reading" />
     )}
     {task.state.text !== '' && (
-      <p className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words leading-6">
-        {task.state.text}
-      </p>
+      <Markdown
+        text={task.state.text}
+        className="max-h-72 overflow-y-auto leading-6"
+        testId="ai-answer"
+      />
     )}
     {task.state.status === 'done' && <ModelTag label={task.state.model} />}
     {task.state.status === 'error' && (

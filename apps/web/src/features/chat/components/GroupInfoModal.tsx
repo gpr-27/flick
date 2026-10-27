@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useRef, useState } from 'react';
 import { Camera, X } from 'lucide-react';
 import type { ConversationSummary } from '@chat/contracts';
@@ -201,9 +202,10 @@ export const GroupInfoModal = ({
             <div className="mb-4 text-center">
               <p className="font-display text-lg font-bold">{conversation.title}</p>
               {conversation.description && (
-                <p className="mt-1 whitespace-pre-wrap text-sm text-base-content/70">
-                  {conversation.description}
-                </p>
+                <Markdown
+                  text={conversation.description}
+                  className="mt-1 text-sm text-base-content/70"
+                />
               )}
             </div>
           )}

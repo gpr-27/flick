@@ -1,3 +1,4 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useEffect, useState } from 'react';
 import { AlarmClock } from 'lucide-react';
 import { ENDPOINTS, type Nudge } from '@chat/contracts';
@@ -48,7 +49,7 @@ export const NudgeList = () => {
       <ul className="flex flex-col gap-2">
         {shown.map((n) => (
           <li key={n.message_id} className="rounded-xl bg-base-content/5 p-3 text-sm">
-            <p className="line-clamp-2">You said: “{n.text}”</p>
+            <p className="line-clamp-2">You said: “{stripMarkdown(n.text)}”</p>
             <div className="mt-2 flex gap-2">
               <Button
                 variant="primary"

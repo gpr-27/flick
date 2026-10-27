@@ -154,9 +154,19 @@ export async function suggestReplies(conversationId: string, signal?: AbortSigna
   return { replies: data.replies, model: modelLabel(data.provider, data.model) };
 }
 
-export async function translateText(text: string, targetLang: string, signal?: AbortSignal) {
+/** `conversationId` is the chat the text comes from, so that chat's "AI off" switch applies. */
+export async function translateText(
+  text: string,
+  targetLang: string,
+  signal?: AbortSignal,
+  conversationId?: string,
+) {
   const data = E.translate.response.parse(
-    await jsonOf(E.translate.path, { text, targetLang }, signal),
+    await jsonOf(
+      E.translate.path,
+      { text, targetLang, ...(conversationId ? { conversation_id: conversationId } : {}) },
+      signal,
+    ),
   );
   return { text: data.text, model: modelLabel(data.provider, data.model) };
 }

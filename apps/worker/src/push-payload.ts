@@ -44,7 +44,7 @@ export function messagePushPayload(n: Notification, prefs: DevicePrefs): string 
     body:
       prefs.previews === false
         ? HIDDEN_PREVIEW
-        : previewOf({ type: n.type, bodyText: n.body_text, viewOnce: n.view_once }),
+        : previewOf({ type: n.type, bodyText: n.body_text, viewOnce: n.view_once, album: n.album }),
     conversation_id: n.conversation_id,
     message_id: n.message_id,
     seq: n.seq,

@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { Plus } from 'lucide-react';
 import { cn, useFocusTrap, type PopoverMenuItem } from '@/components/ui';
+import { useBackClose } from '@/lib/useBackClose';
 import { useOutsidePress } from './useOutsidePress';
 
 /**
@@ -25,6 +26,7 @@ export const ComposerToolsSheet = ({
   };
   useFocusTrap(sheetRef, open, { onEscape: close });
   useOutsidePress([sheetRef, triggerRef], open, close);
+  useBackClose(open, close);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     const step: Record<string, number> = {

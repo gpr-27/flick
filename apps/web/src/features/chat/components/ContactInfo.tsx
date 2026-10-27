@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Flag, MessageCircle, Phone, ShieldOff, Video, X } from 'lucide-react';
 import { ENDPOINTS, type UserProfile, type UserSummary } from '@chat/contracts';
@@ -178,7 +179,7 @@ export const ContactInfo = ({
                   <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-2,oklch(var(--bc)/0.65))]">
                     About
                   </h3>
-                  <p className="whitespace-pre-wrap break-words">{profile.about}</p>
+                  <Markdown text={profile.about} />
                 </section>
               )}
               {!isMe && (

@@ -34,7 +34,7 @@ export const TranslationMenuItems = ({
     };
   }, [conversationId]);
 
-  if (aiEnabled === false) return null;
+  if (!aiEnabled) return null; // hidden until the server says AI is on, so the items never flash in
 
   const run = (job: Promise<unknown>, message: string): void => {
     onDone();

@@ -66,3 +66,28 @@ export const prepareImage = async (file: File): Promise<PreparedImage> => {
     if ('close' in source) source.close();
   }
 };
+
+/**
+ * A small preview (default 160 px on the long side) for a thumbnail strip. Much cheaper to keep
+ * and draw than the original, so a tray of 20 phone photos stays smooth. Rejects when the
+ * browser cannot decode the file (HEIC, RAW); callers show an icon instead.
+ */
+export const makeThumbnail = async (file: Blob, maxSide = 160): Promise<Blob> => {
+  const source = await loadImage(file);
+  try {
+    const scale = Math.min(1, maxSide / Math.max(source.width, source.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas is not available');
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.7);
+    });
+    if (!blob) throw new Error('Could not make a thumbnail');
+    return blob;
+  } finally {
+    if ('close' in source) source.close();
+  }
+};

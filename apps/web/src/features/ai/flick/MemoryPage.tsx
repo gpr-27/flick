@@ -1,3 +1,5 @@
+import { Markdown } from '@/features/content/richText/Markdown';
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
@@ -139,11 +141,11 @@ const MemoryPage = () => {
                 </form>
               ) : (
                 <>
-                  <span className="min-w-0 flex-1 break-words text-sm">{m.fact}</span>
+                  <Markdown text={m.fact} className="flex-1 text-sm" />
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm btn-circle"
-                    aria-label={`Edit: ${m.fact}`}
+                    aria-label={`Edit: ${stripMarkdown(m.fact)}`}
                     onClick={() => {
                       setText(m.fact);
                       setEditing(m.id);
@@ -154,7 +156,7 @@ const MemoryPage = () => {
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm btn-circle text-error"
-                    aria-label={`Delete: ${m.fact}`}
+                    aria-label={`Delete: ${stripMarkdown(m.fact)}`}
                     onClick={() => void remove(m.id)}
                   >
                     <Trash2 className="size-4" aria-hidden="true" />

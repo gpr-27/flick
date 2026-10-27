@@ -72,11 +72,13 @@
   --glass-card-shadow: var(--shadow-1);
 
   /* Message bubbles: solid */
-  --bubble-sent-bg: oklch(var(--p));
+  /* A little deeper than the brand colour so white text reaches 5.4:1 (the plain brand colour is 4.0:1). */
+  --bubble-sent-bg: color-mix(in oklab, oklch(var(--p)) 80%, #1a1030);
   --bubble-sent-image: none;
   --bubble-sent-color: #ffffff;
   --bubble-sent-meta: rgba(255, 255, 255, 0.9);
-  --bubble-sent-link: #ffffff;
+  /* Soft sky blue: reads as a link next to white text and keeps 4.5:1 on the bubble. */
+  --bubble-sent-link: #d4efff;
   --bubble-sent-shadow: none;
   --bubble-recv-bg: #ffffff;
   --bubble-recv-color: #1d1a2f;
@@ -148,7 +150,7 @@
   --bubble-sent-bg: color-mix(in oklab, oklch(var(--p)) 72%, #1a1030);
   --bubble-sent-color: #ffffff;
   --bubble-sent-meta: rgba(255, 255, 255, 0.88);
-  --bubble-sent-link: #ffffff;
+  --bubble-sent-link: #d4efff;
   --bubble-recv-bg: #2a2640;
   --bubble-recv-color: #ece9f7;
   --bubble-recv-border: rgba(255, 255, 255, 0.06);
@@ -257,8 +259,8 @@
     box-shadow: var(--bubble-recv-shadow);
   }
 
-  /* Links inside bubbles must stay readable on both bubble backgrounds: white and underlined on
-     the sent bubble, a dark/light brand tint on the received bubble. */
+  /* Links inside bubbles must stay readable on both bubble backgrounds: soft sky blue and underlined
+     on the sent bubble, a dark/light brand tint on the received bubble. */
   .bubble-sent a:not(.no-underline),
   .bubble-recv a:not(.no-underline) {
     font-weight: 600;
@@ -275,9 +277,13 @@
     color: var(--bubble-recv-link);
     text-decoration-color: color-mix(in oklab, var(--bubble-recv-link) 45%, transparent);
   }
-  .bubble-sent a:not(.no-underline):hover,
-  .bubble-recv a:not(.no-underline):hover {
-    text-decoration-color: currentColor;
+  /* Hover styles only where a real pointer exists: on touch screens :hover sticks after a tap or a
+     scroll and leaves one item looking highlighted. */
+  @media (hover: hover) {
+    .bubble-sent a:not(.no-underline):hover,
+    .bubble-recv a:not(.no-underline):hover {
+      text-decoration-color: currentColor;
+    }
   }
 
   /* Primary action button (kept name; now a calm solid look with a faint top-lit gradient). */
@@ -292,9 +298,11 @@
       box-shadow var(--dur-fast) ease,
       filter var(--dur-fast) ease;
   }
-  .btn-grad:hover {
-    filter: brightness(1.07);
-    box-shadow: var(--shadow-2);
+  @media (hover: hover) {
+    .btn-grad:hover {
+      filter: brightness(1.07);
+      box-shadow: var(--shadow-2);
+    }
   }
   .btn-grad:active {
     transform: scale(0.98);
@@ -322,8 +330,10 @@
   .input-soft::placeholder {
     color: var(--text-3);
   }
-  .input-soft:hover {
-    border-color: var(--border-strong);
+  @media (hover: hover) {
+    .input-soft:hover {
+      border-color: var(--border-strong);
+    }
   }
   .input-soft:focus {
     background-color: var(--bg-surface);
@@ -358,8 +368,10 @@
     color: var(--text-2);
     transition: background-color var(--dur-fast);
   }
-  .pill-tab:hover {
-    background-color: var(--bg-hover);
+  @media (hover: hover) {
+    .pill-tab:hover {
+      background-color: var(--bg-hover);
+    }
   }
   .pill-tab[aria-selected='true'] {
     background-color: oklch(var(--p));

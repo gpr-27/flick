@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useState } from 'react';
 import { Modal, Spinner } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
@@ -83,7 +84,7 @@ export const PlanDialog = ({
                 ? `Times skip your ${plan.busy_count} reminder${plan.busy_count === 1 ? '' : 's'} and scheduled message${plan.busy_count === 1 ? '' : 's'}.`
                 : 'Pick a time for the invitation.'}
             </p>
-            <p className="whitespace-pre-wrap rounded-xl bg-sunken p-3">{plan.invitation}</p>
+            <Markdown text={plan.invitation} className="rounded-xl bg-sunken p-3" />
             <div className="flex flex-col gap-2">
               {plan.slots.map((s) => (
                 <button

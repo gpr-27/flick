@@ -1,3 +1,4 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useMemo } from 'react';
 import { Share2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -44,7 +45,7 @@ export const SharePage = () => {
   return (
     <div className="mx-auto max-w-md p-4">
       <h1 className="font-display text-lg font-bold">Send to...</h1>
-      <p className="mb-3 line-clamp-3 whitespace-pre-line text-sm text-base-content/70">{text}</p>
+      <p className="mb-3 line-clamp-3 text-sm text-base-content/70">{stripMarkdown(text)}</p>
       <AskFlickAboutShared text={text} />
       <ul className="flex flex-col gap-1">
         {chats.map((c) => (

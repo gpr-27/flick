@@ -1,3 +1,4 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useState, type FormEvent } from 'react';
 import { Pencil } from 'lucide-react';
 import type { FlickTopic } from '@chat/contracts';
@@ -52,13 +53,13 @@ export const TopicDivider = ({ topic }: { topic: FlickTopic }) => {
         <button
           type="button"
           className="flex items-center gap-1 rounded-full bg-sunken px-3 py-1 font-medium text-primary-text"
-          aria-label={`Topic: ${topic.title}. Rename`}
+          aria-label={`Topic: ${stripMarkdown(topic.title)}. Rename`}
           onClick={() => {
             setTitle(topic.title);
             setEditing(true);
           }}
         >
-          {topic.title}
+          {stripMarkdown(topic.title)}
           <Pencil className="size-3" aria-hidden="true" />
         </button>
       )}

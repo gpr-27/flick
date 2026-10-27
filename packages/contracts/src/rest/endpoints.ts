@@ -482,6 +482,7 @@ export const ENDPOINTS = {
       path: '/media/:attachment_id/url',
       auth: true,
       params: Media.AttachmentParams,
+      query: Media.DownloadUrlQuery,
       response: Media.DownloadUrl,
     },
     gifSearch: {
@@ -1155,6 +1156,13 @@ export const ENDPOINTS = {
       body: FlickExtras.FlickTopicTitleBody,
       response: FlickExtras.FlickTopic,
     },
+    resumeTopic: {
+      method: 'POST',
+      path: '/flick/topics/:id/resume',
+      auth: true,
+      params: FlickExtras.FlickTopicParams,
+      response: FlickExtras.FlickResumeTopicResponse,
+    },
     feedback: {
       method: 'POST',
       path: '/flick/feedback',
@@ -1259,6 +1267,12 @@ export const ENDPOINTS = {
       auth: true,
       params: Platform.WebhookItemParams,
       response: null,
+    },
+    emailAlias: {
+      method: 'GET',
+      path: '/platform/email-alias',
+      auth: true,
+      response: Platform.EmailAlias,
     },
     mediaUsage: { method: 'GET', path: '/media/usage', auth: true, response: Platform.MediaUsage },
     weekStats: { method: 'GET', path: '/me/stats', auth: true, response: Platform.WeekStats },

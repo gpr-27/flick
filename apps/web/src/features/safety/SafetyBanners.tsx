@@ -1,5 +1,6 @@
 // Banners above the message list: scam warning and look-alike name for strangers, the group's
 // welcome text for new members, and the slow-mode wait. Each can be dismissed.
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ShieldAlert, Timer, UserX } from 'lucide-react';
 import { ENDPOINTS, type ConversationSummary, type MessageRecord } from '@chat/contracts';
@@ -195,7 +196,9 @@ export const SafetyBanners = ({
       {welcome && (
         <Banner icon={<span aria-hidden="true">👋</span>} tone="bg-primary/10">
           <p className="font-semibold">Welcome to {conversation.title ?? 'the group'}</p>
-          <p className="whitespace-pre-wrap text-base-content/80">{settings.welcome_text}</p>
+          {settings.welcome_text && (
+            <Markdown text={settings.welcome_text} className="text-base-content/80" />
+          )}
           <Button
             variant="ghost"
             size="sm"

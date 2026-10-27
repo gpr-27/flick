@@ -1,4 +1,5 @@
 import type { Database } from '@chat/db';
+import { albumOf, isSilentAlbumItem } from '@chat/shared';
 import { sql, type Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Logger } from '../logger.js';
@@ -38,7 +39,8 @@ export type NotifyResult =
   | 'push_failed'
   | 'skipped_gone'
   | 'skipped_muted'
-  | 'skipped_seen';
+  | 'skipped_seen'
+  | 'skipped_album';
 
 export interface NotifyOutcome {
   result: NotifyResult;
@@ -65,6 +67,7 @@ export async function handleNotify(deps: NotifyDeps, job: NotifyJob): Promise<No
       'm.sender_id',
       'm.type',
       'm.view_once',
+      'm.content',
       'm.deleted_at',
       'm.seq',
       'sender.display_name as sender_name',
@@ -80,6 +83,9 @@ export async function handleNotify(deps: NotifyDeps, job: NotifyJob): Promise<No
 
   const skip = (result: NotifyResult): NotifyOutcome => ({ result, summary: emptySummary() });
   if (!row || row.deleted_at || row.expired || row.left_at) return skip('skipped_gone');
+  // An album alerts once, for its first item; the other items of it stay silent.
+  const album = albumOf(row.content);
+  if (isSilentAlbumItem(album)) return skip('skipped_album');
   // A muted chat is silent, unless the message names the person or answers one of theirs.
   if (row.muted && kind === 'message') return skip('skipped_muted');
   // Quiet hours: silent unless the sender is one of the person's priority contacts.
@@ -112,6 +118,7 @@ export async function handleNotify(deps: NotifyDeps, job: NotifyJob): Promise<No
     type: row.type,
     body_text: row.body_text,
     view_once: row.view_once,
+    album,
   });
   const skipped = summary.skipped_delivered + summary.skipped_quiet;
   const result: NotifyResult =

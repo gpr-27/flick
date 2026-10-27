@@ -3,9 +3,10 @@
 // Adding a feature (polls, GIFs, voice notes, ...) means adding ONE entry here; no
 // other file changes. A type with no entry falls back to a plain "unsupported" line, so a newer
 // server never breaks an older client.
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { File as FileIcon, ImageOff, Phone, PhoneMissed, Video } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
-import type { ContentType, MessageContent } from '@chat/contracts';
+import { albumLabel, type ContentType, type MessageContent } from '@chat/contracts';
 import { ReloadButton, Spinner } from '@/components/ui';
 import { RemoteImage, VideoView } from '@/features/content/MediaViews';
 import { LinkPreviewCard } from '@/features/content/LinkPreviewCard';
@@ -20,7 +21,6 @@ import { TapToDownload } from '@/features/settings/MediaGate';
 import { useMediaGate } from '@/features/settings/useMediaGate';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { VoicePlayer } from '@/features/content/voice/VoicePlayer';
-import { TranscriptView } from '@/features/translation/TranscriptView';
 import { DocPreview } from '@/features/docpreview/DocPreview';
 import { previewKindFor } from '@/features/docpreview/previewKind';
 import { RichText } from '@/features/content/richText/RichText';
@@ -43,6 +43,12 @@ export interface ContentRenderer<T extends ContentType> {
   /** One line for the chat list and reply quotes. */
   preview: (content: Of<T>) => string;
 }
+
+/** "4 photos", "3 photos and 2 videos": an album reads as one thing in the chat list, not as its last item. */
+export const albumPreview = (
+  album: { count: number; videos?: number | undefined },
+  caption?: string,
+): string => (caption ? `${albumLabel(album)}: ${caption}` : albumLabel(album));
 
 const formatBytes = (n: number): string =>
   n < 1024
@@ -100,23 +106,60 @@ const TextView = ({ content }: { content: Of<'text'> }) => {
   );
 };
 
+/**
+ * "Send in <language>": the bubble shows the translation everyone reads. The sender sees what they
+ * wrote on a small "Original:" line; readers get a "Show original" toggle.
+ */
+const OriginalText = ({ content, isMine }: { content: Of<'text'>; isMine: boolean }) => {
+  const [open, setOpen] = useState(false);
+  if (!content.original_text) return null;
+  if (isMine || open) {
+    return (
+      <p className="mt-1 whitespace-pre-wrap break-words border-t border-current/20 pt-1 text-xs opacity-70">
+        <span className="font-semibold">Original: </span>
+        {content.original_text}
+        {!isMine && (
+          <button
+            type="button"
+            className="ml-2 font-semibold underline"
+            onClick={() => {
+              setOpen(false);
+            }}
+          >
+            Hide
+          </button>
+        )}
+      </p>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="mt-1 block text-xs font-semibold underline opacity-70"
+      onClick={() => {
+        setOpen(true);
+      }}
+    >
+      Show original{content.translated_to ? ` (translated to ${content.translated_to})` : ''}
+    </button>
+  );
+};
+
 const text: ContentRenderer<'text'> = {
-  render: (c, ctx) =>
-    isRichText(c.text) ? (
-      <RichTextCard
-        text={c.text}
-        isMine={ctx.message?.isMine ?? false}
-        conversationId={ctx.message?.conversationId}
-      />
-    ) : c.original_text && ctx.message?.isMine ? (
-      // "Send in <language>": the sender keeps seeing what they wrote.
-      <>
-        <TextView content={{ ...c, text: c.original_text }} />
-        <p className="mt-1 text-xs opacity-70">Sent in {c.translated_to ?? 'another language'}</p>
-      </>
-    ) : (
-      <TextView content={c} />
-    ),
+  render: (c, ctx) => (
+    <>
+      {isRichText(c.text) ? (
+        <RichTextCard
+          text={c.text}
+          isMine={ctx.message?.isMine ?? false}
+          conversationId={ctx.message?.conversationId}
+        />
+      ) : (
+        <TextView content={c} />
+      )}
+      <OriginalText content={c} isMine={ctx.message?.isMine ?? false} />
+    </>
+  ),
   preview: (c) => c.text,
 };
 
@@ -180,7 +223,14 @@ const ImageView = ({ content, context }: { content: Of<'image'>; context: Conten
 
 const image: ContentRenderer<'image'> = {
   render: (c, context) => <ImageView content={c} context={context} />,
-  preview: (c) => (c.sticker ? 'Sticker' : c.caption ? `Photo: ${c.caption}` : 'Photo'),
+  preview: (c) =>
+    c.album && c.album.count > 1
+      ? albumPreview(c.album, c.caption)
+      : c.sticker
+        ? 'Sticker'
+        : c.caption
+          ? `Photo: ${c.caption}`
+          : 'Photo',
 };
 
 // ── file ──────────────────────────────────────────────────────────────────
@@ -258,7 +308,7 @@ const file: ContentRenderer<'file'> = {
 // ── video, voice, gif, sticker, poll ─────────────────────────────────────
 
 const video: ContentRenderer<'video'> = {
-  render: (c, ctx) => (
+  render: (c) => (
     <>
       <VideoView
         attachmentId={c.attachment_id}
@@ -267,15 +317,16 @@ const video: ContentRenderer<'video'> = {
         caption={c.caption}
         round={c.round}
       />
-      {/* Subtitles from the stored transcript, in my language when the chat is translated for me. */}
-      <TranscriptView
-        attachmentId={c.attachment_id}
-        conversationId={ctx.message?.conversationId}
-        className="mt-1 max-w-[18rem]"
-      />
     </>
   ),
-  preview: (c) => (c.round ? 'Video note' : c.caption ? `Video: ${c.caption}` : 'Video'),
+  preview: (c) =>
+    c.album && c.album.count > 1
+      ? albumPreview(c.album, c.caption)
+      : c.round
+        ? 'Video note'
+        : c.caption
+          ? `Video: ${c.caption}`
+          : 'Video',
 };
 
 const voice: ContentRenderer<'voice'> = {
@@ -460,5 +511,6 @@ export const renderContent = (content: MessageContent, context: ContentContext):
 
 export const previewContent = (content: MessageContent | null): string => {
   if (!content) return 'This message was deleted';
-  return rendererFor(content)?.preview(content) ?? 'Unsupported message';
+  // One plain line: the markdown symbols a text message carries are dropped.
+  return stripMarkdown(rendererFor(content)?.preview(content) ?? 'Unsupported message');
 };

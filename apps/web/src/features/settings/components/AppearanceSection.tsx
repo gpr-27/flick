@@ -1,11 +1,9 @@
-import { useEffect } from 'react';
 import { cn } from '@/components/ui';
-import { useCustomWallpapers } from '@/features/organise/customWallpapers';
-import { WALLPAPERS } from '@/features/organise/wallpapers';
 import { ACCENTS, FONT_FAMILIES } from '../appearance';
 import type { AccentId, FontFamily } from '../settingsSchema';
 import { useSetting } from '../useSettingsStore';
-import { Card, ChoiceRow, SelectRow, ToggleRow } from './controls';
+import { ChatWallpaperSection } from './ChatWallpaperSection';
+import { Card, ChoiceRow, ToggleRow } from './controls';
 
 const ACCENT_IDS = Object.keys(ACCENTS) as AccentId[];
 
@@ -19,12 +17,6 @@ export const AppearanceSection = () => {
   const [reduceMotion, setReduceMotion] = useSetting('reduceMotion');
   const [dyslexiaFont, setDyslexiaFont] = useSetting('dyslexiaFont');
   const [highContrast, setHighContrast] = useSetting('highContrast');
-  const [wallpaper, setWallpaper] = useSetting('defaultWallpaper');
-  const customs = useCustomWallpapers((s) => s.items);
-  const loadCustoms = useCustomWallpapers((s) => s.load);
-  useEffect(() => {
-    void loadCustoms();
-  }, [loadCustoms]);
 
   return (
     <Card title="Appearance">
@@ -129,22 +121,7 @@ export const AppearanceSection = () => {
         checked={highContrast}
         onChange={setHighContrast}
       />
-      <SelectRow
-        label="Default chat wallpaper"
-        hint="For chats where you have not picked one."
-        value={wallpaper ?? ''}
-        onChange={(id) => {
-          setWallpaper(id === '' ? null : id);
-        }}
-        options={[
-          { value: '', label: 'None' },
-          ...WALLPAPERS.map((w) => ({ value: w.id, label: w.label })),
-          ...customs.map((c, i) => ({
-            value: c.id,
-            label: `My picture ${String(customs.length - i)}`,
-          })),
-        ]}
-      />
+      <ChatWallpaperSection />
     </Card>
   );
 };

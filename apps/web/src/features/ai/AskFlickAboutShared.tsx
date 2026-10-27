@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { Spinner } from '@/components/ui';
@@ -46,7 +47,7 @@ export const AskFlickAboutShared = ({ text }: { text: string }) => {
       {task.state.status === 'loading' && !task.state.text && (
         <Spinner size="sm" label="Flick is thinking" />
       )}
-      {task.state.text && <p className="whitespace-pre-wrap break-words">{task.state.text}</p>}
+      {task.state.text && <Markdown text={task.state.text} />}
       {task.state.status === 'error' && (
         <p role="alert" className="text-error">
           {task.state.error}

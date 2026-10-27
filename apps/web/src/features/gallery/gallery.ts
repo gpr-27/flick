@@ -4,6 +4,8 @@ export interface GalleryItem {
   attachmentId: string;
   kind: 'image' | 'video';
   caption?: string | undefined;
+  /** The message it belongs to (for Forward). */
+  messageId?: string | undefined;
 }
 
 /** Every photo and video of a chat, oldest first, for the full-screen viewer to page through. */
@@ -13,7 +15,12 @@ export const galleryItems = (messages: readonly MessageRecord[]): GalleryItem[] 
     const c = m.content;
     if (m.deleted_at || !c) continue;
     if (c.type === 'image' || c.type === 'video') {
-      items.push({ attachmentId: c.attachment_id, kind: c.type, caption: c.caption });
+      items.push({
+        attachmentId: c.attachment_id,
+        kind: c.type,
+        caption: c.caption,
+        messageId: m.message_id,
+      });
     }
   }
   return items;

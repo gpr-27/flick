@@ -102,7 +102,11 @@ import { useLongPress } from '../useLongPress';
 import { isEditableImage, editedFiles, sendAsFile } from '../../photoeditor/editPhoto';
 import { PhotoEditor } from '../../photoeditor/PhotoEditor';
 import { useChatStore } from '../useChatStore';
+import { AlbumTray } from '../album/AlbumTray';
+import { mediaFilesFromClipboard, routePick } from '../album/pickedFiles';
+import { useAlbumDraft } from '../album/useAlbumDraft';
 import { ComposerToolsSheet } from './ComposerToolsSheet';
+import { useBackClose } from '@/lib/useBackClose';
 
 const EMOJIS = ALL_EMOJIS;
 const EMOJI_COLUMNS = 8;
@@ -118,6 +122,7 @@ interface EmojiPickerProps {
 const EmojiPicker = ({ onPick, onClose }: EmojiPickerProps) => {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, true, { onEscape: onClose });
+  useBackClose(true, onClose);
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState(readRecentEmojis);
   // Searching shows the matches; otherwise the recently used come first.
@@ -254,6 +259,13 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const myId = useSessionStore((s) => s.user?.id);
+  // Several photos/videos at once: the media tray (see ../album). One file keeps the flow below.
+  const album = useAlbumDraft({
+    send: (content) => {
+      if (myId) sendMessage(myId, id, content);
+    },
+  });
+  const addMoreRef = useRef(false);
   const notifyTyping = useChatStore((s) => s.notifyTyping);
   const enterSends = useSettingsStore((s) => s.enterSends);
   const notifyStopTyping = useChatStore((s) => s.notifyStopTyping);
@@ -529,13 +541,52 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     startUpload(file);
   };
 
+  /**
+   * Picked, pasted or dropped files. One file keeps the single-file flow (photo editor, preview);
+   * two or more, or any file added to an open tray, go to the media tray.
+   */
+  const routeFiles = (files: File[], openEditor = false): void => {
+    const route = routePick(files.length, album.active);
+    const first = files[0];
+    if (route === 'none' || !first) return;
+    const merge = Boolean(attachment) && (route === 'tray' || addMoreRef.current);
+    addMoreRef.current = false;
+    if (route === 'single' && !merge) {
+      attachFile(first, openEditor);
+      return;
+    }
+    markUsed('composer.attach');
+    const all = attachment ? [attachment.file, ...files] : files;
+    if (attachment) removeAttachment();
+    album.addFiles(all);
+  };
+
   const pickFile = (e: ChangeEvent<HTMLInputElement>): void => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (file) attachFile(file, true);
+    routeFiles(files, true);
+  };
+
+  const sendAlbum = (): void => {
+    const sent = album.submit({
+      caption: cleanOutgoing(text),
+      replyTo: replyingTo?.message_id ?? null,
+    });
+    if (!sent) return;
+    markUsed('composer.basics');
+    clearTimeout(typingTimerRef.current);
+    notifyStopTyping(id);
+    setText('');
+    setReplyingTo(null);
   };
 
   const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>): void => {
+    const pasted = mediaFilesFromClipboard(e.clipboardData);
+    if (pasted.length > 1 && !editing) {
+      e.preventDefault();
+      routeFiles(pasted);
+      return;
+    }
     const image = imageFromClipboard(e.clipboardData);
     if (image && !editing) {
       e.preventDefault();
@@ -580,7 +631,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
   // A file dropped on the "Drop to send" overlay over the chat area.
   useEffect(() => {
     const onDropFile = (e: Event): void => {
-      if (!editing) attachFile((e as CustomEvent<File>).detail);
+      if (!editing) routeFiles((e as CustomEvent<File[]>).detail);
     };
     window.addEventListener(DROP_FILE_EVENT, onDropFile);
     return () => {
@@ -596,10 +647,10 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
 
   const handleDrop = (e: DragEvent<HTMLDivElement>): void => {
     setDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (editing || !file) return;
+    const files = Array.from(e.dataTransfer.files);
+    if (editing || files.length === 0) return;
     e.preventDefault();
-    attachFile(file);
+    routeFiles(files);
   };
 
   const slash = useSlashCommands({
@@ -886,7 +937,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
     >
       {dragging && (
         <p className="pointer-events-none absolute inset-x-0 top-1 text-center text-xs font-semibold text-primary">
-          Drop a file to attach it
+          Drop files to attach them
         </p>
       )}
       {photoToEdit && (
@@ -977,6 +1028,18 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
               <span role="status" className="mt-1 block text-xs text-success">
                 Ready to send
               </span>
+            )}
+            {uploadStatus !== 'idle' && /^(image|video)\//.test(attachment.file.type) && (
+              <button
+                type="button"
+                className="mt-1 block text-xs font-semibold text-primary-text underline"
+                onClick={() => {
+                  addMoreRef.current = true;
+                  imageInputRef.current?.click();
+                }}
+              >
+                Add more
+              </button>
             )}
             <button
               type="button"
@@ -1132,6 +1195,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
       {aiOn && !editing && (
         <SendInLanguage
           text={text}
+          conversationId={id}
           onSend={(c) => {
             sendContent(c);
             setText('');
@@ -1168,10 +1232,21 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         />
       )}
 
+      {album.active && (
+        <AlbumTray
+          draft={album}
+          caption={text}
+          onCaptionChange={setText}
+          onSubmit={sendAlbum}
+          onAddMore={() => imageInputRef.current?.click()}
+          onFiles={routeFiles}
+        />
+      )}
+
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className="relative flex items-end gap-1.5 sm:gap-2"
+        className={cn('relative flex items-end gap-1.5 sm:gap-2', album.active && 'hidden')}
         aria-label="Send a message"
       >
         {selection && (
@@ -1250,6 +1325,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         <input
           type="file"
           accept="image/*,video/*"
+          multiple
           className="hidden"
           ref={imageInputRef}
           onChange={pickFile}
@@ -1259,6 +1335,7 @@ export const MessageInput = ({ conversation, messages }: MessageInputProps) => {
         <input
           type="file"
           accept={ANY_FILE_ACCEPT}
+          multiple
           className="hidden"
           ref={fileInputRef}
           onChange={pickFile}

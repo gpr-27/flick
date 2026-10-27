@@ -19,8 +19,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Modal, cn } from '@/components/ui';
-import { useSheetSwipeDown } from '../gestures/useSheetSwipeDown';
 import { REACTIONS } from '../reactions';
+import { useSheetSwipeDown } from '../gestures/useSheetSwipeDown';
 import { canReadAloud, isReading, toggleReadAloud } from '../../platform/readAloud';
 
 export interface MessageMenuProps {
@@ -90,8 +90,8 @@ const Item = ({
  */
 export const MessageMenu = (props: MessageMenuProps) => {
   const { onClose } = props;
-  const [step, setStep] = useState<'actions' | 'delete'>('actions');
   const sheet = useSheetSwipeDown(onClose);
+  const [step, setStep] = useState<'actions' | 'delete'>('actions');
   // The menu appears right under the finger that is still holding the message. Ignoring touches
   // for a moment keeps the lift of that finger from tapping an emoji or an action by accident.
   const [ready, setReady] = useState(false);
@@ -114,6 +114,7 @@ export const MessageMenu = (props: MessageMenuProps) => {
     <Modal
       open
       onClose={onClose}
+      swipeToDismiss={false}
       label="Message actions"
       overlayClassName={cn('max-sm:items-end sm:p-4', !ready && 'pointer-events-none')}
       className="w-full sm:w-80"

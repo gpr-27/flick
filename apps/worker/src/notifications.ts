@@ -14,6 +14,8 @@ export interface Notification {
   type: string;
   body_text: string | null;
   view_once: boolean;
+  /** Set when the message belongs to an album, so the push says "4 photos". */
+  album?: { index: number; count: number; videos?: number | undefined } | null;
 }
 
 /**

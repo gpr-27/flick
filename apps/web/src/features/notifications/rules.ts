@@ -1,5 +1,6 @@
 // The decisions behind in-tab notifications, as plain functions so they are easy to test.
-import type { MessageContent, MessageRecord } from '@chat/contracts';
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
+import { albumLabel, type MessageContent, type MessageRecord } from '@chat/contracts';
 
 /** A message older than this came from catching up after being offline, not a live arrival. */
 export const MAX_LIVE_AGE_MS = 60_000;
@@ -68,14 +69,14 @@ const MAX_EXCERPT = 100;
 /** A short line for the notification body. */
 export const excerptOf = (content: MessageContent): string => {
   switch (content.type) {
-    case 'text':
-      return content.text.length > MAX_EXCERPT
-        ? `${content.text.slice(0, MAX_EXCERPT - 1)}…`
-        : content.text;
+    case 'text': {
+      const plain = stripMarkdown(content.text);
+      return plain.length > MAX_EXCERPT ? `${plain.slice(0, MAX_EXCERPT - 1)}…` : plain;
+    }
     case 'image':
-      return 'Photo';
+      return content.album ? albumLabel(content.album) : 'Photo';
     case 'video':
-      return 'Video';
+      return content.album ? albumLabel(content.album) : 'Video';
     case 'voice':
       return 'Voice message';
     case 'file':
@@ -90,3 +91,7 @@ export const excerptOf = (content: MessageContent): string => {
       return 'New message';
   }
 };
+
+/** True for the 2nd, 3rd... photo or video of an album: they stay silent after the first one. */
+export const isSilentAlbumItem = (content: MessageContent | null): boolean =>
+  (content?.type === 'image' || content?.type === 'video') && (content.album?.index ?? 0) > 0;

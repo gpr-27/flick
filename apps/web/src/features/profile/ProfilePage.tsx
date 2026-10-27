@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { WriteBioButton } from '@/features/ai/writing/WriteBioButton';
 import { useUser } from '@clerk/clerk-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -294,7 +295,7 @@ export const ProfilePage = () => {
                 {user.display_name}
               </h1>
               <p className="text-sm text-[var(--text-2)]">@{user.username}</p>
-              {user.about && <p className="text-center text-sm">{user.about}</p>}
+              {user.about && <Markdown text={user.about} className="text-center text-sm" />}
               <div className="mt-1 flex flex-wrap justify-center gap-2">
                 <button
                   type="button"

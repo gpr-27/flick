@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canMove, emptyBoard, ticTacToeResult, wyrTally } from './games';
+import { canMove, emptyBoard, ticTacToeResult, wyrTally, type TicTacToeState } from './games';
 
 describe('tic-tac-toe', () => {
   it('detects wins and draws', () => {
@@ -24,5 +24,30 @@ describe('would you rather', () => {
   it('counts votes', () => {
     expect(wyrTally({ votes: { a: 'a', b: 'b', c: 'a' } })).toEqual({ a: 2, b: 1 });
     expect(wyrTally({})).toEqual({ a: 0, b: 0 });
+  });
+});
+
+describe('tic-tac-toe in a chat with only yourself', () => {
+  it('lets the same person play X and then O until the game ends', () => {
+    expect(
+      canMove(
+        { x: 'me', turn: 'o', solo: true, board: ['x', '', '', '', '', '', '', '', ''] },
+        'me',
+      ),
+    ).toBe(true);
+    const won: TicTacToeState = {
+      solo: true,
+      x: 'me',
+      o: 'me',
+      turn: 'o',
+      board: ['x', 'x', 'x', 'o', 'o', '', '', '', ''],
+    };
+    expect(canMove(won, 'me')).toBe(false);
+  });
+
+  it('without the flag the second mark still needs a different person', () => {
+    expect(
+      canMove({ x: 'me', turn: 'o', board: ['x', '', '', '', '', '', '', '', ''] }, 'me'),
+    ).toBe(false);
   });
 });

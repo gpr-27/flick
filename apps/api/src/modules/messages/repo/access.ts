@@ -101,12 +101,7 @@ export async function loadMessage(
 ) {
   let q = db
     .selectFrom('messages')
-    .select([
-      ...MESSAGE_COLUMNS,
-      sql<boolean>`created_at < now() - make_interval(mins => ${EDIT_WINDOW_MINUTES})`.as(
-        'edit_window_closed',
-      ),
-    ])
+    .select(MESSAGE_COLUMNS)
     .where('id', '=', messageId)
     .where('conversation_id', '=', conversationId)
     .where(sql<boolean>`(expire_at IS NULL OR expire_at > now())`);
@@ -115,6 +110,3 @@ export async function loadMessage(
   if (!message) throw new ApiError('NOT_FOUND', 'Message not found.');
   return message;
 }
-
-/** The sender can edit a message for this long after sending it. */
-export const EDIT_WINDOW_MINUTES = 15;

@@ -6,7 +6,13 @@ import { useAiEnabled } from './useAiEnabled';
 import { useAiTask } from './useAiTask';
 
 /** A small "Translate" chip under an incoming message written in another language. */
-export const TranslateChip = ({ text }: { text: string }) => {
+export const TranslateChip = ({
+  text,
+  conversationId,
+}: {
+  text: string;
+  conversationId?: string;
+}) => {
   const enabled = useAiEnabled();
   const task = useAiTask();
   const [shown, setShown] = useState(false);
@@ -28,7 +34,8 @@ export const TranslateChip = ({ text }: { text: string }) => {
         onClick={() => {
           setShown(true);
           void task.run(
-            async ({ signal }) => (await translateText(text, UI_LANGUAGE, signal)).text,
+            async ({ signal }) =>
+              (await translateText(text, UI_LANGUAGE, signal, conversationId)).text,
           );
         }}
         className="chip h-6 cursor-pointer gap-1 text-xs"

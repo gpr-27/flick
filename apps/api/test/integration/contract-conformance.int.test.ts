@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- test payloads are untyped JSON */
 import { randomUUID } from 'node:crypto';
 import { AiChain, type ProviderAdapter, type ProviderCallParams } from '@chat/ai';
-import { ENDPOINTS, buildPath, type Endpoint } from '@chat/contracts';
+import { ENDPOINTS, FLICK_BOT_USER_ID, buildPath, type Endpoint } from '@chat/contracts';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { aiServiceFromChain } from '../../src/modules/ai/service.js';
 import {
@@ -53,10 +53,12 @@ class FakeProvider implements ProviderAdapter {
 /** Endpoints that are not exercised by a live call, with the reason. */
 const NOT_CALLED: Record<string, string> = {
   ...Object.fromEntries(
-    Object.keys(ENDPOINTS.flick).map((k) => [
-      `flick.${k}`,
-      'needs the Flick chat and its bot user; covered by apps/api/test/flick-extras.test.ts',
-    ]),
+    Object.keys(ENDPOINTS.flick)
+      .filter((k) => k !== 'resumeTopic')
+      .map((k) => [
+        `flick.${k}`,
+        'needs the Flick chat and its bot user; covered by apps/api/test/flick-extras.test.ts',
+      ]),
   ),
   'ai.transcribe':
     'speech-to-text needs a Groq Whisper key and real audio; the fake provider only does chat. Covered by test/integration/ai.int.test.ts.',
@@ -326,6 +328,32 @@ const SCENARIOS: Record<string, Scenario> = {
   'users.clearFlickChat': async (f, def) => {
     const temp = await stack.user('clearer');
     conforms(def, await call(temp, def));
+  },
+  // resumeTopic runs as a throwaway user with a chat with Flick and two topics.
+  'flick.resumeTopic': async (f, def) => {
+    const temp = await stack.user('resumer');
+    const chat = await stack.db
+      .insertInto('conversations')
+      .values({ type: 'direct', created_by: temp.id })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await stack.db
+      .insertInto('conversation_members')
+      .values([
+        { conversation_id: chat.id, user_id: temp.id },
+        { conversation_id: chat.id, user_id: FLICK_BOT_USER_ID },
+      ])
+      .execute();
+    const first = await call(temp, ENDPOINTS.flick.newTopic, { body: { title: 'Taxes' } });
+    conforms(ENDPOINTS.flick.newTopic, first);
+    await send(stack, temp, chat.id, { type: 'text', text: 'about taxes' });
+    conforms(ENDPOINTS.flick.newTopic, await call(temp, ENDPOINTS.flick.newTopic, { body: {} }));
+    const res = await call(temp, def, { params: { id: first.body.id } });
+    conforms(def, res);
+    expect(res.body.title).toBe('Resumed: Taxes');
+    expect(res.body.resumes_topic_id).toBe(first.body.id);
+    // somebody else's topic is not found
+    expect((await call(f.bob, def, { params: { id: first.body.id } })).status).toBe(404);
   },
   'users.privacy': async (f, def) => conforms(def, await call(f.alice, def)),
   'users.updatePrivacy': async (f, def) =>
@@ -1004,6 +1032,7 @@ const SCENARIOS: Record<string, Scenario> = {
       }),
     );
   },
+  'platform.emailAlias': async (f, def) => conforms(def, await call(f.alice, def)),
   'platform.mediaUsage': async (f, def) => conforms(def, await call(f.alice, def)),
   'platform.weekStats': async (f, def) => conforms(def, await call(f.alice, def)),
   'platform.loginAlerts': async (f, def) => conforms(def, await call(f.alice, def)),
@@ -1025,7 +1054,11 @@ const SCENARIOS: Record<string, Scenario> = {
     conforms(
       def,
       await call(f.bob, def, {
-        body: { target_language: 'French', items: [{ id: 'a', text: 'hello' }] },
+        body: {
+          conversation_id: f.conv,
+          target_language: 'French',
+          items: [{ id: 'a', text: 'hello' }],
+        },
         headers: JSON_ONLY,
       }),
     ),

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Copy, Forward, ListChecks, Star, Trash2, X } from 'lucide-react';
 import type { MessageRecord } from '@chat/contracts';
 import { Modal, notify } from '@/components/ui';
+import { useBackClose } from '@/lib/useBackClose';
 import { ForwardModal } from '../../organise/ForwardModal';
 import { toggleStar } from '../../organise/messageActions';
 import { useChatStore } from '../useChatStore';
@@ -37,6 +38,8 @@ export const SelectionBar = ({
     return messages.filter((m) => chosen.has(m.message_id));
   }, [messages, ids]);
   const plan = planSelection(selected, myId);
+  // Back leaves selection mode before it leaves the chat.
+  useBackClose(true, clear);
 
   // Everything chosen was deleted (say, by its sender): nothing left to act on.
   useEffect(() => {

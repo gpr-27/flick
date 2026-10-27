@@ -264,7 +264,7 @@ describe('chat options menu', () => {
         'aria-pressed',
         'true',
       );
-      expect(within(group).getByRole('button', { name: 'Default' })).toHaveAttribute(
+      expect(within(group).getByRole('button', { name: 'Same as all chats' })).toHaveAttribute(
         'aria-pressed',
         'false',
       );
@@ -273,11 +273,14 @@ describe('chat options menu', () => {
       expect(patchBody()).toEqual({ wallpaper: 'night' });
     });
 
-    it('Wallpaper Default sends null', async () => {
+    it('Wallpaper "Same as all chats" sends null and the label says whose it is', async () => {
       const user = mountMenu(withPrefs({ wallpaper: 'mint' }));
       await openMenu(user);
       await user.click(screen.getByRole('menuitem', { name: 'Wallpaper…' }));
-      await user.click(await screen.findByRole('button', { name: 'Default' }));
+      expect(await screen.findByTestId('wallpaper-status')).toHaveTextContent(
+        'Custom for this chat',
+      );
+      await user.click(await screen.findByRole('button', { name: 'Same as all chats' }));
       await user.click(screen.getByRole('button', { name: 'Apply' }));
       expect(patchBody()).toEqual({ wallpaper: null });
     });

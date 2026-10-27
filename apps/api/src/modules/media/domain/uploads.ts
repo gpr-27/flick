@@ -30,6 +30,7 @@ import { avatarVariantKey, resizeAvatar } from './avatars.js';
 import { MediaError } from './errors.js';
 import {
   MAX_BYTES,
+  canPreviewInline,
   canShowInline,
   declaredMatches,
   downloadContentType,
@@ -163,6 +164,7 @@ export async function downloadUrl(
   storage: Storage,
   userId: string,
   id: string,
+  options: { preview?: boolean } = {},
 ): Promise<z.infer<typeof DownloadUrl>> {
   const row = await findAttachment(db, id);
   const ready = row && (row.status === 'uploaded' || row.status === 'attached');
@@ -175,17 +177,25 @@ export async function downloadUrl(
   if (!ready || !allowed) throw new MediaError('NOT_FOUND', 'Attachment not found');
 
   const mime = row.verified_mime ?? row.declared_mime;
-  const inline = canShowInline(mime);
+  // `preview` only changes how a PDF is shown; any other type is still a download.
+  const previewPdf = options.preview === true && canPreviewInline(mime);
+  const inline = canShowInline(mime) || previewPdf;
   const isAvatar = isAvatarKey(row.object_key);
   const url = await getSignedUrl(
     storage.signer,
     new GetObjectCommand({
       Bucket: storage.bucket,
       Key: isAvatar ? avatarVariantKey(row.object_key, 256) : row.object_key,
-      ResponseContentType: isAvatar ? 'image/webp' : downloadContentType(mime),
-      ResponseContentDisposition: inline
-        ? 'inline'
-        : `attachment; filename="${row.file_name ?? 'file'}"`,
+      ResponseContentType: isAvatar
+        ? 'image/webp'
+        : previewPdf
+          ? 'application/pdf'
+          : downloadContentType(mime),
+      ResponseContentDisposition: previewPdf
+        ? `inline; filename="${row.file_name ?? 'file.pdf'}"`
+        : inline
+          ? 'inline'
+          : `attachment; filename="${row.file_name ?? 'file'}"`,
     }),
     { expiresIn: DOWNLOAD_URL_SECONDS },
   );

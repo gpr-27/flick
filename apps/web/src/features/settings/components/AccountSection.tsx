@@ -8,6 +8,7 @@ import { signOutOfClerk } from '@/features/auth/authBridge';
 import { useSessionStore } from '@/features/auth/useSessionStore';
 import { getErrorMessage } from '@/lib/api';
 import { getApi } from '@/lib/services';
+import { EmailAliasRow } from '@/features/platform/EmailAliasRow';
 import { PasskeysCard } from '@/features/platform/PasskeysCard';
 import { LoginAlertsRow, WeekStatsCard } from '@/features/platform/SecurityRows';
 import { downloadMyData } from '../exportData';
@@ -229,6 +230,7 @@ export const AccountSection = () => {
       <DevicesList />
       <LoginAlertsRow />
       <PasskeysCard />
+      <EmailAliasRow />
       <WeekStatsCard />
       <div className="flex min-h-[44px] items-center justify-between gap-4 py-1">
         <span>

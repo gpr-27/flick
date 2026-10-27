@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Spinner, notify } from '@/components/ui';
 import { useSessionStore } from '@/features/auth/useSessionStore';
@@ -217,9 +218,7 @@ export const DescribeImageDialog = ({
               </div>
             )}
             {status === 'done' && table.length <= 1 && !receipt && (
-              <p className="whitespace-pre-wrap break-words" data-testid="explain-result">
-                {text}
-              </p>
+              <Markdown text={text} testId="explain-result" />
             )}
             {status === 'error' && (
               <p role="alert" className="text-error">

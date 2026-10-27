@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as aiApi from './aiApi';
@@ -78,5 +78,25 @@ describe('Explain with Flick', () => {
     await waitFor(() => {
       expect(api.analyzeAttachment).not.toHaveBeenCalled();
     });
+  });
+
+  it('draws markdown as bold text and list items, copies and replies with the raw text', async () => {
+    const md =
+      '**Description:** A close-up of a person.\n\n**Visible text:** None.\n\n**Notable details:**\n- **Background, left:** A sheer curtain.\n- **Glasses:** Round frames.';
+    api.analyzeAttachment.mockResolvedValue(md);
+    const heard = vi.fn();
+    window.addEventListener(INSERT_TEXT_EVENT, (e) => {
+      heard((e as CustomEvent).detail);
+    });
+    const user = userEvent.setup();
+    show();
+    const result = await screen.findByTestId('explain-result');
+    expect(result.textContent).not.toContain('**');
+    expect(within(result).getByText('Description:').tagName).toBe('STRONG');
+    const items = within(result).getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(within(items[0] as HTMLElement).getByText('Background, left:').tagName).toBe('STRONG');
+    await user.click(screen.getByRole('button', { name: 'Reply with this' }));
+    expect(heard).toHaveBeenCalledWith({ conversationId: 'c1', text: md });
   });
 });

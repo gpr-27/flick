@@ -1,5 +1,13 @@
 # Flick UI redesign spec
 
+**Status: implemented. See [`design-system.md`](design-system.md) for the design system as it is in the code today.**
+This document is the original plan and diagnosis; where it differs from the code, the code and `design-system.md` win.
+Known differences: the spec proposed the system font as default, but the product ships **serif as the default**
+([ADR-0022](../decisions/0022-ui-redesign-and-serif-default.md)); and the default text size is small (14 px).
+
+Related: [`design-system.md`](design-system.md), [`../decisions/0022-ui-redesign-and-serif-default.md`](../decisions/0022-ui-redesign-and-serif-default.md),
+[`../features/appearance-and-accessibility.md`](../features/appearance-and-accessibility.md).
+
 Goal: from "pastel glass toy" to "calm, fast, legible messenger" (WhatsApp/Telegram/Linear polish).
 Keep: name Flick, lavender + peach identity, light/dark, daisyUI 4 + Tailwind 3, lucide icons.
 No new dependencies, no network fonts (remove the Google Fonts links in `index.html`).

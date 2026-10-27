@@ -3,6 +3,7 @@
 // This is separate from Web Push: push covers a closed browser, this covers a background tab.
 // Settings > Notifications decide the sound, vibration, previews and quiet hours.
 import type { ConversationSummary, MessageRecord } from '@chat/contracts';
+import { isSilentAlbumItem } from './rules';
 import { inQuietHours } from '@/features/settings/policy';
 import { useSettingsStore } from '@/features/settings/useSettingsStore';
 import { useIncomingBanner } from './bannerStore';
@@ -34,6 +35,8 @@ const unarchiveIfAsked = (message: MessageRecord, ctx: IncomingContext): void =>
 
 export const notifyIncoming = (message: MessageRecord, ctx: IncomingContext): void => {
   unarchiveIfAsked(message, ctx);
+  // An album is N messages but one alert (one sound, one banner): the first item speaks for it.
+  if (isSilentAlbumItem(message.content)) return;
 
   const input = {
     message,

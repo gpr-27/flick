@@ -1,62 +1,93 @@
-# Flick profile: how a name flows
+# Profile
 
-Code: `apps/api/src/modules/users/` (server), `apps/web/src/features/profile/` and
-`apps/web/src/features/auth/clerkProfileSync.ts` (web).
+Your profile is your display name, a unique username, an About line and a photo. You edit it on the
+Profile page (`/profile`) and share it with a link or a QR code. Your profile belongs to Flick: the name,
+username and photo you set here are kept only in Flick and are never written back to your sign-in
+account (Clerk). Clerk's name and photo are used once, when your Flick account is created. There is one
+optional AI button, "Write my bio". Status: Built.
 
-There are two copies of a person's name: Flick's (`users.display_name`, `username`, `avatar_url`)
-and the one in the sign-in account at Clerk. Flick is the source of truth. A name can be changed in
-either place and the other follows, so nobody has to change it twice.
+## Related
 
-## Flick to everyone else (live)
+- [Settings](settings.md): the Account section links here; [Safety and privacy](safety-and-privacy.md)
+  controls who sees your photo and About
+- [Notifications](notifications.md), [Guide](guide.md) (the Profile tip)
+- [Security: sign-in](../security/auth.md)
+- [AI: writing assistant](../ai/writing-assistant.md) (Write my bio)
+- Code: `apps/web/src/features/profile/`, `apps/api/src/modules/users/`,
+  `apps/api/src/modules/auth/authenticate.ts`
 
-```
-PATCH /users/me  ->  one transaction:
-                       update users
-                       if name, username or picture really changed:
-                         one outbox row per conversation the user is in
-                         (conversation.member_profile_changed, newest 200 conversations)
-dispatcher       ->  user_updated {user_id, display_name, username, avatar_url}
-                       to the current members of that conversation
-```
+## Where your name and photo come from
 
-- Members only: someone who left hears nothing. Nobody who blocked the user, or was blocked by
-  them, gets the event. The user's own devices always do.
-- Saving the same values again, or changing only "About", sends nothing.
-- A person in more than 200 conversations tells the 200 most recently active ones; the rest read
-  fresh data the next time they load the chat list or the members.
-- `user_updated` takes no seq, so sync does not replay it (see `docs/architecture/protocol.md`).
+| Moment                           | What happens                                                                                                                                                                                                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First sign-in (account creation) | The API reads your Clerk profile once. Display name = Clerk first and last name (or the username); username = a clean version of your Clerk username or email name (3 to 32 characters, with a random suffix if it is taken); photo = your Clerk picture address |
+| After that                       | Flick is the only source of truth. Changing your name, username, About or photo in Flick **does not touch Clerk**, and changing them at Clerk does **not** change Flick                                                                                          |
+| **Use my sign-in photo**         | A menu choice on the Profile photo button. It copies your current Clerk photo into Flick as a normal photo upload when you press Save. It is shown only if your sign-in account has a photo                                                                      |
 
-The web client (`chatSession.ts` -> `useChatStore.userUpdated`) updates the member lists, the user
-cache that message bubbles read sender names and pictures from, the `peer` of direct chats (the
-chat list title and header), and a `profiles` overlay that the people directory and the contact
-card lay over what they loaded earlier. The @mention list asks the server on every keystroke, so it
-is always current.
+There is no two-way sync. An older design synced names between Flick and Clerk; that code is gone.
 
-## Flick to Clerk (after saving on the profile page)
+## What you can edit
 
-After the API call succeeds, `pushProfileToClerk` updates the Clerk user: the display name is split
-into first name (first word) and last name (the rest), the username is sent only if the Clerk user
-has one (its own call, so a Clerk app without usernames cannot undo the name), and a new or removed
-photo is copied with `setProfileImage`. If Clerk refuses, the Flick save stays and a small note is
-shown. The profile page says: "Changing your name here also updates your sign-in account."
+| Field        | Rules                                                                                                                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Display name | 1 to 64 characters                                                                                                                                                                                 |
+| Username     | 3 to 32 characters: letters, numbers, `_` and `.`. Unique. The page checks availability as you type                                                                                                |
+| About        | Up to **139** characters, shown with a live counter. Basic Markdown is rendered. Quick statuses fill it in one tap: Available, Busy, At school, At work, In a meeting, Sleeping, Only urgent calls |
+| Photo        | See below                                                                                                                                                                                          |
 
-## Clerk to Flick (after using Clerk's account menu)
+Press Save. The page warns before you leave with unsaved changes. When you save, everyone you chat
+with sees the new name, username and photo live (a `user_updated` event; changing only About sends
+nothing). Privacy settings can hide your photo and About from others.
 
-`useClerkProfileSync` (mounted while signed in) compares Clerk's name and username with a snapshot
-this browser keeps in `localStorage` (`flick.clerkSync.v1`, per Flick user): the Clerk values at the
-last sync.
+AI, optional: **Write my bio** next to the status chips asks Flick to turn what is in About (or your
+name as a hint) into a short bio that fits 139 characters. It only runs when you tap it and only if AI
+is set up. You can edit the result before saving.
 
-- No snapshot yet (first load): remember Clerk as it is, copy nothing.
-- Clerk differs from the snapshot: copy only the changed field to Flick (`PATCH /users/me`), when
-  it is not blank, valid, and different from what Flick already has. Then take a new snapshot.
-- Clerk equals the snapshot: nothing, so a name chosen in Flick is never overwritten by an
-  unchanged Clerk account.
-- The username is already taken on Flick (409): Flick keeps its own, a toast says why, the name is
-  still copied, and Clerk's username is set back to Flick's.
-- Any other failure is logged and not retried until Clerk changes again.
+## Photo
 
-No loops: a push to Clerk takes a snapshot of what it wrote, and anything Clerk already shares with
-Flick is never copied. Copying from Clerk never writes to Clerk (except the username put-back).
+The camera button on your avatar opens a menu:
 
-What is not synced: Clerk to Flick copies name and username only, not the picture. A picture
-changed in Clerk's menu does not replace one set in Flick.
+| Choice               | What it does                 |
+| -------------------- | ---------------------------- |
+| Choose a photo       | Pick a file from your device |
+| Use my sign-in photo | See above                    |
+| Take a photo         | Opens the camera             |
+| Remove photo         | Clears your photo            |
+
+Every photo goes through a **cropper**: drag to position and zoom up to 3 times, in a square. The result
+is saved as a 512 by 512 JPEG, so the server only ever receives a JPEG. The maximum upload size is
+5 MiB. Pictures are decoded in your browser with the correct rotation (EXIF) and shrunk to at most 2048
+pixels on the long side first.
+
+**Formats:** JPEG, PNG, WebP, GIF, BMP and AVIF where the browser can read them. **HEIC/HEIF** photos
+work only where the browser can decode them (Safari does; most other browsers do not). When it cannot,
+you see: "This browser can't open HEIC photos. Save or export the photo as JPEG or PNG, or take a new
+one, and try again." Flick does not convert HEIC itself.
+
+## Share your profile
+
+| Button         | What it does                                                                        |
+| -------------- | ----------------------------------------------------------------------------------- |
+| Share profile  | Opens the phone's share sheet; if there is none, copies the link                    |
+| Copy @username | Copies `@username`                                                                  |
+| QR code        | Shows a QR code of your link with a **Download** button (`flick-<username>-qr.png`) |
+
+The link is `https://<app>/u/<username>`. Opening it shows the **public profile page**: photo, name,
+About and a **Message** button that opens or starts a direct chat. It follows your privacy settings.
+
+## Stats and completeness
+
+- **Your stats:** number of chats, groups and days on Flick (`GET /users/me/stats`).
+- **Profile completeness:** 0, 33, 67 or 100 percent, from three things: a photo, an About line and a
+  name that is not just your username. A one-line hint says the next step.
+
+## Limits and gaps
+
+| Item                              | Status                                                       |
+| --------------------------------- | ------------------------------------------------------------ |
+| Edit name, username, About, photo | Built                                                        |
+| Crop, QR, share, public page      | Built                                                        |
+| Use my sign-in photo              | Built (one-way copy on request)                              |
+| HEIC photos                       | Partial: only where the browser can decode them              |
+| Sync with Clerk after sign-up     | Not built, on purpose                                        |
+| Change your email or password     | Not in Flick's own screens (handled by the sign-in provider) |

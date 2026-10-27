@@ -156,9 +156,21 @@ describe('keyset pagination', () => {
 });
 
 // Runs EXPLAIN on a query and returns the names of the indexes and plan nodes it uses.
-async function plan(query: Compilable): Promise<{ indexes: string[]; nodes: string[] }> {
+// `ssd` plans with random_page_cost 1.1, the setting for the SSD storage production runs on (the
+// Postgres default of 4 assumes spinning disks and prefers a full scan over 300 index lookups).
+async function plan(
+  query: Compilable,
+  opts: { ssd?: boolean } = {},
+): Promise<{ indexes: string[]; nodes: string[] }> {
   const { sql: text, parameters } = query.compile();
-  const r = await t.pool.query(`EXPLAIN (FORMAT JSON) ${text}`, [...parameters]);
+  const client = await t.pool.connect();
+  let r;
+  try {
+    if (opts.ssd) await client.query('SET random_page_cost = 1.1');
+    r = await client.query(`EXPLAIN (FORMAT JSON) ${text}`, [...parameters]);
+  } finally {
+    client.release(true); // discard the connection so the setting cannot leak
+  }
   const indexes: string[] = [];
   const nodes: string[] = [];
   const walk = (node: unknown): void => {
@@ -204,7 +216,9 @@ describe('EXPLAIN: each query uses the index it was designed for', () => {
   });
 
   it('the chat list uses conversation_members_user_idx and the conversations primary key', async () => {
-    const { indexes, nodes } = await plan(buildChatListQuery(t.db, alice.id));
+    const { indexes, nodes } = await plan(buildChatListQuery(t.db, alice.id), {
+      ssd: true,
+    });
     expect(indexes).toContain('conversation_members_user_idx');
     expect(indexes).toContain('conversations_pkey');
     expect(nodes).not.toContain('Seq Scan');

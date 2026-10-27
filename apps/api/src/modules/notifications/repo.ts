@@ -2,7 +2,7 @@
 // text, sender and chat name are read live, so a deleted, expired or hidden message cannot leak.
 import type { NotificationItem } from '@chat/contracts';
 import type { NotificationKind as StoredKind } from '@chat/db';
-import { previewOf } from '@chat/shared';
+import { albumOf, previewOf } from '@chat/shared';
 import { sql } from 'kysely';
 import { userAvatarUrl } from '../../avatars.js';
 import type { Config } from '../../config.js';
@@ -89,6 +89,7 @@ export async function listAlerts(
       'm.type as message_type',
       'm.body_text',
       'm.view_once',
+      'm.content',
       'c.type as conversation_type',
       'c.name as conversation_name',
       's.display_name as sender_name',
@@ -132,7 +133,9 @@ export async function listAlerts(
         : null,
       chat_name: isGroup ? r.conversation_name : r.available ? r.sender_name : null,
       is_group: isGroup,
-      preview: r.available ? previewFor(r.kind, r.message_type, r.body_text, r.view_once) : null,
+      preview: r.available
+        ? previewFor(r.kind, r.message_type, r.body_text, r.view_once, albumOf(r.content))
+        : null,
     };
   });
   const last = page[page.length - 1];
@@ -149,10 +152,11 @@ function previewFor(
   type: string | null,
   bodyText: string | null,
   viewOnce: boolean | null,
+  album: ReturnType<typeof albumOf> = null,
 ): string | null {
   if (kind === 'missed_call') return 'Missed call';
   if (!type) return kind === 'reminder' ? 'Reminder' : null;
-  return previewOf({ type, bodyText, viewOnce: viewOnce ?? false });
+  return previewOf({ type, bodyText, viewOnce: viewOnce ?? false, album });
 }
 
 /** Marks the given alerts (or all of them) read. Only the caller's own rows are touched. */

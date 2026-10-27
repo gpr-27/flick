@@ -1,6 +1,7 @@
 // Message cards for the shared-tool kinds: checklist, expense and game. Checklist and game state
 // is read from and changed through the card endpoints, and re-read every few seconds
 // (there is no live event for it yet, like polls).
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useCallback, useEffect, useState } from 'react';
 import { ENDPOINTS, type CardAction, type MessageContent } from '@chat/contracts';
 import type { z } from 'zod';
@@ -109,7 +110,7 @@ export const ExpenseView = ({ card }: { card: Of<'expense'> }) => {
   return (
     <div className="min-w-52">
       <p className="text-xs uppercase tracking-wide opacity-70">Expense</p>
-      <p className="font-semibold">{card.description}</p>
+      <p className="font-semibold">{stripMarkdown(card.description)}</p>
       <p className="text-xl font-bold">{formatMoney(card.amount_cents, card.currency)}</p>
       <p className="text-sm opacity-80">
         Paid by {name(card.payer_id)}, split between {new Set(card.split_among).size} (
@@ -126,7 +127,7 @@ const TicTacToe = ({ card, message }: { card: Of<'game'>; message?: CardMessage 
   const state = content.state as TicTacToeState;
   const board = state.board ?? emptyBoard();
   const result = ticTacToeResult(board);
-  const mine = canMove(state, myId);
+  const mine = canMove(state, myId, state.solo === true);
   const who = (mark: 'x' | 'o'): string => {
     const id = state[mark];
     return id ? (id === myId ? 'You' : userName(users, id)) : 'Waiting';
@@ -136,7 +137,9 @@ const TicTacToe = ({ card, message }: { card: Of<'game'>; message?: CardMessage 
       ? "It's a draw"
       : `${who(result)} won`
     : mine
-      ? 'Your move'
+      ? state.solo
+        ? `Your move (${(state.turn ?? 'x').toUpperCase()})`
+        : 'Your move'
       : `Waiting for ${who(state.turn ?? 'x')}`;
   return (
     <div>

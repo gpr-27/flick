@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { ENDPOINTS, type GifResult, type MessageContent } from '@chat/contracts';
 import { Spinner, cn, useFocusTrap } from '@/components/ui';
+import { useBackClose } from '@/lib/useBackClose';
 import { getApi } from '@/lib/services';
 import { gifErrorMessage } from './gifErrors';
 import { MyStickers } from './tools/MyStickers';
@@ -28,6 +29,7 @@ export const GifPicker = ({
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, true, { onEscape: onClose });
+  useBackClose(true, onClose);
   const [kind, setKind] = useState<Kind>('gif');
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');

@@ -1,5 +1,9 @@
 # Sharding and multi-region (future design)
 
+This page is a design note for splitting Flick across several database shards or regions. Nothing in it is built today.
+
+Related: [`system-design.md`](system-design.md), [`database-schema.md`](database-schema.md), [`overview.md`](overview.md).
+
 **Status: deferred. Nothing here is built.** It is a design note for the day one Postgres primary is not enough
 or users are spread across regions. Rule: add it only when a need is shown. Compare with the
 [capacity exercise](system-design.md#6-capacity-estimate-a-hypothetical-exercise), which is hypothetical.
@@ -15,7 +19,9 @@ key is `conversation_id`.
   bucket moves data without rehashing everything.
 
 User data (profiles, settings, the list of a user's conversations) is small and lives in a separate directory
-database, or is replicated to every shard.
+database, or is replicated to every shard. Since the later migrations this also covers the per-person tables
+(folders, drafts, reminders, notifications, bookmarks, AI memories and settings): they are keyed by `user_id` and
+belong in the directory database, not on a conversation shard.
 
 ## 2. What gets harder
 

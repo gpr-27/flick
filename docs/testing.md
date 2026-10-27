@@ -1,5 +1,74 @@
 # Testing
 
+This page says how to run every kind of check in Flick (unit, integration with Docker test dependencies, browser end to
+end, lint, typecheck, format), how many tests exist today, and what each suite proves. Flick has thousands of tests: the
+web app alone has about 2,170, and the API has about 1,800 integration tests that run against real Postgres, Redis
+and MinIO. One contract conformance test calls every REST endpoint. One known test fails on purpose-built data and is
+listed below.
+
+Related: [`status.md`](status.md), [`architecture/delivery-guarantees.md`](architecture/delivery-guarantees.md),
+[`architecture/database-schema.md`](architecture/database-schema.md), [`operations/runbook.md`](operations/runbook.md),
+[`performance/database.md`](performance/database.md).
+
+## Quick commands
+
+```bash
+npm run format:check      # Prettier (npm run format fixes)
+npm run lint              # ESLint in every workspace
+npm run typecheck         # tsc in every workspace (tests are type-checked too)
+npm test                  # unit tests of every workspace
+
+eval "$(scripts/dev/test-deps-up.sh)"   # throwaway Postgres 17, Redis 7, MinIO; exports the env vars
+npm run test:integration                # apps/api and apps/worker integration tests
+scripts/dev/test-deps-down.sh           # stop and delete them
+
+npm run e2e                             # Playwright, real browsers, laptop and phone profiles
+```
+
+`npm test` for `@chat/db` starts its own Postgres container when `TEST_DATABASE_URL` is not set, so Docker must be running.
+
+## Current counts
+
+Totals after the second batch of changes (all numbers are rounded with "about" because they move with every change). The older
+per-run tables further down are dated 2026-10-25 and are kept as history.
+
+| Suite                                | Tests                                                   | Needs                         |
+| ------------------------------------ | ------------------------------------------------------- | ----------------------------- |
+| `apps/web` (Vitest, Testing Library) | about 2,170                                             | nothing                       |
+| `apps/api` unit                      | about 180                                               | nothing                       |
+| `apps/api` integration               | about 1,800                                             | Postgres, Redis, MinIO        |
+| `apps/worker` integration            | a handful (6 when last counted)                         | Postgres, Redis               |
+| `packages/contracts`                 | about 45                                                | nothing                       |
+| `packages/database`                  | 56 (one known failing query-plan test)                  | Docker or `TEST_DATABASE_URL` |
+| `packages/ai`                        | about 38                                                | nothing                       |
+| Browser journeys (`tests/e2e/tests`) | 27 spec files, each run on a laptop and a phone profile | the full stack in Docker      |
+
+**Known failing test.** `packages/database/test/pagination.test.ts` has one query-plan assertion for the **chat list**
+(`EXPLAIN` of the chat-list query) is a known failure. It was already failing before the latest work and is tracked in
+[`status.md`](status.md); the cause has not been investigated for this page. Everything else passes.
+
+## Contract conformance (one scenario per endpoint)
+
+`apps/api/test/integration/contract-conformance.int.test.ts` walks `ENDPOINTS` from `packages/contracts`. For each
+endpoint it makes one real call as an authorised user with valid input and parses the JSON answer with that endpoint's own
+`response` schema, the same schema the web client uses. It also checks that every contract endpoint is a registered route
+and every registered route is in the contract or in a short list of known extras (health, metrics, webhooks, inbound
+email). Endpoints that cannot be called for real (for example ones that need a real provider) are listed with the reason,
+and the test **"every endpoint is covered" fails if an endpoint is in neither list**. So adding an endpoint without a
+scenario breaks the build. `apps/api/test/routes.test.ts` is the fast unit-level twin.
+
+## Which package tests what
+
+| Package / folder       | What its tests prove                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `packages/contracts`   | Schemas accept good and reject bad input; every example in the protocol doc is valid                         |
+| `packages/database`    | Migrations apply and revert; queries; sequence allocation; pagination; search; query-plan shape              |
+| `packages/ai`          | Provider chain: fallback, cooldowns, timeouts, multimodal capability skipping, SSE, rate limit               |
+| `apps/api` unit        | Config, parsing helpers, AI helpers (quota, compose, translation, transcription), flagging, games            |
+| `apps/api` integration | Every module against real services; the delivery gate; authorization; security; failure injection            |
+| `apps/web`             | Stores, sync engine, outbox, every message content type, chat UI, calls state machine, AI UI, safety, themes |
+| `tests/e2e`            | User journeys in real browsers: messaging, ticks, offline catch-up, groups, calls, install, phone layout     |
+
 ## Web
 
 The web app (`apps/web`) is tested with Vitest, Testing Library and jsdom. Backend and browser (Playwright) tests have
@@ -262,7 +331,7 @@ So with more than one dispatcher the order of live events is **not guaranteed; t
 documented; if the dispatcher is ever changed to keep one conversation in order across replicas, change that assertion
 to "in order" and update the architecture overview.
 
-## Coverage
+## Coverage (2026-10-25, historical)
 
 Command, on 2026-10-25, with `@vitest/coverage-v8` 5.0.5 (added as a root dev dependency; the repository had none):
 
@@ -279,7 +348,7 @@ integration run: `src/main.ts` (0%, the start-up script), `modules/health/domain
 edge cases), `modules/auth/clerk.ts` (60%, the real Clerk calls). In `packages/database` the uncovered code is `migrate.ts`
 (the command-line entry), `config.ts` and the seed script's reset and report paths.
 
-## Test counts
+## Test counts (2026-10-25, historical)
 
 Before this work (base commit `3d1253e`) and after, from the runs of 2026-10-25:
 

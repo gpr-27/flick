@@ -1,6 +1,6 @@
 // Live location: one text message that is edited with the new position every 30 s until the time
-// is up or the person taps "Stop sharing". The server only allows edits for 15 minutes, so when an
-// edit is refused the next position goes out as a fresh message and sharing carries on from there.
+// is up or the person taps "Stop sharing". Edits have no time limit on the server, but if an
+// edit is ever refused the next position goes out as a fresh message and sharing carries on.
 import { ENDPOINTS } from '@chat/contracts';
 import { getApi } from '@/lib/services';
 import { locationText } from './richMessages';

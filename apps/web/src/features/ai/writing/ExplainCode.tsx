@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useState } from 'react';
 import { notify } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
@@ -35,9 +36,9 @@ export const ExplainCode = ({ code }: { code: string }) => {
         {busy ? 'Explaining…' : answer ? 'Hide explanation' : 'Explain'}
       </button>
       {answer && (
-        <p role="note" className="basis-full whitespace-pre-wrap rounded-lg bg-sunken p-2 text-xs">
-          {answer}
-        </p>
+        <div role="note" className="basis-full rounded-lg bg-sunken p-2 text-xs">
+          <Markdown text={answer} />
+        </div>
       )}
     </>
   );

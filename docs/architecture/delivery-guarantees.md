@@ -1,7 +1,11 @@
 # Delivery guarantees
 
-This is the delivery contract ([ADR-0008](../decisions/0008-at-least-once-with-idempotency.md)). What has been tested
-is listed in [`../status.md`](../status.md). Event names are in [`protocol.md`](protocol.md) and table names in
+This page is the delivery contract ([ADR-0008](../decisions/0008-at-least-once-with-idempotency.md)): what the sender is
+promised, how ordering works, what happens on retries, restarts and removed members, and what is not promised. What has
+been tested is listed in [`../status.md`](../status.md).
+
+Related: [`overview.md`](overview.md), [`protocol.md`](protocol.md), [`database-schema.md`](database-schema.md),
+[`../testing.md`](../testing.md), [`../decisions/0003-transactional-outbox.md`](../decisions/0003-transactional-outbox.md). Event names are in [`protocol.md`](protocol.md) and table names in
 [`database-schema.md`](database-schema.md). Code: `apps/api/src/modules/messages/`.
 
 **In one sentence.** A message is acked to its sender only after it is committed in PostgreSQL with its sequence
@@ -60,6 +64,11 @@ Anything that changes what a device should show takes the next number of the con
 delete for everyone, a reaction added or removed. New messages live in `messages`; edits, deletes and reactions are
 logged in `message_events`. Each change also writes an outbox row in the same transaction. Delete for me, star, pin and
 poll votes take no seq: they affect one user or are not part of the ordered log.
+
+An **album** is several ordinary messages (one per photo or video), each with its own seq, ack and receipts, so every
+guarantee on this page applies to each item on its own ([ADR-0019](../decisions/0019-albums-as-linked-messages.md)).
+A group with **slow mode** can refuse a send with `SLOW_MODE` (retryable, with `wait_seconds`); a refused send takes
+no seq.
 
 The ack is sent only after COMMIT, so "accepted" always means "saved". `sendMessage` is a plain function: the Socket.IO
 `send_message` handler and `POST /conversations/:id/messages` both call it.
@@ -144,7 +153,7 @@ them.
 
 | Action              | Who                                | Limit                                                           |
 | ------------------- | ---------------------------------- | --------------------------------------------------------------- |
-| Edit                | the sender                         | 15 minutes, text or caption only                                |
+| Edit                | the sender                         | no time limit, text or caption only                             |
 | Delete for me       | any member                         | none, no seq                                                    |
 | Delete for everyone | the sender, or a group owner/admin | none, takes a seq                                               |
 | React               | any member                         | one reaction per user per message, a new emoji replaces the old |

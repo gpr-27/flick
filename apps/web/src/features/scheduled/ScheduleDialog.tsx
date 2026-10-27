@@ -1,3 +1,4 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { ENDPOINTS, type ConversationSummary } from '@chat/contracts';
@@ -72,7 +73,9 @@ export const ScheduleDialog = ({
         </button>
       </div>
       <p className="mb-1 text-sm text-base-content/70">To {conversationTitle(conversation)}</p>
-      <p className="mb-4 line-clamp-3 rounded-xl bg-base-content/5 px-3 py-2 text-sm">{text}</p>
+      <p className="mb-4 line-clamp-3 rounded-xl bg-base-content/5 px-3 py-2 text-sm">
+        {stripMarkdown(text)}
+      </p>
 
       <div className="mb-3 flex flex-wrap gap-2">
         {presets(now).map((p) => (

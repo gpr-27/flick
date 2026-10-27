@@ -1,3 +1,4 @@
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bell } from 'lucide-react';
@@ -47,7 +48,7 @@ const Row = ({
           </span>
           <span className="block truncate text-sm text-[var(--text-2)]">
             {item.is_group && item.sender_name ? `${item.sender_name}: ` : ''}
-            {item.preview ?? 'This message is no longer available.'}
+            {item.preview ? stripMarkdown(item.preview) : 'This message is no longer available.'}
           </span>
         </span>
         {!item.read && (

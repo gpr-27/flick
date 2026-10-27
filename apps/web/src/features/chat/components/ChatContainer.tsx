@@ -30,10 +30,20 @@ import { useIsHidden } from '../../organise/lock';
 import { toggleStar, usePinsStore } from '../../organise/messageActions';
 import { PinnedBar } from '../../organise/PinnedBar';
 import { useWallpaper } from '../../organise/useWallpaper';
+import { resolveWallpaperId } from '../../organise/wallpaperPrecedence';
 import { useSettingsStore } from '../../settings/useSettingsStore';
 import { SelectionBar } from '../selection/SelectionBar';
 import { useSelectedIds, useSelectionStore } from '../selection/useSelectionStore';
-import { buildRows, firstUnreadKey, groupPosition, rowStatus, type ThreadRow } from '../threadRows';
+import {
+  albumStatus,
+  buildRows,
+  firstUnreadKey,
+  groupAlbums,
+  groupPosition,
+  rowStatus,
+  type ThreadRow,
+} from '../threadRows';
+import { albumHeightPx } from '../album/albumLayout';
 import { useChatStore, userName, type Activity } from '../useChatStore';
 import { ChatHeader } from './ChatHeader';
 import { SavedTools } from '@/features/productivity/SavedTools';
@@ -44,6 +54,12 @@ import { VirtualMessageList, type VirtualMessageListHandle } from './VirtualMess
 
 const estimateRow = (row: ThreadRow): number => {
   const type = row.message.content?.type;
+  if (row.album) {
+    const first = row.album.items[0]?.message.content;
+    const aspect =
+      first && (first.type === 'image' || first.type === 'video') ? first.width / first.height : 1;
+    return albumHeightPx(row.album.count, aspect) + (row.album.caption ? 48 : 0) + 40;
+  }
   if (type === 'image' || type === 'video') return 320;
   const text = row.message.content?.type === 'text' ? row.message.content.text : '';
   return text.length > 120 ? 110 : 72;
@@ -115,17 +131,27 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
 
   const defaultWallpaper = useSettingsStore((s) => s.defaultWallpaper);
   const wallpaperDim = useSettingsStore((s) => s.wallpaperDim);
-  const wallpaper = useWallpaper(conversation.prefs.wallpaper ?? defaultWallpaper).style;
+  const wallpaper = useWallpaper(
+    resolveWallpaperId(conversation.prefs.wallpaper, defaultWallpaper),
+  ).style;
   const isGroup = conversation.type === 'group';
   const title = conversationTitle(conversation);
   const look = useChatLook(id);
   const messages = thread?.messages;
   const allRows = useMemo(() => buildRows(messages ?? [], outbox, id), [messages, outbox, id]);
-  const rows = useUnexpired(allRows);
+  const flatRows = useUnexpired(allRows);
+  // Photos and videos sent together are one row (one bubble with a grid).
+  const rows = useMemo(() => groupAlbums(flatRows), [flatRows]);
+  // Any item of an album -> the key of the row that draws it (to scroll to or jump to it).
+  const rowKeyOf = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of rows) for (const item of row.album?.items ?? []) map.set(item.key, row.key);
+    return map;
+  }, [rows]);
   const isBot = isFlickChat(conversation);
   const flickTopics = useFlickTopics((s) => s.topics);
   const thinking = useFlickThinking(
-    rows.map((r) => r.message),
+    flatRows.map((r) => r.message),
     myId,
     conversation,
   );
@@ -145,10 +171,10 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
     setOpened({ id, unread: conversation.unread_count });
   }
   const openedUnread = opened?.id === id ? opened.unread : 0;
-  const unreadKey = useMemo(
-    () => firstUnreadKey(rows, myId, openedUnread),
-    [rows, myId, openedUnread],
-  );
+  const unreadKey = useMemo(() => {
+    const key = firstUnreadKey(flatRows, myId, openedUnread);
+    return key === undefined ? undefined : (rowKeyOf.get(key) ?? key);
+  }, [flatRows, rowKeyOf, myId, openedUnread]);
 
   const listRef = useRef<VirtualMessageListHandle>(null);
   // The "jump to first unread" button goes away once used (per chat).
@@ -209,14 +235,19 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
     (messageId: string) => {
       const target = bySeqId.get(messageId);
       if (!target) return;
-      listRef.current?.scrollToKey(target.client_message_id ?? target.message_id);
+      const key = target.client_message_id ?? target.message_id;
+      listRef.current?.scrollToKey(rowKeyOf.get(key) ?? key);
       useJumpStore.getState().flash(target.message_id);
     },
-    [bySeqId],
+    [bySeqId, rowKeyOf],
   );
-  const scrollToMessage = useCallback((m: MessageRecord) => {
-    listRef.current?.scrollToKey(m.client_message_id ?? m.message_id);
-  }, []);
+  const scrollToMessage = useCallback(
+    (m: MessageRecord) => {
+      const key = m.client_message_id ?? m.message_id;
+      listRef.current?.scrollToKey(rowKeyOf.get(key) ?? key);
+    },
+    [rowKeyOf],
+  );
   useJumpEffect(id, scrollToMessage);
   const flashId = useJumpStore((s) => s.flashId);
   const pins = usePinsStore((s) => s.byConversation[id]);
@@ -338,7 +369,13 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
               status={
                 isBot && !row.local
                   ? 'read' // the assistant always "reads" what you send
-                  : rowStatus(row, receipts, Math.max(1, conversation.member_count - 1))
+                  : row.album
+                    ? albumStatus(
+                        row.album.items.map((item) =>
+                          rowStatus(item, receipts, Math.max(1, conversation.member_count - 1)),
+                        ),
+                      )
+                    : rowStatus(row, receipts, Math.max(1, conversation.member_count - 1))
               }
               quoted={quoted}
               quotedName={
@@ -365,6 +402,7 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
               highlighted={flashId === message.message_id}
               selecting={selecting}
               selected={selectedIds.includes(message.message_id)}
+              selectedIds={selectedIds}
               onSelect={selectMessage}
             />
           );
@@ -448,6 +486,9 @@ const ChatThread = ({ conversation }: { conversation: ConversationSummary }) => 
         startId={lightbox}
         onClose={() => {
           setLightbox(null);
+        }}
+        onForward={(messageId) => {
+          setForwarding(bySeqId.get(messageId) ?? null);
         }}
       />
     </section>

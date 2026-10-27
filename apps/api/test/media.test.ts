@@ -6,6 +6,7 @@ import { createDb } from '../src/db.js';
 import { createLogger } from '../src/logger.js';
 import { Redis } from '../src/redis.js';
 import {
+  canPreviewInline,
   canShowInline,
   declaredMatches,
   downloadContentType,
@@ -73,6 +74,22 @@ describe('upload rules', () => {
     for (const mime of ['image/png', 'image/heic', 'video/x-matroska', 'audio/flac']) {
       expect(canShowInline(mime)).toBe(true);
       expect(downloadContentType(mime)).toBe(mime);
+    }
+  });
+});
+
+describe('preview links', () => {
+  it('only a PDF may be shown in the browser, and only when a preview is asked for', () => {
+    expect(canPreviewInline('application/pdf')).toBe(true);
+    for (const mime of [
+      'text/html',
+      'image/svg+xml',
+      'application/xhtml+xml',
+      'text/plain',
+      'application/javascript',
+      'application/octet-stream',
+    ]) {
+      expect(canPreviewInline(mime)).toBe(false);
     }
   });
 });

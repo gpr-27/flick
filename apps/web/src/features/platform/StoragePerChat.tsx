@@ -44,7 +44,7 @@ export const StoragePerChat = () => {
           <li key={i.conversation_id} className="flex justify-between gap-3">
             <span className="truncate">{i.name}</span>
             <span className="shrink-0 text-base-content/60">
-              {i.files} files, {formatBytes(i.bytes)}
+              {i.files} {i.files === 1 ? 'file' : 'files'}, {formatBytes(i.bytes)}
             </span>
           </li>
         ))}

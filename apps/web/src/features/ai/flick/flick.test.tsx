@@ -16,10 +16,11 @@ vi.mock('../useAiEnabled');
 const useAiEnabledMock = vi.mocked(useAiEnabled);
 const api = vi.mocked(flickApi);
 
-const topic = (id: string, title: string, seq: number) => ({
+const topic = (id: string, title: string, seq: number, resumes: string | null = null) => ({
   id,
   title,
   started_message_seq: seq,
+  resumes_topic_id: resumes,
   created_at: '2026-01-01T00:00:00.000Z',
 });
 
@@ -155,5 +156,53 @@ describe('follow-up suggestions', () => {
       expect(api.getSpeed).toHaveBeenCalled();
     });
     expect(api.getFollowups).not.toHaveBeenCalled();
+  });
+});
+
+describe('resuming a topic', () => {
+  const tools = () => (
+    <MemoryRouter>
+      <textarea id="composer-input" />
+      <FlickChatTools conversationId={CONV} myId={ME} messages={[]} />
+    </MemoryRouter>
+  );
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    localStorage.clear();
+    installFakeServices();
+    useAiEnabledMock.mockReturnValue(true);
+    api.getSpeed.mockResolvedValue('quality');
+    api.listTopics.mockResolvedValue([
+      topic('b', 'Trip to Goa', 20),
+      topic('a', 'Taxes', 5),
+      topic('r', 'Resumed: Old', 2, 'x'),
+    ]);
+  });
+
+  it('shows status, a Resumed badge and Resume only on past topics', async () => {
+    const user = userEvent.setup();
+    render(tools());
+    await user.click(await screen.findByRole('button', { name: /Topics/ }));
+    expect(await screen.findByText(/^Current/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^Completed/)).toHaveLength(2);
+    expect(screen.getByText('Resumed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resume Trip to Goa' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume Taxes' })).toBeInTheDocument();
+  });
+
+  it('resumes, closes the sheet and focuses the composer', async () => {
+    api.resumeTopic.mockResolvedValue(topic('n', 'Resumed: Taxes', 30, 'a'));
+    const user = userEvent.setup();
+    render(tools());
+    await user.click(await screen.findByRole('button', { name: /Topics/ }));
+    await user.click(await screen.findByRole('button', { name: 'Resume Taxes' }));
+    expect(api.resumeTopic).toHaveBeenCalledWith('a');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(document.getElementById('composer-input')).toHaveFocus();
+    });
   });
 });

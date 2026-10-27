@@ -1,10 +1,49 @@
 # Flick runbook
 
-How to run, check, debug and back up Flick with Docker. All commands run from the repo root. For the hosted demo
-(Vercel, Render, Supabase, S3) see [`deployment.md`](deployment.md); on Render, logs and the shell are in the Render
-dashboard.
+This page is for running Flick day to day: starting the Docker stack, checking health, reading logs and dashboards,
+fixing the common problems (including the hosted ones: sign-in loops, 401 after login, uploads, AI not configured, AI
+quota, free-plan sleep), rolling back a bad deploy or migration, and backing up Postgres and files. Commands run from the
+repo root. For the hosted demo (Vercel, Render, Supabase, S3) see [`deployment.md`](deployment.md); on Render, logs and
+the shell are in the Render dashboard.
 
-## Stacks
+Related: [`deployment.md`](deployment.md), [`../platform-setup.md`](../platform-setup.md), [`../testing.md`](../testing.md),
+[`../architecture/database-schema.md`](../architecture/database-schema.md), [`../security/auth.md`](../security/auth.md).
+
+## Hosted service (Render `flick-server`, Vercel `flick-app`)
+
+The live API is the Render service **`flick-server`** (repo `gpr-27/flick`, branch `main`, auto deploy on, health check
+`/health/ready`, runs `npm run migrate:prod` before the server starts). `render.yaml` calls the same service `flick-api`.
+An older, suspended service named `flick-api` exists on the repo `gpr-27/chat_app`: leave it alone. The web app is the
+Vercel project **`flick-app`**, deployed from `apps/web` on `main`.
+
+| Task                      | How                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| See logs                  | Render > service > Logs (JSON from pino; api and worker lines are interleaved). Filter by `level`.                        |
+| Is it up?                 | `curl https://<service>.onrender.com/health/ready` must return ready. The first call after sleep can take about a minute. |
+| Deploy                    | Push to `main`: Render and Vercel deploy by themselves. Render runs `migrate:prod` before the server starts.              |
+| Roll back code            | Render > Deploys > pick the last good deploy > Rollback. Vercel > Deployments > Promote an older deployment.              |
+| Roll back a bad migration | Back up first. Shell with `DATABASE_URL`: `npm run migrate:down -w @chat/db`, then roll back the code. See deployment.md. |
+| Change a variable         | Render: Environment > edit (redeploys). Vercel: Settings > Environment Variables, then redeploy (build-time values).      |
+| Check migration state     | `npm run migrate:status -w @chat/db` with `DATABASE_URL` set.                                                             |
+
+**Hosted problems at a glance**
+
+| Symptom                       | First check                                                                                                                                              |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in loop                  | Clerk paths `/sign-in`, `/sign-up`; both Clerk keys from the same app; `CORS_ORIGINS` is the exact page origin.                                          |
+| 401 on every call after login | `CORS_ORIGINS` (Clerk `authorizedParties`) and `CLERK_SECRET_KEY`. Look for "unauthorized" in the API log.                                               |
+| Uploads fail                  | `S3_*` set? Bucket CORS lists the Vercel origin? File over 1 GB (413)? Pending uploads older than 24 h are cleaned up.                                   |
+| AI "not configured" (503)     | No AI key set. Add one of `ANTHROPIC_API_KEY`, `GROQ_API_KEY_1/2`, `GEMINI_API_KEY_1/2`.                                                                 |
+| AI "Daily AI limit reached"   | `AI_DAILY_LIMIT` (default 200) used for the UTC day. Raise it or wait for 00:00 UTC. Redis down = no limit.                                              |
+| AI answers slow or fall back  | A provider is cooling down after 429/5xx; the chain moves on. See `ai_attempts_total` in metrics or the API log.                                         |
+| Free plan sleep               | Service sleeps after 15 min idle; sockets drop and reconnect; worker jobs pause. Starter plan fixes it.                                                  |
+| Push notifications missing    | `VAPID_*` set on the service? Settings > Notifications shows the last push status per device.                                                            |
+| Email-to-chat does nothing    | `INBOUND_EMAIL_SECRET` set (else 404) and the provider sends `x-inbound-secret`. Settings shows the address only when `INBOUND_EMAIL_DOMAIN` is set too. |
+| CORS error or 401 after login | `CORS_ORIGINS` must equal the Vercel origin exactly: `https`, no trailing slash, no path, not a preview address.                                         |
+| Camera or microphone blocked  | `Permissions-Policy` in `apps/web/vercel.json` must allow `camera`, `microphone` and `geolocation` for `self`.                                           |
+| AI "turned off for this chat" | Not a fault: the person switched off "Allow Flick to read this chat". It also stops translation and transcription there.                                 |
+
+## Stacks (local Docker)
 
 | File                            | Use                                                                                                |
 | ------------------------------- | -------------------------------------------------------------------------------------------------- |

@@ -18,11 +18,15 @@ export const FlickTopic = z.object({
   title: z.string(),
   /** The topic starts at the first message with this seq (or higher). */
   started_message_seq: z.number().int().min(0),
+  /** Set when this topic resumes an earlier one: Flick knows that topic's conversation again. */
+  resumes_topic_id: Id.nullable().optional(),
   created_at: IsoDateTime,
 });
 export type FlickTopic = z.infer<typeof FlickTopic>;
 export const FlickTopicList = z.object({ topics: z.array(FlickTopic) });
 export const FlickTopicParams = z.object({ id: Id });
+/** Resuming creates a new topic marker; resuming the current topic changes nothing. */
+export const FlickResumeTopicResponse = FlickTopic;
 export const FlickNewTopicBody = z.object({
   title: z.string().trim().min(1).max(MAX_TOPIC_TITLE_LENGTH).optional(),
 });

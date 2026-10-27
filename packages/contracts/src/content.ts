@@ -19,6 +19,45 @@ const base = {
 
 const caption = z.string().max(LIMITS.MAX_CAPTION_LENGTH).optional();
 
+/**
+ * Links the photos and videos picked together. An album is N ordinary messages (each with its own
+ * attachment, receipts, delete and star); clients draw consecutive ones with the same `id` as one
+ * grid. Older clients ignore the field and show the items one by one.
+ */
+export const AlbumMeta = z
+  .object({
+    id: Id,
+    /** Position in the album, from 0. */
+    index: z
+      .number()
+      .int()
+      .min(0)
+      .max(LIMITS.MAX_ALBUM_ITEMS - 1),
+    /** How many items the album has. */
+    count: z.number().int().min(1).max(LIMITS.MAX_ALBUM_ITEMS),
+    /** How many of the items are videos (the rest are photos); lets the chat list say "3 photos and 2 videos". */
+    videos: z.number().int().min(0).max(LIMITS.MAX_ALBUM_ITEMS).optional(),
+  })
+  .refine((a) => a.index < a.count, {
+    message: `album index must be smaller than count (at most ${String(LIMITS.MAX_ALBUM_ITEMS)} items)`,
+    path: ['index'],
+  })
+  .refine((a) => (a.videos ?? 0) <= a.count, {
+    message: 'album videos cannot be more than count',
+    path: ['videos'],
+  });
+export type AlbumMeta = z.infer<typeof AlbumMeta>;
+
+/** "4 photos", "3 videos", "3 photos and 2 videos": what an album of `count` items is called. */
+export function albumLabel(album: { count: number; videos?: number | undefined }): string {
+  const videos = Math.min(album.count, album.videos ?? 0);
+  const photos = album.count - videos;
+  const part = (n: number, noun: string): string => `${String(n)} ${noun}${n === 1 ? '' : 's'}`;
+  if (videos === 0) return part(photos, 'photo');
+  if (photos === 0) return part(videos, 'video');
+  return `${part(photos, 'photo')} and ${part(videos, 'video')}`;
+}
+
 export const TextContent = z.object({
   type: z.literal('text'),
   text: z.string().trim().min(1).max(LIMITS.MAX_TEXT_LENGTH),
@@ -48,6 +87,7 @@ export const ImageContent = z.object({
   height: z.number().int().positive(),
   /** Made with the sticker maker: drawn small and without a frame. */
   sticker: z.boolean().optional(),
+  album: AlbumMeta.optional(),
   caption,
   ...base,
 });
@@ -60,6 +100,7 @@ export const VideoContent = z.object({
   duration_ms: z.number().int().positive(),
   /** A round video note, drawn in a circle. */
   round: z.boolean().optional(),
+  album: AlbumMeta.optional(),
   caption,
   ...base,
 });

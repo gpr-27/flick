@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import { Spinner } from '@/components/ui';
+import { useBackClose } from '@/lib/useBackClose';
 import { useAttachmentUrl } from '@/features/chat/content/attachments';
 import { firstChunk, type PreviewKind } from './previewKind';
 
@@ -16,9 +17,11 @@ export const DocPreview = ({
   kind: Exclude<PreviewKind, null>;
   onClose: () => void;
 }) => {
-  const { url, failed } = useAttachmentUrl(attachmentId);
+  // A PDF is asked for as a preview link, which the server shows in the browser instead of downloading.
+  const { url, failed } = useAttachmentUrl(attachmentId, true, kind === 'pdf');
   const [text, setText] = useState<string | null>(null);
   const [textFailed, setTextFailed] = useState(false);
+  useBackClose(true, onClose);
 
   useEffect(() => {
     if (kind !== 'text' || !url) return;
@@ -56,6 +59,17 @@ export const DocPreview = ({
       <div className="flex h-[85vh] w-full max-w-3xl flex-col rounded-2xl bg-base-100 p-3 shadow-2xl">
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="truncate font-semibold">{fileName}</p>
+          {kind === 'pdf' && url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-ghost btn-sm ms-auto gap-1.5"
+            >
+              <ExternalLink className="size-4" aria-hidden="true" />
+              Open in new tab
+            </a>
+          )}
           <button
             type="button"
             className="btn btn-circle btn-ghost btn-sm"
@@ -75,7 +89,8 @@ export const DocPreview = ({
           ) : kind === 'pdf' ? (
             <object data={url} type="application/pdf" aria-label={fileName} className="size-full">
               <p className="p-4 text-sm">
-                This browser can&apos;t show the PDF. Tap the file to download it.
+                This browser can&apos;t show the PDF inside this window. Use &quot;Open in new
+                tab&quot; above.
               </p>
             </object>
           ) : text === null ? (

@@ -1,8 +1,14 @@
 # Calls to people who are offline or have Flick closed
 
-Code: `apps/api/src/modules/gateway/{calls,parked-calls,call-push}.ts`,
-`apps/worker/src/jobs/call-push.ts`, `apps/web/src/pwa/{callPush,sw}.ts`,
-`apps/web/src/features/calls/`. Background: [calls.md](calls.md), [pwa-and-push.md](pwa-and-push.md).
+A 1:1 voice or video call can reach someone whose Flick is closed, in the background, or whose phone is locked, as a push notification with Answer and Decline buttons. It is best effort and it is not a phone call: a browser cannot ring like the phone app. When the callee is offline, the API parks the caller's offer in Redis for 45 seconds, queues a Web Push through the worker, and hands the offer over when the callee opens Flick from the notification. This page explains the flow, the honest limits per platform, the permission prompts, and how it is tested.
+
+Related: [calls.md](calls.md) | [pwa-and-push.md](pwa-and-push.md) | [notifications.md](notifications.md) | [settings.md](settings.md) | [../operations/runbook.md](../operations/runbook.md) | [../operations/deployment.md](../operations/deployment.md)
+
+Code: `apps/api/src/modules/gateway/{calls,parked-calls,call-push}.ts`, `apps/worker/src/jobs/call-push.ts`, `apps/web/src/pwa/{callPush,sw}.ts`, `apps/web/src/features/calls/`.
+
+**Status: Partial.** Built end to end in code and covered by unit, integration and headless browser tests. Not verified in automated tests: the real push, the notification buttons and the vibration on real phones (check by hand, see "Tests"). Gaps: group calls and call links are not part of this; delivery depends on the browser vendor's push service and the phone's battery and notification settings; if the API replica that took the offer dies, a missed call may go unlogged.
+
+AI: none.
 
 ## What it does, and what it cannot do
 

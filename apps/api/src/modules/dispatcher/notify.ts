@@ -2,6 +2,7 @@
 // notification-centre rows and queue the push jobs. See docs/features/notifications.md.
 import { createHash } from 'node:crypto';
 import type { MessageRow, NotificationKind, OutboxRow } from '@chat/db';
+import { albumOf, isSilentAlbumItem } from '@chat/shared';
 import { fromKysely } from 'pg-boss';
 import { messagesDelivered } from '../../metrics.js';
 import { insertAlerts } from '../notifications/repo.js';
@@ -52,6 +53,9 @@ export async function queueNotifications(
   ctx: DispatchContext,
 ): Promise<void> {
   if (others.length === 0 || QUIET_TYPES.has(message.type)) return;
+  // An album is N messages but one alert ("4 photos"), sent for its first item. Unread counts
+  // still count every item; only the alert (centre row, push) is skipped for the rest.
+  if (isSilentAlbumItem(albumOf(message.content))) return;
   const sockets = await ctx.io.in(others.map((m) => `user:${m.user_id}`)).fetchSockets();
   const connected = new Set(sockets.flatMap((s) => [...s.rooms]));
   messagesDelivered.inc(others.filter((m) => connected.has(`user:${m.user_id}`)).length);

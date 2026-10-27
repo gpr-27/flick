@@ -1,6 +1,15 @@
-# Flick: login and identity
+# Flick: login, identity and security controls
 
-Login is **Clerk**. Flick has no passwords, no refresh tokens and no sign-up code of its own.
+Login is **Clerk**; Flick has no passwords, no refresh tokens and no credential storage of its own. This page explains
+how a request is authenticated, how the first sign-in creates a Flick user, how devices work, how the sign-in screens
+are wired, and the other security controls (webhook and email secrets, upload safety, the safe link fetcher, how AI
+text is fenced, and the privacy controls). The short threat list is in [`threat-model.md`](threat-model.md).
+
+Related: [`threat-model.md`](threat-model.md), [`../decisions/0010-clerk-login.md`](../decisions/0010-clerk-login.md),
+[`../decisions/0020-clerk-own-sign-in-paths-and-flick-only-profile.md`](../decisions/0020-clerk-own-sign-in-paths-and-flick-only-profile.md),
+[`../decisions/0018-any-file-type-1gb-presigned-uploads.md`](../decisions/0018-any-file-type-1gb-presigned-uploads.md),
+[`../ai/privacy-and-limits.md`](../ai/privacy-and-limits.md), [`../features/safety-and-privacy.md`](../features/safety-and-privacy.md),
+[`../operations/deployment.md`](../operations/deployment.md).
 
 ## Why Clerk and not custom auth
 
@@ -28,7 +37,7 @@ API  authenticate():
   asks Clerk for a fresh one for each request, so there is nothing for us to refresh.
 - **Local user.** Messages and groups point at our own `users.id`, not at Clerk ids. The first
   time a Clerk id appears we make one Clerk API call for name, email and picture and create the
-  row. After that the profile is ours: the user edits it with `PATCH /users/me`.
+  row (see "First sign-in" below). After that the profile is ours: the user edits it with `PATCH /users/me`.
 - **Username.** The Clerk username (or the start of the email) is used; if taken, a short random
   suffix is added. Display names do not have to be unique.
 - **Cache.** A successful check is remembered in Redis for 5 minutes per (user, device), so most
@@ -60,6 +69,137 @@ removes push subscriptions and revokes every device. The row and the Clerk id st
 messages keep a sender and a later sign-in with the same Clerk account is refused (403) instead of
 creating a new account.
 
+## Sign-in screens (web)
+
+`apps/web/src/main.tsx` mounts `ClerkProvider` with the app's own routes, so sign-in never leaves Flick:
+
+| Setting                | Value      | Why                                                                                     |
+| ---------------------- | ---------- | --------------------------------------------------------------------------------------- |
+| `signInUrl`            | `/sign-in` | Without it Clerk falls back to its hosted Account Portal and asks for a second account. |
+| `signUpUrl`            | `/sign-up` | Same.                                                                                   |
+| fallback redirect URLs | `/`        | Where to go when there is no `redirect_url`.                                            |
+| `afterSignOutUrl`      | `/`        | Back to the signed-out page.                                                            |
+
+The same paths are set in the Clerk dashboard (Paths): sign-in page `/sign-in`, sign-up page `/sign-up`, home URL `/`
+and the page after sign-out `/`. The code and the dashboard must agree, or Clerk sends people to its hosted pages.
+
+After Clerk finishes on `/sign-in` or `/sign-up`, the `AfterSignIn` route sends the person to `redirect_url`, but only
+when it is a path on this site (`safeReturnTo`); another origin, `//host` or a script URL falls back to `/`. Signing out
+forgets the browser's device id so the next sign-in registers a new device.
+
+## First sign-in: how a Flick user is provisioned
+
+1. The first request with a valid Clerk token carries a Clerk id (`sub`) that has no `users` row.
+2. The API makes one Clerk call for name, email and picture, then inserts the `users` row (with `user_settings`). Two first requests can race: the loser
+   reads the winner's row.
+3. The username is the Clerk username, or the start of the email; a short random suffix is added if it is taken.
+   Username is **optional** in Clerk.
+4. A device row is created for `X-Device-Id`. If the person already had another active device, a **new-device alert**
+   is posted by the Flick bot in their Saved messages (see below).
+
+Nothing is copied back to Clerk except when the person edits their profile in Flick (the profile is Flick's, see
+ADR-0020).
+
+## Origins: `CORS_ORIGINS` and `authorizedParties`
+
+`CORS_ORIGINS` (comma-separated, no trailing slash, no path) is used twice by the API:
+
+- as the **CORS allow-list** for REST and Socket.IO, and
+- as Clerk's **`authorizedParties`**: a session token is accepted only if it was issued to one of these web origins.
+
+If it does not match the page address exactly (`https`, no preview URL), the browser shows a CORS error and every call
+after sign-in answers 401. This is the first thing to check ([`../operations/runbook.md`](../operations/runbook.md)).
+
+## Passkeys and other sign-in methods
+
+Passkeys are a Clerk feature and are enabled in the Clerk dashboard for this app (User and authentication, Passkeys). If
+they are ever turned off there, the Passkeys card in Settings, Account stays hidden. A username is optional in Clerk
+(Flick falls back to the start of the email). Flick adds no code to the passkey ceremony itself; it lists and removes
+the person's passkeys through Clerk's client SDK.
+
+## New-device sign-in alerts
+
+When a device is seen for the first time and the person already has another active device, the API posts a message from
+the Flick bot into their Saved messages ("New sign-in: your account was signed in from Chrome on macOS...") which also
+produces a notification. It is skipped for the very first device and when the person turned **Alert me about new
+sign-ins** off (`user_settings.login_alerts`, `GET`/`PUT /users/me/login-alerts`). It is best effort: a failure never
+blocks sign-in. The person can sign out other devices in Settings, Devices.
+
+## Webhook and email secrets
+
+- **Incoming webhooks** (`POST /hooks/:id/:token`): the token is random, shown **once** when the webhook is created, and
+  only its hash is stored (`chat_webhooks.token_hash`). The check is a constant-time comparison and a wrong id and a
+  wrong token give the same 404. 30 requests per minute per IP. Posts appear as the Flick bot with the webhook's name.
+  Any member of the chat can list and revoke the chat's webhooks.
+- **Invite and call links** also store only a SHA-256 of the token.
+- **Email address in Settings.** `GET /platform/email-alias` returns `<username>@INBOUND_EMAIL_DOMAIN` only when both the
+  secret and the domain are set; otherwise `null` and nothing is shown.
+- **Inbound email** (`POST /inbound/email`): answers 404 unless `INBOUND_EMAIL_SECRET` is set. The provider must send the
+  secret in the `x-inbound-secret` header (constant-time comparison; 401 otherwise). An unknown recipient still returns
+  200 so the provider does not retry forever. Mail lands only in the matching user's Saved messages, cut to 60,000
+  characters. 120 requests per minute per IP.
+
+## Upload safety
+
+Details are in ADR-0018. In short: any file type is accepted up to 1 GB, bytes go straight to S3 with a presigned POST
+that has an expiry and a size limit, the server verifies size and (for known types) the real type, object keys contain
+ids only, and downloads are signed links that expire in 5 minutes and need a membership check. **Only images (not SVG),
+audio and video are served inline; a PDF only through an explicit `?preview=1` link and only when the stored bytes were
+verified as a PDF; everything else is forced to download as
+`application/octet-stream`**, so an uploaded file can never run as a page. Avatars are decoded and re-encoded.
+
+## Browser permissions header
+
+The web app is served with `Permissions-Policy: camera=(self), microphone=(self), geolocation=(self)` (in
+`apps/web/vercel.json`), so only Flick's own pages can ask for the camera and microphone (calls, video notes, voice
+notes) and for location (sharing a location). Other headers set there: `X-Content-Type-Options: nosniff`,
+`X-Frame-Options: DENY` and `Referrer-Policy: strict-origin-when-cross-origin`.
+
+## Safe link fetching (SSRF)
+
+Two places fetch URLs on the server: link previews (`packages/link-preview`) and the page reader used by the AI link
+check. Both are treated as an SSRF surface:
+
+- only `http` and `https`;
+- the host is resolved and **every answer is checked at connect time**, so private, loopback, link-local and metadata
+  addresses are refused even through DNS tricks and redirects (the socket uses a pinned lookup);
+- limited redirects (3), a short timeout (5 s), a response size cap (1 MB), text only;
+- results are cached by a hash of the normalised URL and requests for the same URL share one fetch;
+- the result is sanitised and returned as plain data; recipients never fetch the URL for a preview.
+
+## AI text is untrusted
+
+Everything that goes to a model from a chat, a file, a web page or a transcript is **untrusted data**:
+
+- it is placed inside fenced tags (for example `<messages>...</messages>`) and the system prompt says never to follow
+  instructions found there and never to reveal the prompt;
+- model output is rendered with the safe Markdown renderer (no raw HTML, safe links only);
+- a model returns text; any follow-up action (send, create a reminder, post a poll) happens only when the person clicks it;
+- prompts and answers are not logged;
+- AI is off for a chat when the person switched it off. The switch is checked on every path that reads the chat: the AI
+  routes, writing-style samples, Whisper transcription, translate and translate-batch, the @flick bot and the background
+  jobs (auto-translate, auto-transcribe). Every call is rate limited and counted against a daily quota.
+
+See [`../ai/privacy-and-limits.md`](../ai/privacy-and-limits.md) and ADR-0016.
+
+## Privacy controls a person has
+
+| Control                                    | Where              | Effect                                                                                                       |
+| ------------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Last seen, photo, about audience           | Settings, Privacy  | `everyone` or `nobody`; server hides the value from everyone else                                            |
+| Read receipts                              | Settings, Privacy  | Off means you do not send read receipts                                                                      |
+| Block and report                           | Profile, chat menu | Blocked people cannot message or call you and get no profile updates                                         |
+| Allow Flick to read this chat              | Chat info          | Off blocks all AI use of that chat's text, including style samples, Whisper, translation and background jobs |
+| AI data export and erase                   | Settings, AI       | `GET`/`DELETE /ai/data`, clear Flick memories, clear the Flick chat                                          |
+| Disappearing messages and view once        | Composer           | Expire or hide content after it is seen                                                                      |
+| Chat lock and hidden chats                 | Chat menu          | A convenience lock in the browser, **not** server-side security (ADR note in the web README)                 |
+| Delete chat / delete account / export data | Settings           | Per-person delete, account delete with tombstones, JSON export                                               |
+| Devices                                    | Settings, Devices  | See and sign out devices                                                                                     |
+| New-sign-in alert                          | Settings, Security | See above                                                                                                    |
+
+Messages are not end-to-end encrypted ([ADR-0011](../decisions/0011-e2e-encryption-deferred.md)); the server can read
+them. That is stated in the app and the docs.
+
 ## Errors
 
 | Case                                | Answer |
@@ -90,12 +230,14 @@ limiter any more: Clerk protects its own sign-in.
 
 ## Env vars
 
-| Name                         | Where | Meaning                               |
-| ---------------------------- | ----- | ------------------------------------- |
-| `CLERK_SECRET_KEY`           | api   | Verifies tokens, reads Clerk profiles |
-| `VITE_CLERK_PUBLISHABLE_KEY` | web   | Lets the browser talk to Clerk        |
-
-The allowed web origins (`CORS_ORIGINS`) double as the token's authorized parties.
+| Name                         | Where | Meaning                                                                                  |
+| ---------------------------- | ----- | ---------------------------------------------------------------------------------------- |
+| `CLERK_SECRET_KEY`           | api   | Verifies tokens, reads Clerk profiles                                                    |
+| `VITE_CLERK_PUBLISHABLE_KEY` | web   | Lets the browser talk to Clerk                                                           |
+| `CORS_ORIGINS`               | api   | CORS allow-list and Clerk `authorizedParties`                                            |
+| `INBOUND_EMAIL_SECRET`       | api   | Secret the email provider sends; unset turns email-to-chat off                           |
+| `INBOUND_EMAIL_DOMAIN`       | api   | Domain of the forwarding address shown in Settings (display only; does not grant access) |
+| `E2E_FAKE_AUTH`              | api   | Test-only login; the API refuses to start with it in production                          |
 
 ## What to say in an interview
 

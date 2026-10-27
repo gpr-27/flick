@@ -140,6 +140,10 @@ const SavedRow = ({
   );
 };
 
+const closeOpenRow = (): void => {
+  useOpenRow.getState().close();
+};
+
 export const Sidebar = () => {
   const conversations = useChatStore((s) => s.conversations);
   const listStatus = useChatStore((s) => s.listStatus);
@@ -468,7 +472,7 @@ export const Sidebar = () => {
           role="tablist"
           aria-label="Filter chats"
           data-guide="chat-list.tabs"
-          className="scroll-slim flex gap-2 overflow-x-auto px-4 pb-2 pt-1 sm:px-5"
+          className="scroll-slim flex gap-2 overflow-x-auto px-4 py-1.5 sm:px-5"
         >
           {CHAT_TABS.map((t) => (
             <button
@@ -483,7 +487,7 @@ export const Sidebar = () => {
                 'h-8 shrink-0 rounded-full px-3.5 text-sm font-medium transition-colors',
                 tab === t.id
                   ? 'bg-primary text-primary-content'
-                  : 'bg-[var(--bg-sunken,oklch(var(--b3)))] text-[var(--text-2,oklch(var(--bc)/0.7))] hover:bg-[var(--bg-hover,oklch(var(--bc)/0.08))]',
+                  : 'bg-[var(--bg-sunken,oklch(var(--b3)))] text-[var(--text-2,oklch(var(--bc)/0.7))] [@media(hover:hover)]:hover:bg-[var(--bg-hover,oklch(var(--bc)/0.08))]',
               )}
             >
               {t.label}
@@ -517,7 +521,7 @@ export const Sidebar = () => {
               'h-8 rounded-full px-3.5 text-sm font-medium transition-colors',
               onlyNeedsReply
                 ? 'bg-primary text-primary-content'
-                : 'bg-[var(--bg-sunken,oklch(var(--b3)))] text-[var(--text-2,oklch(var(--bc)/0.7))] hover:bg-[var(--bg-hover,oklch(var(--bc)/0.08))]',
+                : 'bg-[var(--bg-sunken,oklch(var(--b3)))] text-[var(--text-2,oklch(var(--bc)/0.7))] [@media(hover:hover)]:hover:bg-[var(--bg-hover,oklch(var(--bc)/0.08))]',
             )}
           >
             Needs reply · {needsReplyCount}
@@ -526,17 +530,15 @@ export const Sidebar = () => {
       )}
 
       <div
-        className="scroll-slim flex-1 overflow-y-auto pb-2"
-        onScroll={() => {
-          useOpenRow.getState().close();
-        }}
+        className="scroll-slim flex-1 overflow-y-auto overscroll-contain pb-2 [-webkit-overflow-scrolling:touch]"
+        onScroll={closeOpenRow}
       >
         {view === 'chats' && !search && <DigestCard onOpenChat={select} />}
         {view === 'chats' && archivedCount > 0 && (
           <button
             type="button"
             aria-label={`Archived (${archivedCount})`}
-            className="flex min-h-[56px] w-full items-center gap-3 bg-base-100 px-4 py-2.5 text-left text-[15px] font-medium hover:bg-[var(--bg-hover,oklch(var(--bc)/0.05))]"
+            className="flex min-h-[56px] w-full items-center gap-3 bg-base-100 px-4 py-2.5 text-left text-[15px] font-medium [@media(hover:hover)]:hover:bg-[var(--bg-hover,oklch(var(--bc)/0.05))]"
             onClick={() => {
               setView('archived');
             }}
@@ -597,9 +599,7 @@ export const Sidebar = () => {
                 isActive={selectedId === c.id}
                 isFocusTarget={c.id === focusTargetId}
                 onSelect={select}
-                onFocus={() => {
-                  setFocusedId(c.id);
-                }}
+                onFocus={setFocusedId}
                 onAction={run}
               />
             ))}

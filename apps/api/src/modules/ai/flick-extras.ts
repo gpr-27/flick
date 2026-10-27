@@ -17,9 +17,24 @@ import type { AppDeps } from '../../app.js';
 import type { Db } from '../../db.js';
 import type { Logger } from '../../logger.js';
 import type { Redis } from '../../redis.js';
-import { getMembership, loadLines, stripTags, transcript } from './context.js';
+import {
+  getMembership,
+  loadLines,
+  stripTags,
+  transcript,
+  type ChatLine,
+  type Membership,
+} from './context.js';
 import { registerAiDataCleaner, registerAiDataExporter } from './data-registry.js';
 import type { AiService } from './service.js';
+import {
+  EARLIER_LIMITS,
+  capLines,
+  resumeChain,
+  resumedTitle,
+  topicRange,
+  type TopicRow,
+} from './topic-context.js';
 
 // What makes talking to Flick better: memories (facts it keeps about you), topics (fresh contexts
 // inside the Flick chat), thumbs up/down on answers and follow-up suggestions.
@@ -135,20 +150,59 @@ export async function topicStartSeq(db: Db, userId: string): Promise<number> {
     .select('started_message_seq')
     .where('user_id', '=', userId)
     .orderBy('started_message_seq', 'desc')
+    .orderBy('created_at', 'desc')
     .limit(1)
     .executeTakeFirst();
   return Number(row?.started_message_seq ?? 0);
+}
+
+/** The earlier conversation of a resumed topic, oldest first (empty unless the latest topic resumes one). */
+export async function resumedLines(
+  db: Db,
+  userId: string,
+  conversationId: string,
+  member: Membership,
+): Promise<ChatLine[]> {
+  const topics = await db
+    .selectFrom('ai_topics')
+    .select(['id', 'started_message_seq', 'resumes_topic_id'])
+    .where('user_id', '=', userId)
+    .orderBy('started_message_seq', 'asc')
+    .orderBy('created_at', 'asc')
+    .execute();
+  const latest = topics.at(-1);
+  if (!latest?.resumes_topic_id) return [];
+  const rows: TopicRow[] = topics.map((t) => ({
+    id: t.id,
+    started_message_seq: Number(t.started_message_seq),
+    resumes_topic_id: t.resumes_topic_id,
+  }));
+  const lines: ChatLine[] = [];
+  for (const id of resumeChain(rows, latest.id)) {
+    const range = topicRange(rows, id);
+    if (!range) continue;
+    lines.push(
+      ...(await loadLines(db, userId, conversationId, member, {
+        ...EARLIER_LIMITS,
+        afterSeq: range.from - 1,
+        ...(range.before !== null ? { beforeSeq: range.before } : {}),
+      })),
+    );
+  }
+  return capLines(lines);
 }
 
 const topicOut = (t: {
   id: string;
   title: string;
   started_message_seq: number | string;
+  resumes_topic_id: string | null;
   created_at: Date;
 }) => ({
   id: t.id,
   title: t.title,
   started_message_seq: Number(t.started_message_seq),
+  resumes_topic_id: t.resumes_topic_id,
   created_at: t.created_at.toISOString(),
 });
 
@@ -206,6 +260,11 @@ export function flickExtrasRoutes(app: FastifyInstance, deps: AppDeps, ai: AiSer
         created_at: m.created_at,
       })),
       topics,
+      ratings: await db
+        .selectFrom('ai_feedback')
+        .select(['message_id', 'rating', 'created_at'])
+        .where('user_id', '=', userId)
+        .execute(),
     };
   }, 'flick_assistant');
 
@@ -254,9 +313,10 @@ export function flickExtrasRoutes(app: FastifyInstance, deps: AppDeps, ai: AiSer
   app.get('/flick/topics', pre, async (req) => {
     const rows = await db
       .selectFrom('ai_topics')
-      .select(['id', 'title', 'started_message_seq', 'created_at'])
+      .select(['id', 'title', 'started_message_seq', 'resumes_topic_id', 'created_at'])
       .where('user_id', '=', req.auth!.userId)
       .orderBy('started_message_seq', 'desc')
+      .orderBy('created_at', 'desc')
       .limit(200)
       .execute();
     return { topics: rows.map(topicOut) };
@@ -285,7 +345,68 @@ export function flickExtrasRoutes(app: FastifyInstance, deps: AppDeps, ai: AiSer
         title: body.data.title ?? `Topic ${Number(count.n) + 1}`,
         started_message_seq: Number(conv.last_seq) + 1,
       })
-      .returning(['id', 'title', 'started_message_seq', 'created_at'])
+      .returning(['id', 'title', 'started_message_seq', 'resumes_topic_id', 'created_at'])
+      .executeTakeFirstOrThrow();
+    return topicOut(row);
+  });
+
+  const TOPIC_COLUMNS = [
+    'id',
+    'title',
+    'started_message_seq',
+    'resumes_topic_id',
+    'created_at',
+  ] as const;
+
+  // Continue an older topic: a new marker that points back at it, so Flick reads that topic's
+  // conversation again. Resuming the topic that is already current changes nothing.
+  app.post('/flick/topics/:id/resume', pre, async (req, reply) => {
+    const params = FlickTopicParams.safeParse(req.params);
+    if (!params.success) return bad(reply);
+    const userId = req.auth!.userId;
+    const hit = await new RedisRateLimitStore(redis, deps.logger).hit(
+      `flick:resume:${userId}`,
+      60_000,
+    );
+    if (hit.count > 20)
+      return reply.code(429).send({ error: makeError('RATE_LIMITED', 'Slow down a little.') });
+    const old = await db
+      .selectFrom('ai_topics')
+      .select(TOPIC_COLUMNS)
+      .where('id', '=', params.data.id)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+    const conversationId = old ? await flickConversationId(db, userId) : null;
+    if (!old || !conversationId) return notFound(reply);
+    const conv = await db
+      .selectFrom('conversations')
+      .select('last_seq')
+      .where('id', '=', conversationId)
+      .executeTakeFirstOrThrow();
+    const latest = await db
+      .selectFrom('ai_topics')
+      .select(TOPIC_COLUMNS)
+      .where('user_id', '=', userId)
+      .orderBy('started_message_seq', 'desc')
+      .orderBy('created_at', 'desc')
+      .limit(1)
+      .executeTakeFirstOrThrow();
+    // Already current, or just resumed and nothing said since (a double tap): no second marker.
+    if (
+      latest.id === old.id ||
+      (latest.resumes_topic_id === old.id &&
+        Number(latest.started_message_seq) > Number(conv.last_seq))
+    )
+      return topicOut(latest);
+    const row = await db
+      .insertInto('ai_topics')
+      .values({
+        user_id: userId,
+        title: resumedTitle(old.title),
+        started_message_seq: Number(conv.last_seq) + 1,
+        resumes_topic_id: old.id,
+      })
+      .returning(TOPIC_COLUMNS)
       .executeTakeFirstOrThrow();
     return topicOut(row);
   });
@@ -299,7 +420,7 @@ export function flickExtrasRoutes(app: FastifyInstance, deps: AppDeps, ai: AiSer
       .set({ title: body.data.title })
       .where('id', '=', params.data.id)
       .where('user_id', '=', req.auth!.userId)
-      .returning(['id', 'title', 'started_message_seq', 'created_at'])
+      .returning(['id', 'title', 'started_message_seq', 'resumes_topic_id', 'created_at'])
       .executeTakeFirst();
     return row ? topicOut(row) : notFound(reply);
   });

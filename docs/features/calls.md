@@ -1,124 +1,119 @@
-# Calls in Flick
+# Calls
 
-Two kinds of calls, built on two different technologies.
+Flick has two kinds of calls. A 1:1 voice or video call goes phone to phone over WebRTC (with a TURN relay when a network blocks the direct path), signalled through Flick's own socket. A group call runs through a LiveKit server where everyone sends one stream and the server forwards it. Both have screen sharing and live captions, group calls also have emoji reactions, and every 1:1 call is written to a call log and to the chat. This page describes how calls work, how to use them, the limits, and what is not built. Calling someone whose Flick is closed is in [calls-offline.md](calls-offline.md).
 
-|               | 1:1 call                                                                        | Group call                                             |
-| ------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Media path    | Phone to phone (WebRTC), through TURN if needed                                 | Everyone sends one stream to a LiveKit server (SFU)    |
-| Signaling     | Our Socket.IO events (`call_offer`, `call_answer`, `call_ice`, `call_end`, ...) | LiveKit's own protocol; the API only hands out a token |
-| Server needed | coturn (only for hard networks)                                                 | LiveKit                                                |
-| Log           | `call_logs` row + a `call_event` message in the chat                            | A "started a group call" `call_event` message          |
+Related: [calls-offline.md](calls-offline.md) | [groups.md](groups.md) | [messaging.md](messaging.md) | [notifications.md](notifications.md) | [pwa-and-push.md](pwa-and-push.md) | [settings.md](settings.md) | [rich-messages.md](rich-messages.md) | [../ai/translation-and-transcription.md](../ai/translation-and-transcription.md) | [../ai/README.md](../ai/README.md) | [../operations/deployment.md](../operations/deployment.md)
+
+Code: `apps/web/src/features/{calls,groupcall,calllog,platform}` (web), `apps/api/src/modules/{calls,gateway}` (API).
+
+## At a glance
+
+|                | 1:1 call                                                                                                                                    | Group call                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Where to start | phone or video button in the chat header, or call back from the Calls page                                                                  | "Start group call" button in a group's header, or "Join call" on the banner |
+| Media path     | phone to phone (WebRTC), through TURN if needed                                                                                             | everyone sends one stream to LiveKit                                        |
+| Signalling     | Flick socket events `call_offer`, `call_answer`, `call_ice`, `call_end`, `call_reject`, `call_busy`, `call_renegotiate`, `call_unavailable` | LiveKit's own protocol; the API only issues a token                         |
+| Server needed  | coturn or a hosted TURN service (only for hard networks)                                                                                    | LiveKit                                                                     |
+| Screen share   | yes (video calls, desktop browsers)                                                                                                         | yes                                                                         |
+| Reactions      | no                                                                                                                                          | yes (5 emoji)                                                               |
+| Live captions  | yes                                                                                                                                         | yes                                                                         |
+| Recorded in    | `call_logs` and a call line in the chat                                                                                                     | a "started a group call" line in the chat                                   |
 
 ## 1:1 calls
 
-Calling someone who is offline or has Flick closed (a push notification with Answer/Decline, and its honest
-limits) is in [calls-offline.md](calls-offline.md).
+**What it does.** Voice or video call between two people in a direct chat.
 
-1. The caller makes a `call_id` and sends `call_offer` (with the WebRTC SDP) over Socket.IO.
-2. The gateway checks it is a direct chat, nobody is blocked and the callee is online, then relays
-   the offer. It keeps "who is calling whom" in Redis, so only the real peer gets later events.
-3. The callee answers; both sides trade ICE candidates through the gateway.
-4. Audio and video flow directly between the two devices. Our servers never see the media.
-5. When the call ends the gateway calls `recordCall(...)` once. It writes the `call_logs` row and a
-   `call_event` message ("Missed video call", "Voice call, 2:03") in one transaction. Calling it
-   twice with the same `callId` does nothing.
+**How to use it.**
 
-**Why TURN.** Many networks (mobile carriers, strict firewalls) block a direct path. A TURN server
-relays the media then. `GET /calls/turn` returns short-lived credentials using coturn's "REST"
-scheme: username = `<expiry>:<user id>`, password = base64 HMAC-SHA1 of the username with
-`TURN_SECRET`. coturn knows the same secret, so it can check the password without asking us, and
-the credential stops working after one hour. Nothing is stored. Without `TURN_SECRET`/`TURN_URLS`
-the endpoint returns a public STUN server only.
+- Start: the phone button (voice) or video button in the chat header. The first call asks for microphone (and camera) permission.
+- Incoming: an "Incoming voice call" or "Incoming video call" card with Accept and Decline, a two-tone ringtone for the callee and a slower ringback tone for the caller. The sounds are made with the Web Audio API (no audio files). A browser only plays sound after you have touched the page once.
+- During a call: Mute, camera on/off, share screen, "Fill the screen" or "Show the whole picture", an Audio and video settings panel (pick microphone, camera, and speaker where the browser supports it), live captions, End call.
+- Settings, Calls: "Camera off by default", "Noise suppression", "Echo cancellation" and "Video quality" (Low 400 kbps, Auto 1.2 Mbps, High 2.5 Mbps maximum). They are read when a call starts.
 
-A hosted TURN service (ExpressTURN, Metered, and similar) gives one fixed username and password
-instead of a shared secret. Set `TURN_URLS` to its `turn:`/`turns:` addresses plus `TURN_USERNAME`
-and `TURN_CREDENTIAL`, and the endpoint hands them to signed-in users (the browser never has them
-baked in). Without any TURN relay, two phones on different mobile networks often cannot reach each
-other: the call is ended after 30 seconds with a message, instead of waiting for ever.
+**What happens under the hood.**
 
-`GET /calls` is the calls tab: your calls, newest first, keyset-paginated. You see a call only if
-you are an active member of its conversation (for a 1:1 call, that is the two people).
-`participant_ids` and `conversation_id` give the call-back target.
+1. The caller makes a `call_id` and sends `call_offer` with the WebRTC description over Socket.IO.
+2. The gateway checks it is a direct chat and nobody is blocked, then relays the offer if the callee is online (it keeps who-calls-whom in Redis, so only the real peer gets later events). If the callee is on another call, the caller gets `call_busy`. If the callee is offline, see [calls-offline.md](calls-offline.md).
+3. The callee answers; both sides trade ICE candidates through the gateway. Audio and video then flow directly between the devices. Flick's servers do not see the media.
+4. When the call ends, the gateway calls `recordCall` once: it writes the `call_logs` row and a `call_event` chat message ("Missed video call", "Voice call, 2:03") in one transaction, and a second call with the same call id does nothing.
+
+**Timers.** An unanswered outgoing call gives up after 45 seconds. Once answered, the media path has 30 seconds to connect ("Couldn't connect the call. One of your networks may be blocking calls: try Wi-Fi on both phones, or call again."). A dropped path gets an ICE restart and 15 seconds to recover; the failure message stays on screen for 6 seconds.
+
+**TURN.** `GET /calls/turn` returns short-lived ICE servers. With a shared secret (`TURN_SECRET` and `TURN_URLS`) it uses coturn's REST scheme (username `<expiry>:<user id>`, password the base64 HMAC-SHA1 of the username, valid one hour, nothing stored). With a hosted TURN service it hands out the fixed `TURN_USERNAME` and `TURN_CREDENTIAL`. Without any of these it returns a public STUN server only; two phones on different mobile networks may then fail to connect. If the request itself fails, the browser falls back to the configured STUN list.
+
+**Screen sharing.** Video calls, desktop browsers that support `getDisplayMedia`, once connected. The video sender's track is replaced, so there is no new connection; if the call had no camera, the line is renegotiated (`call_renegotiate`). The browser's own "Stop sharing" ends it and the camera comes back.
+
+**Status: Built.**
+Gap: 1:1 calls only work between two people in a direct chat (no adding a third person). There is no call recording. An online person whose tab is frozen in the background may not notice a call, because presence, not whether the page is awake, decides if a push is sent.
+
+AI: none on the media itself. Live captions use the browser's speech recognition, and the captions code can translate them with the AI service, but no screen sets a translation language yet.
 
 ## Group calls
 
-`POST /calls/livekit-token` with `{ conversation_id }` is for an active member of a group. It
-returns a LiveKit URL and a token. The room is `group-<conversation id>`, the identity is the user
-id, and the grant is only join, publish and subscribe for that room. The token lasts 10 minutes:
-it is only needed to connect. The same transaction writes the "started a group call" message (only
-if none was written in the last hour), so the chat never announces a call nobody could join.
-Without `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` the endpoint answers
-`FEATURE_DISABLED` and names the missing variable.
+**What it does.** A call for the members of a group, through LiveKit, with tiles for each person (name, speaking indicator, muted icon).
 
-**Why an SFU and not a mesh.** In a mesh every person sends their video to every other person. With
-8 people each phone uploads 7 copies and decodes 7 streams; upload bandwidth and CPU run out at
-about 4 to 5 people. With an SFU (selective forwarding unit) each person uploads one stream to the
-server, and the server forwards it to the others, choosing a lower quality for slow receivers. The
-server does not decode or mix anything, so it stays cheap. The price is running LiveKit.
+**How to use it.** In a group, press "Start group call" (users icon) or, when people are already in a call, "Join call" on the banner that reads "A group call is in progress". In the call: Mute, camera, share screen, five reaction buttons (thumbs up, heart, laugh, clap, party), live captions, leave.
+
+**Token.** `POST /calls/livekit-token` with `{conversation_id}` is for an active member of a group. It returns the LiveKit URL and a token for the room `group-<conversation id>` (identity is the user id; join, publish, subscribe and data only). The token lasts 10 minutes (it is needed only to connect). In the same transaction the server writes a "started a group call" chat line, but only if none was written in the last hour. Without `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` the endpoint answers `FEATURE_DISABLED` naming the missing variable, and the app says "Group calls are not set up on this server yet."
+
+**Who is in the call.** LiveKit does not tell Flick, so each participant's browser sends a "still here" beat about every 25 seconds (`POST` group beat) and a "leave" when they go. The entry lives 75 seconds, and a call counts as over when nobody is left. The banner asks `GET` group presence when the chat opens, when a call line arrives, and every 20 seconds.
+
+**Why an SFU.** In a mesh every person sends video to every other person; with 8 people each phone uploads 7 copies, and CPU and upload run out around 4 to 5 people. With an SFU each person uploads one stream and the server forwards it, choosing lower quality for slow receivers. The price is running LiveKit.
+
+**Web client.** `useGroupCallStore.join()` requests the token, then loads `livekit-client` only then (its own chunk, about 570 kB). The store keeps plain tile snapshots; the LiveKit `Room` stays private. Friendly errors: server not set up, call full, not allowed, no longer exists, too many attempts, no connection.
+
+**Status: Built.**
+Gap: no cap on participants is set by Flick (limits come from the LiveKit server). No raise-hand, no recording, no per-person volume, and reactions are not stored. "A call is running" comes from presence beats, so a crashed tab can keep the banner up for up to 75 seconds.
 
 ## Call links
 
-An admin of a group creates a link: `POST /calls/links` with `{ conversation_id, media,
-expires_in_s?, max_uses? }`. The response has the `code`, shown once.
+An admin of a group creates a link to the group's call: `POST /calls/links` with `{conversation_id, media, expires_in_s?, max_uses?}`. The code is shown once.
 
-- Only a SHA-256 hash of the code is stored (like invite links), so a database leak gives no working
-  links. The code is 24 random bytes. Codes never go into logs.
-- `GET /calls/links/:code` shows what the link is for, without using it.
-- `POST /calls/livekit-token` with `{ call_link: code }` gives a signed-in user a token for the
-  room. They do **not** become a conversation member: they cannot read the chat. Each token counts
-  as one use, so a person who rejoins uses one more. The use count is bumped by one `UPDATE` with
-  the expiry, revoke and max-uses checks in its `WHERE`, so two people cannot take the last use.
+- The code is 24 random bytes; only a SHA-256 hash is stored, so a database leak gives no working links, and codes are never logged.
+- `GET /calls/links/:code` shows what the link is for without using it.
+- `POST /calls/livekit-token` with `{call_link}` gives a signed-in user a token. They do not become a group member and cannot read the chat. Each token counts as one use (a person who rejoins uses one more). The use count is increased in one `UPDATE` that also checks expiry, revoke and max uses, so two people cannot take the last use.
 - `DELETE /calls/links/:code` revokes it; only the creator can.
-- Lookups and redemptions are rate limited per IP.
+- The web page `/call/:token` resolves the link and shows Join; signed-out visitors sign in first and return to the same address. Admins create, copy and revoke links in group info.
+- Lookups and redemptions are rate limited (20 per minute) per IP.
 
-## Web client
+**Status: Built.**
 
-Code: `apps/web/src/features/{calls,groupcall,calllog}`.
+## Live captions
 
-### 1:1 calls (`calls/`)
+**What it does.** Shows what the other side is saying as subtitles.
 
-- `useCallStore` is the state machine. Signalling uses the `call_*` events from the contracts
-  (`call_offer`, `call_answer`, `call_ice`, `call_end`, `call_reject`, `call_busy`,
-  `call_renegotiate`, `call_unavailable`).
-- Before each call it asks `GET /calls/turn` for short-lived ICE servers. If that fails, it uses the
-  STUN list from config, so a call still starts (it may fail behind strict NATs).
-- States: `calling` (ringing out) / `ringing` (incoming) / `connected` with a connection state of
-  `connecting` / `connected` / `reconnecting`. A dropped path gets an ICE restart and 15 s to recover.
-  A call that cannot start or is lost sets `failure`, which the overlay shows for a few seconds.
-- Screen share (video calls, desktop browsers): `getDisplayMedia`, then `replaceTrack` on the video
-  sender, so there is no new connection. If the call had no camera, the line is switched to
-  send+receive and renegotiated (`call_renegotiate`). The browser's own "Stop sharing" ends the track;
-  `track.onended` restores the camera.
+**How to use it.** The captions button (Captions icon) in the call. Your own microphone is turned into text by the browser's speech recognition (the Web Speech API: Chrome, Edge and Safari, not Firefox); each finished phrase is sent over the call's data channel (an RTCDataChannel in 1:1 calls, LiveKit data in group calls). The other side shows it for about 6 seconds. Nothing goes through Flick's servers. The recognition language is the page language or the browser language.
 
-### Group calls (`groupcall/`)
+**Status: Partial.**
+Gap: it needs a browser with speech recognition; phrases appear when you finish a sentence, not word by word; browsers usually run speech recognition on their vendor's servers, which is outside Flick's control. The code can translate captions into another language with the AI service, but no screen lets you pick that language yet.
 
-- `useGroupCallStore.join({ conversation_id } | { call_link })` calls `POST /calls/livekit-token`,
-  then loads `livekit-client` with `import()` (its own chunk, about 570 kB, only fetched on join).
-- The store keeps plain tile snapshots (name, speaking, mic, video track); the `Room` stays private.
-- Errors become friendly text: 501/503 `FEATURE_DISABLED` ("not set up on this server"), full,
-  not allowed, gone.
-- "Join call" banner: the server writes a `call_event` with `outcome: 'started'` and `group: true`.
-  The banner shows for one hour after the newest one (the server cannot tell when a call ends).
-- Call links: admins create/copy/revoke them in the group info panel. `/call/:token` resolves the
-  link (`GET /calls/links/:code`) and shows Join. Signed-out visitors see the Clerk sign-in first and
-  come back to the same URL.
+AI: the optional caption translation would use the translation service. See [../ai/translation-and-transcription.md](../ai/translation-and-transcription.md).
 
-### Call log (`calllog/`)
+## Call log and call back
 
-`/calls` (Calls in the navbar) lists `GET /calls` with load more. 1:1 rows have a call-back button.
+**What it does.** The Calls page (Calls in the navigation) lists your calls, newest first, with a "load more" control (`GET /calls`, keyset paging). You only see calls from conversations you are an active member of.
 
-### Config
+**How to use it.**
 
-LiveKit and TURN are configured on the API. The browser can also take `VITE_STUN_URLS` and `VITE_TURN_*` (see [`../operations/deployment.md`](../operations/deployment.md)).
+- Each row shows the name, "Missed video call" / "Voice call", the time, and the duration for completed calls. Missed calls are in red. A group call shows a group icon.
+- 1:1 rows have a call-back button (phone or video, matching the call).
+- A missed call you made (outgoing) also shows a microphone button to leave a voicemail: a voice note that arrives flagged "Voicemail" in the chat.
+- A red number on the Calls link counts missed incoming calls since you last opened the Calls page (the time is remembered on the device).
+- The same call also appears as a line in the chat.
+- The Calls page also shows the "Allow notifications so you receive calls when Flick is closed" card (see [calls-offline.md](calls-offline.md)).
+
+**Status: Built.**
+Gap: no delete or clear of the log, no search or filter, and the missed-call badge counts per device (the "seen" time is in localStorage, not synced). Voicemail is only for missed calls you placed, not a mailbox you can open without a call.
+
+## Config
+
+LiveKit and TURN are configured on the API (`LIVEKIT_*`, `TURN_*`). The browser can also take `VITE_STUN_URLS` and `VITE_TURN_*`. See [../operations/deployment.md](../operations/deployment.md).
 
 ## Interview points
 
-- WebRTC is peer to peer, but it still needs signaling (to swap SDP and ICE) and TURN (for networks
-  that block direct paths). STUN only tells a device its public address.
-- TURN REST credentials: a shared secret and an expiry in the username give stateless, expiring
-  access.
-- Mesh grows as N squared in streams; an SFU grows linearly.
-- Token authorization: the server decides who may join, and the token limits what they can do.
-- The call log and the chat message commit together, and are idempotent on `callId`.
-- Known limit: "a call is running" is guessed from the last "started" message (1 hour). Asking
-  LiveKit (or using its webhooks) would be exact; we avoided the extra moving part.
+- WebRTC is peer to peer, but still needs signalling (to swap descriptions and ICE) and TURN (for networks that block direct paths). STUN only tells a device its public address.
+- TURN REST credentials: a shared secret and an expiry in the username give stateless, expiring access.
+- A mesh grows as N squared in streams; an SFU grows linearly.
+- Token authorisation: the server decides who may join, and the token limits what they can do.
+- The call log and the chat line commit together and are idempotent on `callId`.
+- LiveKit has no "call ended" signal for us, so the app counts heartbeats instead of guessing from the last "started" message.

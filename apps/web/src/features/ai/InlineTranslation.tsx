@@ -11,10 +11,12 @@ import { translationCache } from './translationCache';
  */
 export const InlineTranslation = ({
   messageId,
+  conversationId,
   text,
   onHide,
 }: {
   messageId: string;
+  conversationId?: string;
   text: string;
   onHide: () => void;
 }) => {
@@ -26,7 +28,7 @@ export const InlineTranslation = ({
   useEffect(() => {
     if (translationCache.has(messageId)) return;
     const controller = new AbortController();
-    translateText(text, UI_LANGUAGE, controller.signal)
+    translateText(text, UI_LANGUAGE, controller.signal, conversationId)
       .then((answer) => {
         translationCache.set(messageId, answer.text);
         setTranslated(answer.text);
@@ -37,7 +39,7 @@ export const InlineTranslation = ({
     return () => {
       controller.abort();
     };
-  }, [messageId, text]);
+  }, [messageId, conversationId, text]);
 
   return (
     <div className="mt-1 border-t border-base-content/10 pt-1 text-sm">

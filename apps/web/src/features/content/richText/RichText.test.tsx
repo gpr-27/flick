@@ -241,3 +241,35 @@ describe('parser', () => {
     expect(parseBlocks('intro\n- a\n- b').map((b) => b.kind)).toEqual(['para', 'list']);
   });
 });
+
+describe('model answers (Explain with Flick)', () => {
+  const TEXT =
+    '**Description:** A close-up of a person.\n\n**Visible text:** None.\n\n**Notable details:**\n- **Background, left:** A sheer curtain, softly lit.\n- **Glasses:** Round frames.';
+
+  it('parses bold lines and bold-led bullets with single newlines as a list', () => {
+    const blocks = parseBlocks(TEXT);
+    expect(blocks.map((b) => b.kind)).toEqual(['para', 'para', 'para', 'list']);
+    const list = blocks[3];
+    expect(list?.kind === 'list' && list.items).toHaveLength(2);
+  });
+
+  it('draws strong labels and list items without any asterisks', () => {
+    const c = view(TEXT);
+    expect(c.textContent).not.toContain('**');
+    expect(c.querySelectorAll('li')).toHaveLength(2);
+    expect(c.querySelector('li strong')?.textContent).toBe('Background, left:');
+    expect(c.querySelectorAll('strong')).toHaveLength(5);
+  });
+
+  it('handles star bullets and 1) numbering without blank lines', () => {
+    const c = view('Steps:\n1) one\n2) two\n\nTips:\n* **a** x\n* b');
+    expect(c.querySelectorAll('ol li')).toHaveLength(2);
+    expect(c.querySelectorAll('ul li')).toHaveLength(2);
+  });
+
+  it('keeps Telugu and Hindi text auto-directed', () => {
+    const c = view('**నమస్కారం**\n- नमस्ते **दोस्त**');
+    expect(c.querySelector('li')?.getAttribute('dir')).toBe('auto');
+    expect(c.querySelector('strong')?.textContent).toBe('నమస్కారం');
+  });
+});

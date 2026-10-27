@@ -1,3 +1,5 @@
+import { Markdown } from '@/features/content/richText/Markdown';
+import { stripMarkdown } from '@/features/content/richText/stripMarkdown';
 import { useState } from 'react';
 import { Modal, Spinner } from '@/components/ui';
 import { getErrorMessage } from '@/lib/api';
@@ -138,7 +140,7 @@ export const StudyDialog = ({
                     setFlipped((f) => !f);
                   }}
                 >
-                  {flipped ? current.back : current.front}
+                  <Markdown text={flipped ? current.back : current.front} />
                 </button>
                 <div className="flex items-center justify-between">
                   <button
@@ -172,7 +174,7 @@ export const StudyDialog = ({
             {tab === 'quiz' &&
               deck.quiz.map((q, qi) => (
                 <fieldset key={qi} className="flex flex-col gap-1.5">
-                  <legend className="mb-1 font-semibold">{q.question}</legend>
+                  <legend className="mb-1 font-semibold">{stripMarkdown(q.question)}</legend>
                   {q.options.map((o, oi) => {
                     const chosen = picked[qi];
                     const state =
@@ -193,7 +195,7 @@ export const StudyDialog = ({
                           setPicked((p) => ({ ...p, [qi]: oi }));
                         }}
                       >
-                        {o}
+                        {stripMarkdown(o)}
                       </button>
                     );
                   })}

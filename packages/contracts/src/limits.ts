@@ -27,6 +27,12 @@ export const LIMITS = {
   INLINE_FANOUT_MAX_MEMBERS: 256,
   FANOUT_BATCH_SIZE: 500,
   MAX_UPLOAD_BYTES: 1 * GiB,
+  /** Most photos and videos one album (a multi-select send) may hold. */
+  MAX_ALBUM_ITEMS: 20,
+  /** Most bytes one album send may add up to (each file is still limited by MAX_UPLOAD_BYTES). */
+  MAX_ALBUM_BYTES: 2 * GiB,
+  /** Uploads of one album that run at the same time; the rest wait their turn. */
+  MAX_ALBUM_CONCURRENT_UPLOADS: 3,
   MAX_AVATAR_BYTES: 5 * MiB,
   /** Max characters in the profile "about" line. */
   MAX_ABOUT_LENGTH: 139,

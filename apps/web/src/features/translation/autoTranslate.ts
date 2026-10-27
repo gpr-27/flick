@@ -66,7 +66,10 @@ export const setAutoTranslateTarget = async (
 
 // ---- batching ----
 const done = new Map<string, string | null>(); //   `${language}:${message id}` -> translation
-const waiting = new Map<string, { id: string; text: string; language: string }>();
+const waiting = new Map<
+  string,
+  { id: string; text: string; language: string; conversationId: string }
+>();
 const callbacks = new Map<string, Array<(text: string | null) => void>>();
 let timer: ReturnType<typeof setTimeout> | undefined;
 const BATCH = 20;
@@ -75,13 +78,18 @@ const flush = async (): Promise<void> => {
   timer = undefined;
   const all = [...waiting.entries()];
   waiting.clear();
-  const byLanguage = new Map<string, typeof all>();
+  // One call per chat and language: each chat's own "AI off" switch applies to its texts.
+  const groups = new Map<string, typeof all>();
   for (const entry of all) {
-    const list = byLanguage.get(entry[1].language) ?? [];
+    const groupKey = `${entry[1].conversationId}\n${entry[1].language}`;
+    const list = groups.get(groupKey) ?? [];
     list.push(entry);
-    byLanguage.set(entry[1].language, list);
+    groups.set(groupKey, list);
   }
-  for (const [language, entries] of byLanguage) {
+  for (const entries of groups.values()) {
+    const first = entries[0];
+    if (!first) continue;
+    const { language, conversationId } = first[1];
     for (let i = 0; i < entries.length; i += BATCH) {
       const chunk = entries.slice(i, i + BATCH);
       let result = new Map<string, string | null>();
@@ -89,6 +97,8 @@ const flush = async (): Promise<void> => {
         result = await translateBatch(
           chunk.map(([, v]) => ({ id: v.id, text: v.text })),
           language,
+          true,
+          conversationId,
         );
       } catch {
         /* every one in this chunk falls back to "no translation" */
@@ -103,12 +113,17 @@ const flush = async (): Promise<void> => {
   }
 };
 
-const request = (id: string, text: string, language: string): Promise<string | null> => {
+const request = (
+  conversationId: string,
+  id: string,
+  text: string,
+  language: string,
+): Promise<string | null> => {
   const key = `${language}:${id}`;
   if (done.has(key)) return Promise.resolve(done.get(key) ?? null);
   return new Promise((resolve) => {
     callbacks.set(key, [...(callbacks.get(key) ?? []), resolve]);
-    waiting.set(key, { id, text, language });
+    waiting.set(key, { id, text, language, conversationId });
     timer ??= setTimeout(() => void flush(), 150);
   });
 };
@@ -133,13 +148,13 @@ export const useAutoTranslation = (
   useEffect(() => {
     if (skip || !language) return;
     let live = true;
-    void request(messageId, text, language).then((t) => {
+    void request(conversationId, messageId, text, language).then((t) => {
       if (live) setState({ key, text: t });
     });
     return () => {
       live = false;
     };
-  }, [skip, language, messageId, text, key]);
+  }, [skip, language, conversationId, messageId, text, key]);
 
   if (skip) return { translated: null, pending: false };
   if (state?.key !== key) return { translated: null, pending: true };

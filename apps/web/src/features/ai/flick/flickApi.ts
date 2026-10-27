@@ -21,6 +21,8 @@ export const listTopics = () =>
     .then((r) => r.topics);
 export const startTopic = (title?: string) =>
   getApi().call(ENDPOINTS.flick.newTopic, { body: title ? { title } : {} });
+export const resumeTopic = (id: string) =>
+  getApi().call(ENDPOINTS.flick.resumeTopic, { params: { id } });
 export const renameTopic = (id: string, title: string) =>
   getApi().call(ENDPOINTS.flick.renameTopic, { params: { id }, body: { title } });
 

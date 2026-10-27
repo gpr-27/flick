@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { HeartHandshake } from 'lucide-react';
+import { Markdown } from '@/features/content/richText/Markdown';
 import { checkTone, readToneSetting, type ToneResult } from './toneCheck';
 import { useAiEnabled } from './useAiEnabled';
 
@@ -41,12 +42,15 @@ export const ToneHint = ({ text, onUse }: { text: string; onUse: (softer: string
       className="mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-warning/10 px-3 py-2 text-xs"
     >
       <HeartHandshake className="size-4 shrink-0 text-warning" aria-hidden="true" />
-      <span className="min-w-0 flex-1">
-        {result.note}
+      <div className="min-w-0 flex-1">
+        {result.note && <Markdown text={result.note} />}
         {result.softer && (
-          <span className="mt-0.5 block italic text-[var(--text-2)]">Calmer: {result.softer}</span>
+          <Markdown
+            text={`Calmer: ${result.softer}`}
+            className="mt-0.5 italic text-[var(--text-2)]"
+          />
         )}
-      </span>
+      </div>
       <button
         type="button"
         className="font-semibold underline"

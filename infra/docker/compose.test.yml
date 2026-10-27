@@ -63,14 +63,14 @@ services:
 
   minio-init:
     image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
-    entrypoint: ['/bin/sh', '/init/init-bucket.sh']
+    # The script is piped in on stdin by scripts/dev/test-deps-up.sh, so no bind mount
+    # is needed (Docker Desktop may not be allowed to read ~/Documents on macOS).
+    entrypoint: ['/bin/sh', '-s']
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin-test
       S3_BUCKET: chat-media-test
       S3_ACCESS_KEY_ID: chat-test
       S3_SECRET_ACCESS_KEY: chat-test-secret
-    volumes:
-      - ../minio/init-bucket.sh:/init/init-bucket.sh:ro
     depends_on:
       minio: { condition: service_healthy }

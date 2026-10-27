@@ -1,7 +1,7 @@
 # ADR-0010: Clerk for login (no custom auth)
 
 - **Status:** Accepted (2026-10-24). Replaces the earlier plan for custom auth with rotating refresh tokens.
-- **Related:** ADR-0001
+- **Related:** ADR-0001, [ADR-0020](0020-clerk-own-sign-in-paths-and-flick-only-profile.md) (sign-in stays inside Flick; the profile is Flick's)
 
 ## Context
 

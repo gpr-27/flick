@@ -1,5 +1,13 @@
 # Flick database performance
 
+This page records how the database performs: sending, reading, cursors, the outbox and search, measured on real
+PostgreSQL 17 with 1 million messages, with query plans, the per-conversation lock limit and one kept optimisation (the
+search index in migration 0010). The numbers are from 2026-10-24; a short section near the end lists the indexes and
+queries added by later migrations (0011 to 0034), which were **not** benchmarked.
+
+Related: [`../architecture/database-schema.md`](../architecture/database-schema.md), [`../testing.md`](../testing.md),
+[`../architecture/delivery-guarantees.md`](../architecture/delivery-guarantees.md), [`../status.md`](../status.md).
+
 Real PostgreSQL 17 with 1 million messages, measured on a laptop. Every number below comes from a run
 made on **2026-10-24** (UTC) on the machine described under "Environment". Nothing is estimated unless the
 text says "estimate". Raw results are in [`scripts/bench/db/results/`](../../scripts/bench/db/results/) and the query plans in
@@ -286,6 +294,24 @@ Everything between is: insert the message, check membership, insert the outbox r
   keeping the API next to the database, then splitting a conversation's seq space. None was tried here, since the evidence
   says the ceiling is far above need. `synchronous_commit = off` would also help distinct conversations but can lose the last
   few commits in a crash, which breaks the "acked means stored" rule, so it is not recommended.
+
+## Indexes and queries added after this benchmark
+
+The measurements above cover migrations 0001 to 0010. Later migrations added small per-person tables whose queries read
+one person's rows by a leading `user_id` key, so they are not expected to matter at this scale, but they were not
+measured. The ones worth knowing:
+
+| Migration | Index or query                                               | Used for                                          | Expected cost                                         |
+| --------- | ------------------------------------------------------------ | ------------------------------------------------- | ----------------------------------------------------- |
+| 0012      | `scheduled_messages_due_idx` partial on `status = 'pending'` | Worker finds due scheduled messages each minute   | Only pending rows are indexed                         |
+| 0016      | `reminders_due_idx` partial on pending                       | Worker finds due reminders each minute            | Same                                                  |
+| 0017      | `notifications_user_idx (user_id, created_at DESC, id DESC)` | Notification centre keyset paging                 | One entry per alert; purged after 30 days             |
+| 0015      | `cleared_seq` filter on `conversation_members` joins         | Hides cleared history in reads and sync           | A column compare on a row already being read          |
+| 0029      | `message_transcripts_search_idx` (GIN)                       | Search also finds words in voice-note transcripts | One entry per transcript; search joins it to messages |
+| 0025      | `bookmarks_user_idx`                                         | A person's bookmarks                              | Small                                                 |
+
+Known issue: the chat-list `EXPLAIN` assertion in `packages/database/test/pagination.test.ts` fails on the current test
+data (see [`../status.md`](../status.md)). The plan files in `query-plans/` are history and were not regenerated.
 
 ## Limitations
 

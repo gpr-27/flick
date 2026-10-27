@@ -1,3 +1,4 @@
+import { Markdown } from '@/features/content/richText/Markdown';
 import { useState } from 'react';
 import { CalendarClock, CheckSquare, Gamepad2, Map, Receipt, X } from 'lucide-react';
 import { ENDPOINTS, type ConversationSummary, type MessageContent } from '@chat/contracts';
@@ -202,9 +203,10 @@ const Itinerary = ({ conversationId }: { conversationId: string }) => {
         </Button>
       ) : (
         <>
-          <pre className="scroll-slim mb-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl bg-base-content/5 p-3 text-sm">
-            {text}
-          </pre>
+          <Markdown
+            text={text}
+            className="scroll-slim mb-2 max-h-64 overflow-y-auto rounded-xl bg-base-content/5 p-3 text-sm"
+          />
           <Button
             variant="gradient"
             onClick={() => {

@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { LIMITS, type AiComposeRequest, type MessageContent } from '@chat/contracts';
 import { cn } from '@/components/ui';
+import { Markdown } from '@/features/content/richText/Markdown';
+import { hasMarkdown } from '@/features/content/richText/stripMarkdown';
 import { composeText } from './aiApi';
 import {
   NO_VERSIONS,
@@ -40,6 +42,7 @@ import { useAiEnabled } from './useAiEnabled';
 import { useAiTask } from './useAiTask';
 import { WritingSettings } from './writing/WritingSettings';
 import { WritingTools } from './writing/WritingTools';
+import { useBackClose } from '@/lib/useBackClose';
 
 type RefineRequest = Extract<AiComposeRequest, { mode: 'refine' }>;
 
@@ -101,6 +104,7 @@ export const DescribeMessageBar = ({
   onClose: () => void;
 }) => {
   const enabled = useAiEnabled();
+  useBackClose(true, onClose);
   const task = useAiTask();
   const inputRef = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState(initialPrompt ?? '');
@@ -583,8 +587,8 @@ export const DescribeMessageBar = ({
       )}
       {typeof toneResult === 'object' && toneResult && !toneResult.ok && (
         <div role="status" className="rounded-xl bg-warning/10 p-2 text-xs">
-          <p>{toneResult.note}</p>
-          <p className="mt-1 italic">{toneResult.softer}</p>
+          {toneResult.note && <Markdown text={toneResult.note} />}
+          {toneResult.softer && <Markdown text={toneResult.softer} className="mt-1 italic" />}
           <button
             type="button"
             className="btn btn-xs btn-primary mt-2"
@@ -623,6 +627,15 @@ export const DescribeMessageBar = ({
         <p role="status" className="px-1 text-xs">
           AI is not set up on this server.
         </p>
+      )}
+
+      {hasSession && current !== null && hasMarkdown(current) && (
+        <div
+          aria-label="Draft preview"
+          className="max-h-40 overflow-y-auto rounded-xl bg-sunken px-3 py-2 text-sm"
+        >
+          <Markdown text={current} />
+        </div>
       )}
 
       {hasSession && (

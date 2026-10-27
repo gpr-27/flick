@@ -47,6 +47,8 @@ export interface LineLimits {
   totalChars: number;
   /** Only messages with a higher seq (the unread ones). */
   afterSeq?: number;
+  /** Only messages with a lower seq (the end of a range). */
+  beforeSeq?: number;
   /** Leave out the user's own messages. */
   skipOwn?: boolean;
 }
@@ -81,6 +83,7 @@ export async function loadLines(
     .orderBy('messages.seq', 'desc')
     .limit(limits.messages);
   if (limits.afterSeq !== undefined) q = q.where('messages.seq', '>', limits.afterSeq);
+  if (limits.beforeSeq !== undefined) q = q.where('messages.seq', '<', limits.beforeSeq);
   if (limits.skipOwn) q = q.where(sql<boolean>`messages.sender_id IS DISTINCT FROM ${userId}`);
 
   const lines: ChatLine[] = [];
